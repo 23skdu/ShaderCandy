@@ -929,12 +929,21 @@
 }
 
 - (NSWindow *)configureSheet {
+  if (self.configPanel) {
+    return self.configPanel;
+  }
+
   NSPanel *window = [[NSPanel alloc]
       initWithContentRect:NSMakeRect(0, 0, 320, 480)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
                   backing:NSBackingStoreBuffered
                     defer:NO];
   [window setTitle:@"ShaderCandy Configuration"];
+
+  // Set window properties for sandboxed sheets
+  [window setLevel:NSFloatingWindowLevel];
+  [window setHidesOnDeactivate:YES];
+  self.configPanel = window;
 
   NSView *contentView =
       [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 480)];
@@ -1204,11 +1213,21 @@
 }
 
 - (void)startAnimation {
-  NSLog(@"ShaderCandy: startAnimation");
+  NSLog(@"ShaderCandy: startAnimation with bounds: %@",
+        NSStringFromRect(self.bounds));
   [super startAnimation];
 
-  // Final check for initialization if frame was zero during init
-  if (!self.isInitialized && NSWidth(self.bounds) > 0) {
+  // macOS 15 / Tahoe Fix: Force initialization if frame is zero
+  // Sometimes the system keeps zero bounds until startAnimation
+  if (NSWidth(self.bounds) < 1.0) {
+    NSLog(
+        @"ShaderCandy: Bounds are zero in startAnimation, attempting to force "
+        @"screen bounds...");
+    NSScreen *screen = self.window.screen ?: [NSScreen mainScreen];
+    [self setFrame:screen.frame];
+  }
+
+  if (!self.isInitialized) {
     [self initialize];
   }
 }

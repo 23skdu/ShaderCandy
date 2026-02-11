@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong) id<MTLBuffer> indexBuffer;
 @property(nonatomic, strong) id<MTLBuffer> uniformBuffer;
 @property(nonatomic, strong) MTKView *mtkView;
+@property(nonatomic, strong, nullable) NSWindow *configPanel;
 
 // Shader management
 @property(nonatomic, strong) id<MTLLibrary> shaderLibrary;
