@@ -269,12 +269,16 @@
     NSArray *contents = [fm contentsOfDirectoryAtPath:shadersPath error:nil];
 
     for (NSString *file in contents) {
-      if ([file hasSuffix:@".metal"] || [file hasSuffix:@".frag"]) {
+      // Only use .metal files on macOS (Metal backend)
+      // .frag files are GLSL and won't compile with Metal
+      if ([file hasSuffix:@".metal"]) {
         NSString *name = [file stringByDeletingPathExtension];
         // Skip utility shaders
         if ([name isEqualToString:@"common"] ||
             [name isEqualToString:@"utils"] ||
-            [name isEqualToString:@"ShaderInterop"]) {
+            [name isEqualToString:@"ShaderInterop"] ||
+            [name isEqualToString:@"bloom"] ||
+            [name isEqualToString:@"particles"]) {
           continue;
         }
         [shaders addObject:name];
@@ -291,6 +295,8 @@
 
   self.availableShaders = [shaders copy];
   self.currentShaderName = shaders.firstObject ?: @"default";
+  NSLog(@"ShaderCandy: Discovered %lu shaders, selected: %@",
+        (unsigned long)shaders.count, self.currentShaderName);
 }
 
 - (void)loadShaders {
@@ -329,7 +335,7 @@
 - (NSString *)pathForShader:(NSString *)name {
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
 
-  // Try .metal first
+  // Only look for .metal files (GLSL .frag files won't work with Metal)
   NSString *path = [bundle pathForResource:name
                                     ofType:@"metal"
                                inDirectory:@"shaders"];
@@ -338,14 +344,7 @@
     return path;
   }
 
-  // Try .frag
-  path = [bundle pathForResource:name ofType:@"frag" inDirectory:@"shaders"];
-  if (path) {
-    NSLog(@"ShaderCandy: Found shader at path: %@", path);
-    return path;
-  }
-
-  NSLog(@"ShaderCandy: Could not find shader '%@' in bundle", name);
+  NSLog(@"ShaderCandy: Could not find Metal shader '%@' in bundle", name);
   return nil;
 }
 
@@ -459,6 +458,11 @@
                                                    error:&error];
   if (error) {
     NSLog(@"Failed to compile shader: %@", error);
+    NSLog(@"Shader compilation error details: %@", error.localizedDescription);
+    NSLog(@"Shader source length: %lu bytes", (unsigned long)fullSource.length);
+    if (error.userInfo) {
+      NSLog(@"Error userInfo: %@", error.userInfo);
+    }
   }
 }
 
