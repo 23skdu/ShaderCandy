@@ -96,6 +96,10 @@ ShaderCandy.saver/Contents/Resources/shaders/vertex.glsl: /Users/rsd/REPOS/Shade
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/vertex.glsl"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/base/vertex.glsl ShaderCandy.saver/Contents/Resources/shaders/vertex.glsl
 
+ShaderCandy.saver/Contents/Resources/shaders/checkerboard.metal: /Users/rsd/REPOS/ShaderCandy/shaders/checkerboard.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/checkerboard.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/checkerboard.metal ShaderCandy.saver/Contents/Resources/shaders/checkerboard.metal
+
 ShaderCandy.saver/Contents/Resources/shaders/audio_spectrum.frag: /Users/rsd/REPOS/ShaderCandy/shaders/effects/audio_spectrum.frag
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/audio_spectrum.frag"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/audio_spectrum.frag ShaderCandy.saver/Contents/Resources/shaders/audio_spectrum.frag
@@ -103,10 +107,6 @@ ShaderCandy.saver/Contents/Resources/shaders/audio_spectrum.frag: /Users/rsd/REP
 ShaderCandy.saver/Contents/Resources/shaders/bloom.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/bloom.metal
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/bloom.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/bloom.metal ShaderCandy.saver/Contents/Resources/shaders/bloom.metal
-
-ShaderCandy.saver/Contents/Resources/shaders/clouds.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/clouds.metal
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/clouds.metal"
-	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/clouds.metal ShaderCandy.saver/Contents/Resources/shaders/clouds.metal
 
 ShaderCandy.saver/Contents/Resources/shaders/dna_helix.frag: /Users/rsd/REPOS/ShaderCandy/shaders/effects/dna_helix.frag
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/dna_helix.frag"
@@ -140,10 +140,6 @@ ShaderCandy.saver/Contents/Resources/shaders/neon_pulse.metal: /Users/rsd/REPOS/
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/neon_pulse.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/neon_pulse.metal ShaderCandy.saver/Contents/Resources/shaders/neon_pulse.metal
 
-ShaderCandy.saver/Contents/Resources/shaders/particles.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/particles.metal
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/particles.metal"
-	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/particles.metal ShaderCandy.saver/Contents/Resources/shaders/particles.metal
-
 ShaderCandy.saver/Contents/Resources/shaders/quantum_field.frag: /Users/rsd/REPOS/ShaderCandy/shaders/effects/quantum_field.frag
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/quantum_field.frag"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/quantum_field.frag ShaderCandy.saver/Contents/Resources/shaders/quantum_field.frag
@@ -167,6 +163,26 @@ ShaderCandy.saver/Contents/Resources/shaders/starfield_warp.metal: /Users/rsd/RE
 ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/voronoi_cells.metal
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/voronoi_cells.metal ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal
+
+ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal: /Users/rsd/REPOS/ShaderCandy/shaders/gradient_waves.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/gradient_waves.metal ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal
+
+ShaderCandy.saver/Contents/Resources/shaders/plasma.metal: /Users/rsd/REPOS/ShaderCandy/shaders/plasma.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/plasma.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/plasma.metal ShaderCandy.saver/Contents/Resources/shaders/plasma.metal
+
+ShaderCandy.saver/Contents/Resources/shaders/ripples.metal: /Users/rsd/REPOS/ShaderCandy/shaders/ripples.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/ripples.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/ripples.metal ShaderCandy.saver/Contents/Resources/shaders/ripples.metal
+
+ShaderCandy.saver/Contents/Resources/shaders/spiral.metal: /Users/rsd/REPOS/ShaderCandy/shaders/spiral.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/spiral.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/spiral.metal ShaderCandy.saver/Contents/Resources/shaders/spiral.metal
+
+ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal: /Users/rsd/REPOS/ShaderCandy/shaders/tunnel.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/tunnel.metal ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal
 
 CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o: CMakeFiles/ShaderCandy.dir/flags.make
 CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o: /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm
@@ -201,24 +217,28 @@ CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/MacOS/ShaderCandy
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/ShaderInterop.h
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/audio_spectrum.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/bloom.metal
-CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/clouds.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/checkerboard.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/common.glsl
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/common.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/default.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/dna_helix.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/fluid_dynamics.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/liquid_gradient.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/mandelbulb.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/nebula.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/neon_pulse.metal
-CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/particles.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/plasma.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/quantum_field.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/raymarch_sculpture.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/reaction_diffusion.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/reaction_diffusion.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/ripples.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/spiral.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/starfield_warp.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/utils.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/vertex.glsl
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal
