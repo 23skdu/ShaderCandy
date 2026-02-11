@@ -187,8 +187,8 @@ CMakeFiles/ShaderCandy.dir/clean:
 # Target rules for target CMakeFiles/shadercandy-test.dir
 
 # All Build rule for target.
-CMakeFiles/shadercandy-test.dir/all: CMakeFiles/shadercandy_metal.dir/all
 CMakeFiles/shadercandy-test.dir/all: CMakeFiles/shadercandy_core.dir/all
+CMakeFiles/shadercandy-test.dir/all: CMakeFiles/shadercandy_metal.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=3,4,5 "Built target shadercandy-test"
