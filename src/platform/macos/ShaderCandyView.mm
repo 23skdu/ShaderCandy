@@ -508,6 +508,20 @@
 
     if (error.userInfo) {
       NSLog(@"Error userInfo: %@", error.userInfo);
+
+      // Try to extract the actual compiler error message
+      NSString *compilerError =
+          error.userInfo[@"MTLLibraryErrorCompilerErrorsKey"];
+      if (compilerError) {
+        NSLog(@"METAL COMPILER ERROR: %@", compilerError);
+      }
+
+      // Also check for NSLocalizedFailureReason
+      NSString *failureReason =
+          error.userInfo[NSLocalizedFailureReasonErrorKey];
+      if (failureReason) {
+        NSLog(@"Failure reason: %@", failureReason);
+      }
     }
 
     // Try compiling a minimal fallback shader
