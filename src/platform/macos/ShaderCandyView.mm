@@ -286,11 +286,15 @@
     }
   }
 
-  // Add default shaders
+  // Ensure 'default' shader is first (simplest, most likely to work)
+  if ([shaders containsObject:@"default"]) {
+    [shaders removeObject:@"default"];
+    [shaders insertObject:@"default" atIndex:0];
+  }
+
+  // Add fallback shaders if none found
   if (shaders.count == 0) {
-    [shaders addObjectsFromArray:@[
-      @"nebula", @"raymarch", @"mandelbulb", @"default"
-    ]];
+    [shaders addObject:@"default"];
   }
 
   self.availableShaders = [shaders copy];
