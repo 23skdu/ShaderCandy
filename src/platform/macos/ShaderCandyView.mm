@@ -328,7 +328,25 @@
 
 - (NSString *)pathForShader:(NSString *)name {
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  return [bundle pathForResource:name ofType:@"metal" inDirectory:@"shaders"];
+
+  // Try .metal first
+  NSString *path = [bundle pathForResource:name
+                                    ofType:@"metal"
+                               inDirectory:@"shaders"];
+  if (path) {
+    NSLog(@"ShaderCandy: Found shader at path: %@", path);
+    return path;
+  }
+
+  // Try .frag
+  path = [bundle pathForResource:name ofType:@"frag" inDirectory:@"shaders"];
+  if (path) {
+    NSLog(@"ShaderCandy: Found shader at path: %@", path);
+    return path;
+  }
+
+  NSLog(@"ShaderCandy: Could not find shader '%@' in bundle", name);
+  return nil;
 }
 
 - (NSDate *)modificationDateForPath:(NSString *)path {
