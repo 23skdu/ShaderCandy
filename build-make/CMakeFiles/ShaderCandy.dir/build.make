@@ -164,6 +164,10 @@ ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal: /Users/rsd/REP
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/voronoi_cells.metal ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal
 
+ShaderCandy.saver/Contents/Resources/shaders/flying_toasters.metal: /Users/rsd/REPOS/ShaderCandy/shaders/flying_toasters.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/flying_toasters.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/flying_toasters.metal ShaderCandy.saver/Contents/Resources/shaders/flying_toasters.metal
+
 ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal: /Users/rsd/REPOS/ShaderCandy/shaders/gradient_waves.metal
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/gradient_waves.metal ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal
@@ -183,6 +187,10 @@ ShaderCandy.saver/Contents/Resources/shaders/spiral.metal: /Users/rsd/REPOS/Shad
 ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal: /Users/rsd/REPOS/ShaderCandy/shaders/tunnel.metal
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/tunnel.metal ShaderCandy.saver/Contents/Resources/shaders/tunnel.metal
+
+ShaderCandy.saver/Contents/Resources/textures/toaster.png: /Users/rsd/REPOS/ShaderCandy/textures/toaster.png
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/textures/toaster.png"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/textures/toaster.png ShaderCandy.saver/Contents/Resources/textures/toaster.png
 
 CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o: CMakeFiles/ShaderCandy.dir/flags.make
 CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o: /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm
@@ -223,6 +231,7 @@ CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/c
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/default.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/dna_helix.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/fluid_dynamics.frag
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/flying_toasters.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal
@@ -242,6 +251,7 @@ CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/t
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/utils.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/vertex.glsl
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/textures/toaster.png
 .PHONY : CMakeFiles/ShaderCandy.dir/build
 
 CMakeFiles/ShaderCandy.dir/clean:

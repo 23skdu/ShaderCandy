@@ -12,6 +12,7 @@ file(REMOVE_RECURSE
   "ShaderCandy.saver/Contents/Resources/shaders/default.metal"
   "ShaderCandy.saver/Contents/Resources/shaders/dna_helix.frag"
   "ShaderCandy.saver/Contents/Resources/shaders/fluid_dynamics.frag"
+  "ShaderCandy.saver/Contents/Resources/shaders/flying_toasters.metal"
   "ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal"
   "ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal"
   "ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal"
@@ -31,6 +32,7 @@ file(REMOVE_RECURSE
   "ShaderCandy.saver/Contents/Resources/shaders/utils.metal"
   "ShaderCandy.saver/Contents/Resources/shaders/vertex.glsl"
   "ShaderCandy.saver/Contents/Resources/shaders/voronoi_cells.metal"
+  "ShaderCandy.saver/Contents/Resources/textures/toaster.png"
 )
 
 # Per-language clean rules from dependency scanning.

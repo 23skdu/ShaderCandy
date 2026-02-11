@@ -185,6 +185,42 @@
   samplerDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
   samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
   self.samplerState = [self.device newSamplerStateWithDescriptor:samplerDesc];
+
+  // Load Toaster Texture
+  [self loadMainTexture];
+}
+
+- (void)loadMainTexture {
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSString *path = [bundle pathForResource:@"toaster"
+                                    ofType:@"png"
+                               inDirectory:@"textures"];
+
+  if (!path) {
+    NSLog(@"ShaderCandy: Could not find toaster.png in bundle");
+    return;
+  }
+
+  MTKTextureLoader *loader =
+      [[MTKTextureLoader alloc] initWithDevice:self.device];
+  NSError *error = nil;
+
+  // Use SRGB for better color accuracy if needed, but the generator usually
+  // gives non-SRGB
+  NSDictionary *options = @{MTKTextureLoaderOptionSRGB : @NO};
+
+  self.mainTexture =
+      [loader newTextureWithContentsOfURL:[NSURL fileURLWithPath:path]
+                                  options:options
+                                    error:&error];
+
+  if (error) {
+    NSLog(@"ShaderCandy: Failed to load toaster texture: %@", error);
+  } else {
+    NSLog(@"ShaderCandy: Successfully loaded toaster texture (%lu x %lu)",
+          (unsigned long)self.mainTexture.width,
+          (unsigned long)self.mainTexture.height);
+  }
 }
 
 - (void)setupBloomPipelines {
@@ -889,6 +925,15 @@
     }
 
     [sceneEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
+
+    // Always bind mainTexture if available
+    if (self.mainTexture) {
+      [sceneEncoder setFragmentTexture:self.mainTexture atIndex:0];
+    }
+    if (self.samplerState) {
+      [sceneEncoder setFragmentSamplerState:self.samplerState atIndex:0];
+    }
+
     // If RD, we might need simulation texture as input here
     if (self.needsSimulation) {
       id<MTLTexture> state = (self.frameCount % 2 == 0)
@@ -998,6 +1043,15 @@
     }
 
     [encoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
+
+    // Always bind mainTexture if available
+    if (self.mainTexture) {
+      [encoder setFragmentTexture:self.mainTexture atIndex:0];
+    }
+    if (self.samplerState) {
+      [encoder setFragmentSamplerState:self.samplerState atIndex:0];
+    }
+
     // Pass simulation state if available
     if (self.needsSimulation) {
       id<MTLTexture> state = (self.frameCount % 2 == 0)
