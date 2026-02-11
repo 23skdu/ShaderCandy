@@ -60,6 +60,8 @@ if(MACOS AND BUILD_METAL)
     enable_language(OBJCXX)
     
     find_library(METAL_FRAMEWORK Metal REQUIRED)
+    find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
+    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
     set(METAL_SOURCES
         src/metal/MetalRenderer.mm
     )
@@ -136,6 +138,7 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     
     # Bundle resources
     file(GLOB SHADER_RESOURCES
+        shaders/*.metal
         shaders/base/*.metal
         shaders/base/*.glsl
         shaders/effects/*.frag

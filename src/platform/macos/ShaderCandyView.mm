@@ -273,17 +273,20 @@
       // .frag files are GLSL and won't compile with Metal
       if ([file hasSuffix:@".metal"]) {
         NSString *name = [file stringByDeletingPathExtension];
-        // Skip utility shaders
+        // Skip utility shaders and disabled shaders
         if ([name isEqualToString:@"common"] ||
             [name isEqualToString:@"utils"] ||
             [name isEqualToString:@"ShaderInterop"] ||
             [name isEqualToString:@"bloom"] ||
-            [name isEqualToString:@"particles"]) {
+            [name isEqualToString:@"particles"] ||
+            [file hasSuffix:@".disabled"]) {
           continue;
         }
+        NSLog(@"ShaderCandy: Found shader: %@", name);
         [shaders addObject:name];
       }
     }
+    [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
   }
 
   // Ensure 'default' shader is first (simplest, most likely to work)
