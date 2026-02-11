@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -mmacosx-version-min=11.0 -bundle -Wl,-headerpad_max_install_names -o ShaderCandy.saver/Contents/MacOS/ShaderCandy CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o  libshadercandy_core.a -framework ScreenSaver -framework Metal -framework MetalKit -framework QuartzCore -framework Cocoa

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libshadercandy_metal.a CMakeFiles/shadercandy_metal.dir/src/metal/MetalRenderer.mm.o
+/usr/bin/ranlib libshadercandy_metal.a
