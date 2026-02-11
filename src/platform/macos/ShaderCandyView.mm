@@ -415,6 +415,8 @@
 
   // Try to load from file
   NSString *path = [self pathForShader:self.currentShaderName];
+  NSLog(@"ShaderCandy: Attempting to compile shader: %@",
+        self.currentShaderName);
   if (path) {
     shaderSource = [NSString stringWithContentsOfFile:path
                                              encoding:NSUTF8StringEncoding
@@ -460,8 +462,52 @@
     NSLog(@"Failed to compile shader: %@", error);
     NSLog(@"Shader compilation error details: %@", error.localizedDescription);
     NSLog(@"Shader source length: %lu bytes", (unsigned long)fullSource.length);
+
+    // Write shader source to home directory for debugging (bypasses sandbox)
+    NSString *homePath = NSHomeDirectory();
+    NSString *debugPath = [homePath
+        stringByAppendingPathComponent:@"shadercandy_failed_shader.metal"];
+    [fullSource writeToFile:debugPath
+                 atomically:YES
+                   encoding:NSUTF8StringEncoding
+                      error:nil];
+    NSLog(@"Shader source written to: %@", debugPath);
+
     if (error.userInfo) {
       NSLog(@"Error userInfo: %@", error.userInfo);
+    }
+
+    // Try compiling a minimal fallback shader
+    NSLog(@"ShaderCandy: Attempting to compile minimal fallback shader...");
+    NSString *minimalShader = [NSString
+        stringWithFormat:
+            @"%@\n\nvertex VertexOut vertex_main(VertexIn in [[stage_in]]) {\n"
+            @"    VertexOut out;\n"
+            @"    out.position = float4(in.position, 0.0, 1.0);\n"
+            @"    out.texCoord = in.texCoord;\n"
+            @"    return out;\n"
+            @"}\n\n"
+            @"fragment float4 fragment_main(VertexOut in [[stage_in]], "
+            @"constant Uniforms &uniforms [[buffer(0)]]) {\n"
+            @"    float2 uv = in.texCoord;\n"
+            @"    float t = uniforms.time;\n"
+            @"    float3 color = float3(0.5 + 0.5 * sin(t + uv.x * 3.14159), "
+            @"0.5 + 0.5 * sin(t + uv.y * 3.14159 + 2.0), 0.5 + 0.5 * sin(t + "
+            @"length(uv - 0.5) * 6.0));\n"
+            @"    return float4(color, uniforms.alpha);\n"
+            @"}\n",
+            interopHeader ?: @""];
+
+    error = nil;
+    self.shaderLibrary = [self.device newLibraryWithSource:minimalShader
+                                                   options:nil
+                                                     error:&error];
+    if (error) {
+      NSLog(
+          @"ShaderCandy: CRITICAL - Even minimal shader failed to compile: %@",
+          error);
+    } else {
+      NSLog(@"ShaderCandy: Successfully compiled fallback shader");
     }
   }
 }
