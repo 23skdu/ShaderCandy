@@ -804,6 +804,7 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/AvailabilityInternal.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/AvailabilityInternalLegacy.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/AvailabilityVersions.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/TargetConditionals.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/___wctype.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/__wctype.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/__xlocale.h \
@@ -1493,6 +1494,22 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/pthread/sched.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/runetype.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sched.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/base.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/common.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/conversion.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/extern.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/geometry.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/logic.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/math.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/matrix.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/matrix_types.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/packed.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/quaternion.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/simd.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/types.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/vector.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/vector_make.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/vector_types.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/stddef.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/stdint.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/stdio.h \
@@ -1622,7 +1639,9 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
   /Library/Developer/CommandLineTools/usr/lib/clang/17/include/stdint.h \
   /Users/rsd/REPOS/ShaderCandy/src/core/MathUtils.h \
   /Users/rsd/REPOS/ShaderCandy/src/core/PerformanceMonitor.h \
+  /Users/rsd/REPOS/ShaderCandy/src/core/ShaderInterop.h \
   /Users/rsd/REPOS/ShaderCandy/src/core/UniformBuffer.h \
+  /Users/rsd/REPOS/ShaderCandy/tests/LogicAndUniformTests.cpp \
   /Users/rsd/REPOS/ShaderCandy/tests/MathAndCoreTests.cpp \
   /Users/rsd/REPOS/ShaderCandy/tests/ShaderCompilationTests.cpp \
   /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.h
@@ -1632,9 +1651,29 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 
 /Users/rsd/REPOS/ShaderCandy/tests/MathAndCoreTests.cpp:
 
+/Users/rsd/REPOS/ShaderCandy/tests/LogicAndUniformTests.cpp:
+
 /Users/rsd/REPOS/ShaderCandy/src/core/UniformBuffer.h:
 
+/Users/rsd/REPOS/ShaderCandy/src/core/ShaderInterop.h:
+
 /Library/Developer/CommandLineTools/usr/lib/clang/17/include/arm_vector_types.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/vector_types.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/vector_make.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/types.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/simd.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/packed.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/matrix_types.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/matrix.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/logic.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/thread:
 
@@ -2028,6 +2067,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/remove_pointer.h:
 
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/geometry.h:
+
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/remove_extent.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/arm/endian.h:
@@ -2077,6 +2118,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__iterator/iterator.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_trivially_copyable.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/common.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_trivially_assignable.h:
 
@@ -2170,6 +2213,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_nlink_t.h:
 
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/base.h:
+
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_base_of.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_uintptr_t.h:
@@ -2218,6 +2263,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/decay.h:
 
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/vector.h:
+
 /Library/Developer/CommandLineTools/usr/lib/clang/17/include/__stdarg___gnuc_va_list.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/datasizeof.h:
@@ -2265,6 +2312,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__tuple/tuple_types.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__tuple/tuple_like_no_subrange.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/TargetConditionals.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__tuple/tuple_indices.h:
 
@@ -2443,6 +2492,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__math/trigonometric_functions.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/pointer_traits.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/quaternion.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__math/traits.h:
 
@@ -3000,6 +3051,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__bit/countl.h:
 
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/math.h:
+
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_blksize_t.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_ctermid.h:
@@ -3158,6 +3211,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/is_partitioned.h:
 
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/extern.h:
+
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/count.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/none_of.h:
@@ -3167,6 +3222,8 @@ CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/t
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/copy_move_common.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__utility/swap.h:
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/simd/conversion.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__chrono/high_resolution_clock.h:
 
