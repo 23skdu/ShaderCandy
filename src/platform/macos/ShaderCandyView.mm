@@ -33,7 +33,8 @@
 - (instancetype)initWithFrame:(NSRect)frame isPreview:(BOOL)isPreview {
   self = [super initWithFrame:frame isPreview:isPreview];
   if (self) {
-    [self initialize];
+    NSLog(@"ShaderCandy: init with frame: %@", NSStringFromRect(frame));
+    [self preInitialize];
   }
   return self;
 }
@@ -41,7 +42,8 @@
 - (instancetype)initWithCoder:(NSCoder *)coder {
   self = [super initWithCoder:coder];
   if (self) {
-    [self initialize];
+    NSLog(@"ShaderCandy: init with coder");
+    [self preInitialize];
   }
   return self;
 }
@@ -51,7 +53,18 @@
 #pragma mark - Metal Setup
 
 - (void)setupMetal {
-  NSLog(@"ShaderCandy: Starting Metal setup...");
+  if (self.metalSetup)
+    return;
+
+  NSLog(@"ShaderCandy: Starting Metal setup (frame: %@)...",
+        NSStringFromRect(self.bounds));
+
+  if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
+    NSLog(
+        @"ShaderCandy: Frame is too small for Metal setup, skipping for now.");
+    return;
+  }
+
   // Get default Metal device
   self.device = MTLCreateSystemDefaultDevice();
   if (!self.device) {
@@ -116,6 +129,7 @@
   [self setupTextures];
   [self setupBloomPipelines];
   [self setupParticles];
+  self.metalSetup = YES;
 }
 
 - (void)setupParticles {
@@ -1189,6 +1203,45 @@
   }
 }
 
+- (void)startAnimation {
+  NSLog(@"ShaderCandy: startAnimation");
+  [super startAnimation];
+
+  // Final check for initialization if frame was zero during init
+  if (!self.isInitialized && NSWidth(self.bounds) > 0) {
+    [self initialize];
+  }
+}
+
+- (void)stopAnimation {
+  NSLog(@"ShaderCandy: stopAnimation");
+  [super stopAnimation];
+}
+
+- (void)setFrameSize:(NSSize)newSize {
+  [super setFrameSize:newSize];
+  NSLog(@"ShaderCandy: setFrameSize: %@", NSStringFromSize(newSize));
+  if (self.mtkView) {
+    self.mtkView.frame = self.bounds;
+  }
+
+  if (!self.isInitialized && newSize.width > 0) {
+    [self initialize];
+  }
+}
+
+- (void)setFrame:(NSRect)frame {
+  [super setFrame:frame];
+  NSLog(@"ShaderCandy: setFrame: %@", NSStringFromRect(frame));
+  if (self.mtkView) {
+    self.mtkView.frame = self.bounds;
+  }
+
+  if (!self.isInitialized && NSWidth(frame) > 0) {
+    [self initialize];
+  }
+}
+
 - (void)closeConfig:(id)sender {
   NSWindow *sheet = [sender window];
   NSWindow *parent = [sheet sheetParent];
@@ -1200,23 +1253,34 @@
   }
 }
 
-#pragma mark - Shader Cycling
-
-- (void)initialize {
-  // Initialize timing
+- (void)preInitialize {
+  // Initialize non-view timing and basic properties
   self.startTime = [NSDate date];
   self.frameCount = 0;
   self.enableHotReload = YES;
   self.lastShaderCheck = 0;
+  self.isInitialized = NO;
+  self.metalSetup = NO;
 
-  // Set animation frame rate
+  // Set default frame rate
   self.animationTimeInterval = 1.0 / 60.0;
 
-  // Setup Metal
-  [self setupMetal];
-
-  // Load available shaders
+  // Start discover to have availableShaders ready
   [self discoverShaders];
+}
+
+#pragma mark - Shader Cycling
+
+- (void)initialize {
+  if (self.isInitialized)
+    return;
+
+  NSLog(@"ShaderCandy: Performing full initialization...");
+
+  if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
+    NSLog(@"ShaderCandy: Attempted initialize with invalid frame, deferring.");
+    return;
+  }
 
   // Initialize Presets
   self.presets = @{
@@ -1280,8 +1344,12 @@
     self.isCycling = NO;
   }
 
-  // Load initial shader
+  // Setup Metal and Load Shaders
+  [self setupMetal];
   [self loadShaders];
+
+  self.isInitialized = YES;
+  NSLog(@"ShaderCandy: Full initialization complete.");
 }
 
 - (void)animateOneFrame {
