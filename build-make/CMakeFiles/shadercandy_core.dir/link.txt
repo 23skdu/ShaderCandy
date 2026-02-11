@@ -1,0 +1,2 @@
+/usr/bin/ar qc libshadercandy_core.a CMakeFiles/shadercandy_core.dir/src/core/ShaderManager.cpp.o CMakeFiles/shadercandy_core.dir/src/core/UniformBuffer.cpp.o CMakeFiles/shadercandy_core.dir/src/core/PerformanceMonitor.cpp.o
+/usr/bin/ranlib libshadercandy_core.a

@@ -233,14 +233,55 @@ open_preferences() {
     fi
 }
 
+# Uninstall screensaver
+uninstall_screensaver() {
+    echo "Uninstalling ShaderCandy..."
+    
+    # Remove user screensaver
+    USER_SAVER_DIR="$HOME/Library/Screen Savers/ShaderCandy.saver"
+    if [ -d "$USER_SAVER_DIR" ]; then
+        echo "Removing user screensaver..."
+        rm -rf "$USER_SAVER_DIR"
+    fi
+    
+    # Remove system screensaver (requires sudo)
+    SYSTEM_SAVER_DIR="/Library/Screen Savers/ShaderCandy.saver"
+    if [ -d "$SYSTEM_SAVER_DIR" ]; then
+        echo "Removing system screensaver (might require password)..."
+        sudo rm -rf "$SYSTEM_SAVER_DIR"
+    fi
+    
+    # Remove LaunchAgent
+    LAUNCH_AGENT="$HOME/Library/LaunchAgents/com.shadercandy.screensaver.plist"
+    if [ -f "$LAUNCH_AGENT" ]; then
+        echo "Removing LaunchAgent..."
+        rm "$LAUNCH_AGENT"
+    fi
+    
+    # Remove App Bundle from Applications
+    APP_BUNDLE="/Applications/ShaderCandy.app"
+    if [ -d "$APP_BUNDLE" ]; then
+        echo "Removing Application..."
+        rm -rf "$APP_BUNDLE"
+    fi
+    
+    echo "Uninstallation complete!"
+    echo ""
+}
+
 # Main installation process
 main() {
     # Parse arguments
     SKIP_BUILD=false
     BUILD_METHOD="xcode"
+    UNINSTALL=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --uninstall)
+                UNINSTALL=true
+                shift
+                ;;
             --skip-build)
                 SKIP_BUILD=true
                 shift
@@ -253,6 +294,7 @@ main() {
                 echo "Usage: $0 [OPTIONS]"
                 echo ""
                 echo "Options:"
+                echo "  --uninstall     Uninstall ShaderCandy"
                 echo "  --skip-build    Skip building (install only)"
                 echo "  --make          Build using Make instead of Xcode"
                 echo "  --help, -h      Show this help message"
@@ -264,6 +306,11 @@ main() {
                 ;;
         esac
     done
+    
+    if [ "$UNINSTALL" = true ]; then
+        uninstall_screensaver
+        exit 0
+    fi
     
     # Run installation steps
     check_prerequisites

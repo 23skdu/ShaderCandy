@@ -1,0 +1,10 @@
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/shadercandy_core.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/shadercandy_metal.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/ShaderCandy.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/shadercandy-test.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/edit_cache.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/rebuild_cache.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/list_install_components.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/install.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/install/local.dir
+/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles/install/strip.dir

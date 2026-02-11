@@ -55,17 +55,13 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86|X86|amd64|AMD64")
     endif()
 endif()
 
-# macOS Metal Backend
+# macOS Metal Backend (Modified: Removed C++ renderer due to missing sources)
 if(MACOS AND BUILD_METAL)
     enable_language(OBJCXX)
     
     find_library(METAL_FRAMEWORK Metal REQUIRED)
-    find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
-    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
-    
     set(METAL_SOURCES
         src/metal/MetalRenderer.mm
-        src/metal/MetalShaderCompiler.mm
     )
     
     add_library(shadercandy_metal STATIC ${METAL_SOURCES})
@@ -77,23 +73,30 @@ if(MACOS AND BUILD_METAL)
         ${QUARTZCORE_FRAMEWORK}
     )
     
-    # Compile Metal shaders
-    set(METAL_SHADERS
-        shaders/base/common.metal
-        shaders/effects/nebula.metal
-        shaders/effects/raymarch.metal
-        shaders/effects/fractal.metal
-    )
-    
-    set(METAL_LIB ${CMAKE_BINARY_DIR}/default.metallib)
-    add_custom_command(
-        OUTPUT ${METAL_LIB}
-        COMMAND xcrun -sdk macosx metal -c ${METAL_SHADERS} -o ${CMAKE_BINARY_DIR}/shaders.air
-        COMMAND xcrun -sdk macosx metallib ${CMAKE_BINARY_DIR}/shaders.air -o ${METAL_LIB}
-        DEPENDS ${METAL_SHADERS}
-        COMMENT "Compiling Metal shaders"
-    )
-    add_custom_target(metal_shaders DEPENDS ${METAL_LIB})
+    # Check for Metal compiler
+    find_program(XCRUN_EXECUTABLE xcrun)
+    if(XCRUN_EXECUTABLE)
+        execute_process(COMMAND ${XCRUN_EXECUTABLE} -f metal OUTPUT_VARIABLE METAL_COMPILER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    endif()
+
+    if(METAL_COMPILER)
+        # Compile Metal shaders
+        set(METAL_SHADERS
+            shaders/base/common.metal
+        )
+        
+        set(METAL_LIB ${CMAKE_BINARY_DIR}/default.metallib)
+        add_custom_command(
+            OUTPUT ${METAL_LIB}
+            COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metal -c ${METAL_SHADERS} -o ${CMAKE_BINARY_DIR}/shaders.air
+            COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metallib ${CMAKE_BINARY_DIR}/shaders.air -o ${METAL_LIB}
+            DEPENDS ${METAL_SHADERS}
+            COMMENT "Compiling Metal shaders"
+        )
+        add_custom_target(metal_shaders DEPENDS ${METAL_LIB})
+    else()
+        message(WARNING "Metal compiler not found. Shaders will be compiled at runtime.")
+    endif()
 endif()
 
 # OpenGL Backend
@@ -131,22 +134,61 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
-    add_bundle(ShaderCandy SCREENSAVER
-        ${SCREENSAVER_SOURCES}
+    # Bundle resources
+    file(GLOB SHADER_RESOURCES
+        shaders/base/*.metal
+        shaders/base/*.glsl
+        shaders/effects/*.frag
+        shaders/effects/*.metal
     )
     
+    # Add compiled metallib if it exists/will be built
+    if(TARGET metal_shaders)
+        set(METALLIB_RESOURCE ${CMAKE_BINARY_DIR}/default.metallib)
+        list(APPEND SHADER_RESOURCES ${METALLIB_RESOURCE})
+    endif()
+    
+    add_library(ShaderCandy MODULE
+        ${SCREENSAVER_SOURCES}
+        ${SHADER_RESOURCES}
+    )
+    
+    # Set resource location for shaders
+    foreach(res ${SHADER_RESOURCES})
+        get_filename_component(res_name ${res} NAME)
+        if(res MATCHES ".*\\.metallib")
+             set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+        else()
+             set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/shaders)
+        endif()
+    endforeach()
+    
     set_target_properties(ShaderCandy PROPERTIES
+        BUNDLE TRUE
         BUNDLE_EXTENSION saver
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/platform/macos/Info.plist.in
     )
     
+    find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
+
+    target_include_directories(ShaderCandy PRIVATE
+        src/core
+        src/platform/macos
+        ${CMAKE_SOURCE_DIR}
+    )
+
     target_link_libraries(ShaderCandy PRIVATE
-        shadercandy_metal
         shadercandy_core
         ${SCREENSAVER_FRAMEWORK}
+        ${METAL_FRAMEWORK}
+        ${METALKIT_FRAMEWORK}
+        ${QUARTZCORE_FRAMEWORK}
+        ${COCOA_FRAMEWORK}
     )
     
-    add_dependencies(ShaderCandy metal_shaders)
+    if(TARGET metal_shaders)
+        add_dependencies(ShaderCandy metal_shaders)
+    endif()
 endif()
 
 # Linux X11 Screensaver
@@ -183,8 +225,7 @@ endif()
 if(BUILD_TESTS)
     set(TEST_SOURCES
         tests/main.cpp
-        tests/shader_tests.cpp
-        tests/performance_tests.cpp
+        tests/TestFramework.cpp
     )
     
     add_executable(shadercandy-test ${TEST_SOURCES})

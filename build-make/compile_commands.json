@@ -1,0 +1,44 @@
+[
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy_core.dir/src/core/ShaderManager.cpp.o -c /Users/rsd/REPOS/ShaderCandy/src/core/ShaderManager.cpp",
+  "file": "/Users/rsd/REPOS/ShaderCandy/src/core/ShaderManager.cpp",
+  "output": "CMakeFiles/shadercandy_core.dir/src/core/ShaderManager.cpp.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy_core.dir/src/core/UniformBuffer.cpp.o -c /Users/rsd/REPOS/ShaderCandy/src/core/UniformBuffer.cpp",
+  "file": "/Users/rsd/REPOS/ShaderCandy/src/core/UniformBuffer.cpp",
+  "output": "CMakeFiles/shadercandy_core.dir/src/core/UniformBuffer.cpp.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy_core.dir/src/core/PerformanceMonitor.cpp.o -c /Users/rsd/REPOS/ShaderCandy/src/core/PerformanceMonitor.cpp",
+  "file": "/Users/rsd/REPOS/ShaderCandy/src/core/PerformanceMonitor.cpp",
+  "output": "CMakeFiles/shadercandy_core.dir/src/core/PerformanceMonitor.cpp.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/metal -I/Users/rsd/REPOS/ShaderCandy/src/core -F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -x objective-c++ -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy_metal.dir/src/metal/MetalRenderer.mm.o -c /Users/rsd/REPOS/ShaderCandy/src/metal/MetalRenderer.mm",
+  "file": "/Users/rsd/REPOS/ShaderCandy/src/metal/MetalRenderer.mm",
+  "output": "CMakeFiles/shadercandy_metal.dir/src/metal/MetalRenderer.mm.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DShaderCandy_EXPORTS -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/platform/macos -I/Users/rsd/REPOS/ShaderCandy -F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -x objective-c++ -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -fPIC -march=armv8-a+fp+simd -o CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o -c /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm",
+  "file": "/Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm",
+  "output": "CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/tests/main.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/main.cpp",
+  "file": "/Users/rsd/REPOS/ShaderCandy/tests/main.cpp",
+  "output": "CMakeFiles/shadercandy-test.dir/tests/main.cpp.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp",
+  "file": "/Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp",
+  "output": "CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o"
+}
+]
