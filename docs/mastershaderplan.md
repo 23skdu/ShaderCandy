@@ -1,12 +1,40 @@
 # Master Shader Plan: Cross-Platform Eye-Candy Screensavers
 
-A comprehensive 15-part roadmap for creating stunning, GPU-optimized shader screensavers for Apple Metal and NVIDIA GPUs with easy installation on macOS and Linux.
+## 📍 Project Status & Verified Completion (Updated: Feb 2026)
+
+This document is the consolidated master plan for ShaderCandy. Detailed implementation history can be found in [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md), [PHASE2_SUMMARY.md](./PHASE2_SUMMARY.md), and [PHASE3_SUMMARY.md](./PHASE3_SUMMARY.md).
+
+### ✅ Phase 1: Foundation (DONE)
+
+- **Architecture**: Core abstraction layer, directory hierarchy, and CMake build system.
+- **Backends**: Unified `Uniforms` structure and base shader frameworks (Metal/GLSL).
+- **Core Logic**: Uniform management, performance monitoring, and hot-reload foundations.
+- **Initial Effects**: Nebula, Mandelbulb, Reaction-Diffusion (GLSL/Metal).
+
+### ✅ Phase 2: Platform & Features (DONE)
+
+- **macOS Integration**: Native `ScreenSaverView` with Metal-backed `MTKView`.
+- **Metal Renderer**: Triple-buffered uniform updates, optimized pipeline states.
+- **Testing**: Unified Test Framework with SIMD (NEON/AVX2) and Compilation tests.
+- **CI/CD**: GitHub Actions for automated builds for Linux and macOS.
+
+### 🚧 Phase 3: Interaction & Polish (IN PROGRESS)
+
+- **Interactive Particles**: [x] GPU Compute particle system with 50,000+ points.
+- **Interactive Physics**: [x] Left-click (Pull) and Right-click (Push) gravitational forces.
+- **Shader Preset System**: [x] Curated presets (Zen, Cosmic, Chaos, Vortex) with persistence.
+- **Global Control UI**: [x] Sliders for Speed, Intensity, and Gravity in the config sheet.
+- **Visual Polish**: [x] Smooth 2-second cross-fade shader transitions.
+- **Optimization**: [x] Branchless shader logic for maximum GPU throughput.
+- **Audio Reactivity**: [ ] Implementation of `AudioInput.mm` (Planned).
+- **Multi-Monitor**: [ ] Synchronization across multiple screens (Planned).
 
 ---
 
 ## Part 1: Project Architecture & Directory Structure
 
 ### 1.1 Directory Layout
+
 ```
 ShaderCandy/
 ├── src/
@@ -29,6 +57,7 @@ ShaderCandy/
 ```
 
 ### 1.2 Build System
+
 - **macOS**: Xcode projects + CMake for Metal
 - **Linux**: CMake + Ninja with OpenGL/Vulkan support
 - **Cross-platform**: CMake 3.20+ with conditional compilation
@@ -40,6 +69,7 @@ ShaderCandy/
 ### 2.1 Core Shader Interface
 
 **Metal Base Template** (`shaders/base/base.metal`):
+
 ```metal
 #include <metal_stdlib>
 using namespace metal;
@@ -74,6 +104,7 @@ fragment float4 fragment_main(float4 position [[position]],
 ```
 
 **GLSL Base Template** (`shaders/base/base.frag`):
+
 ```glsl
 #version 450 core
 
@@ -103,6 +134,7 @@ void main() {
 ```
 
 ### 2.2 Shader Hot-Reload System
+
 - File watchers for automatic recompilation
 - Runtime shader compilation on both platforms
 - Error fallback to previous working shader
@@ -114,10 +146,12 @@ void main() {
 ### 3.1 Metal SIMD (SIMD Library)
 
 **Vector Types**:
+
 - Use `float4`, `float3`, `float2` for all vector operations
 - Leverage `simd_min`, `simd_max`, `simd_clamp` for vectorized math
 
 **Example: SIMD Noise Generation**:
+
 ```metal
 #include <simd/simd.h>
 
@@ -146,6 +180,7 @@ float4 simdNoise4(float4 x) {
 ### 3.2 GLSL SIMD via Vectorization
 
 **Batch Operations**:
+
 ```glsl
 // Process multiple samples at once using vec4
 vec4 simdDistance(vec4 x, vec4 y, vec2 center) {
@@ -164,6 +199,7 @@ for (int i = 0; i < 4; i++) {
 ### 3.3 CPU-Side SIMD (Optional Compute)
 
 **ARM NEON** (Apple Silicon):
+
 ```cpp
 #include <arm_neon.h>
 
@@ -185,6 +221,7 @@ void updateParticlesNEON(Particle* particles, int count, float dt) {
 ```
 
 **x86 AVX2** (Intel/NVIDIA):
+
 ```cpp
 #include <immintrin.h>
 
@@ -208,6 +245,7 @@ void convertRGBtoHSV_AVX2(const float* rgb, float* hsv, int count) {
 ### 4.1 Apple Metal Optimizations
 
 **Tile-Based Deferred Rendering (TBDR)**:
+
 ```metal
 // Use tile shaders for post-processing
 kernel void tilePostProcess(
@@ -229,6 +267,7 @@ kernel void tilePostProcess(
 ```
 
 **Memory Bandwidth Optimization**:
+
 ```metal
 // Use half-precision where possible
 using half4 = vector<half, 4>;
@@ -242,6 +281,7 @@ half4 fastEffect(half2 uv, constant Uniforms &u) {
 ```
 
 **Threadgroup Memory**:
+
 ```metal
 // Shared memory for compute shaders
 constant int TILE_SIZE = 16;
@@ -270,6 +310,7 @@ kernel void blurHorizontal(
 ### 4.2 NVIDIA GPU Optimizations
 
 **Warp-Level Primitives**:
+
 ```glsl
 #extension GL_NV_shader_thread_group : require
 
@@ -285,6 +326,7 @@ vec4 warpReduce(vec4 val) {
 ```
 
 **Cooperative Groups**:
+
 ```cuda
 #include <cooperative_groups.h>
 
@@ -307,6 +349,7 @@ __global__ void particleSystem(Particle* particles, int n, float dt) {
 ```
 
 **Tensor Core Utilization** (RTX GPUs):
+
 ```glsl
 #extension GL_NV_cooperative_matrix : require
 
@@ -322,6 +365,7 @@ coopMatMulAdd(matA, matB, matC);
 ### 4.3 Memory Access Patterns
 
 **Coalesced Memory Access**:
+
 ```metal
 // Good: Sequential access pattern
 kernel void goodAccess(
@@ -345,6 +389,7 @@ kernel void badAccess(
 ```
 
 **Texture Sampling Optimization**:
+
 ```metal
 // Use mipmaps for minification
 constexpr sampler textureSampler(
@@ -366,6 +411,7 @@ float4 color = prevFrame.sample(textureSampler, uv, level(mipLevel));
 ### 5.1 Fractal Noise (Base for Many Effects)
 
 **Metal Version**:
+
 ```metal
 // Simplex noise - foundation for organic effects
 float3 mod289(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -451,6 +497,7 @@ float fbm(float3 x, int octaves) {
 ### 5.2 Ray Marching Foundation
 
 **Metal Signed Distance Functions (SDF)**:
+
 ```metal
 // Basic SDF primitives
 float sdSphere(float3 p, float r) {
@@ -500,6 +547,7 @@ float3 rayMarch(float3 ro, float3 rd) {
 ### 5.3 Particle System Base
 
 **Metal Compute Shader Particles**:
+
 ```metal
 struct Particle {
     float3 position;
@@ -539,6 +587,7 @@ kernel void particleUpdate(
 ### 5.4 Post-Processing Stack
 
 **Bloom Effect**:
+
 ```metal
 // Downsample + Gaussian blur
 kernel void bloomDownsample(
@@ -583,6 +632,7 @@ kernel void bloomCombine(
 ### 6.1 macOS Screensaver Bundle
 
 **Structure**:
+
 ```
 ShaderCandy.saver/
 ├── Contents/
@@ -596,6 +646,7 @@ ShaderCandy.saver/
 ```
 
 **Swift Screensaver Class**:
+
 ```swift
 import ScreenSaver
 import Metal
@@ -693,6 +744,7 @@ class ShaderCandyView: ScreenSaverView {
 ### 6.2 Linux X11 Screensaver
 
 **Basic X11 + OpenGL Implementation**:
+
 ```cpp
 // src/platform/linux/screensaver.cpp
 #include <X11/Xlib.h>
@@ -862,11 +914,13 @@ WantedBy=graphical.target
 ### 7.1 macOS Installation
 
 #### Prerequisites
+
 - macOS 11.0+ (Big Sur or later)
 - Xcode 13.0+ with Metal SDK
 - CMake 3.20+
 
 #### Build from Source
+
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/ShaderCandy.git
@@ -883,6 +937,7 @@ make -j$(sysctl -n hw.ncpu)
 ```
 
 #### Install Screensaver
+
 ```bash
 # Option 1: Copy to user Library
 cp -R build/ShaderCandy.saver ~/Library/Screen\ Savers/
@@ -894,6 +949,7 @@ sudo cp -R build/ShaderCandy.saver /Library/Screen\ Savers/
 ```
 
 #### Automated Install Script
+
 ```bash
 #!/bin/bash
 # install_macos.sh
@@ -922,7 +978,9 @@ echo "Installation complete! Open System Preferences > Desktop & Screen Saver"
 ### 7.2 Linux Installation
 
 #### Prerequisites
+
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
@@ -938,6 +996,7 @@ sudo apt-get install -y \
 ```
 
 **Fedora/RHEL:**
+
 ```bash
 sudo dnf install -y \
     gcc-c++ \
@@ -950,6 +1009,7 @@ sudo dnf install -y \
 ```
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -S \
     base-devel \
@@ -961,6 +1021,7 @@ sudo pacman -S \
 ```
 
 #### Build from Source
+
 ```bash
 # Clone and build
 git clone https://github.com/yourusername/ShaderCandy.git
@@ -974,6 +1035,7 @@ sudo make install
 ```
 
 #### XScreenSaver Integration
+
 ```bash
 # Add to xscreensaver
 mkdir -p ~/.xscreensaver
@@ -997,6 +1059,7 @@ EOF
 ```
 
 #### Systemd User Service (Auto-start)
+
 ```bash
 # Install systemd service
 sudo cp install/shadercandy.service /etc/systemd/user/
@@ -1007,6 +1070,7 @@ systemctl --user start shadercandy.service
 ```
 
 #### Automated Install Script
+
 ```bash
 #!/bin/bash
 # install_linux.sh
@@ -1126,6 +1190,7 @@ echo "To preview: /usr/local/bin/shadercandy-screensaver"
 ### 8.2 Example: Reaction-Diffusion
 
 **Metal Implementation**:
+
 ```metal
 // Reaction-Diffusion (Gray-Scott model)
 kernel void reactionDiffusion(
@@ -1192,6 +1257,7 @@ kernel void rdRender(
 ### 9.1 Metal Performance Tools
 
 **Xcode GPU Frame Capture**:
+
 ```metal
 // Add debug markers
 renderEncoder.pushDebugGroup("Post-Processing");
@@ -1202,6 +1268,7 @@ renderEncoder.popDebugGroup();
 ```
 
 **Metal System Trace**:
+
 ```bash
 # Command line profiling
 xcrun metal-system-trace -o trace.gputrace ./ShaderCandy
@@ -1463,6 +1530,7 @@ float4 effect_main(float2 centered, vec2 uv,
     return float4(color, 1.0);
 }
 ```
+
 ```
 
 ### 12.3 Community Contributions
@@ -1557,30 +1625,35 @@ bool validateShader(const std::string& source) {
 ## Part 15: Future Roadmap
 
 ### Phase 1: Foundation (Months 1-2)
+
 - [ ] Basic framework for Metal and OpenGL
 - [ ] 5 base shader effects
 - [ ] macOS screensaver bundle
 - [ ] Linux X11 screensaver
 
 ### Phase 2: Optimization (Months 3-4)
+
 - [ ] SIMD optimizations (NEON, AVX2)
 - [ ] GPU profiling integration
 - [ ] Performance regression testing
 - [ ] 10 additional shader effects
 
 ### Phase 3: Polish (Months 5-6)
+
 - [ ] Vulkan backend
 - [ ] User shader gallery
 - [ ] Audio-reactive shaders
 - [ ] Comprehensive documentation
 
 ### Phase 4: Advanced (Months 7-9)
+
 - [ ] Machine learning-based effects
 - [ ] Multi-GPU support
 - [ ] VR integration
 - [ ] Mobile ports (iOS/Android)
 
 ### Phase 5: Community (Months 10-12)
+
 - [ ] Shader marketplace
 - [ ] Cloud rendering
 - [ ] Live shader competitions
