@@ -371,6 +371,7 @@
     interopHeader = [NSString stringWithContentsOfFile:interopPath
                                               encoding:NSUTF8StringEncoding
                                                  error:nil];
+    NSLog(@"ShaderCandy: Loaded ShaderInterop.h from: %@", interopPath);
   } else {
     // Fallback: search in src/core (for dev)
     interopPath = [[bundle bundlePath]
@@ -380,17 +381,24 @@
     interopHeader = [NSString stringWithContentsOfFile:interopPath
                                               encoding:NSUTF8StringEncoding
                                                  error:nil];
+    if (interopHeader) {
+      NSLog(@"ShaderCandy: Loaded ShaderInterop.h from dev path: %@",
+            interopPath);
+    } else {
+      NSLog(@"ShaderCandy: WARNING - Could not find ShaderInterop.h");
+    }
   }
 
   // Load utils helper content to inject
   NSString *utilsPath = [bundle pathForResource:@"utils"
                                          ofType:@"metal"
-                                    inDirectory:@"shaders/base"];
+                                    inDirectory:@"shaders"];
   NSString *utilsHeader = @"";
   if (utilsPath) {
     utilsHeader = [NSString stringWithContentsOfFile:utilsPath
                                             encoding:NSUTF8StringEncoding
                                                error:nil];
+    NSLog(@"ShaderCandy: Loaded utils.metal from: %@", utilsPath);
   } else {
     // Fallback: search in shaders/base (for dev)
     utilsPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
@@ -399,6 +407,11 @@
     utilsHeader = [NSString stringWithContentsOfFile:utilsPath
                                             encoding:NSUTF8StringEncoding
                                                error:nil];
+    if (utilsHeader) {
+      NSLog(@"ShaderCandy: Loaded utils.metal from dev path: %@", utilsPath);
+    } else {
+      NSLog(@"ShaderCandy: WARNING - Could not find utils.metal");
+    }
   }
 
   // Try to load from file
