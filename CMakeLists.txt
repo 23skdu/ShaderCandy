@@ -137,31 +137,34 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
     # Bundle resources
-    file(GLOB SHADER_RESOURCES
+    file(GLOB BUNDLE_RESOURCES
         shaders/*.metal
         shaders/base/*.metal
         shaders/base/*.glsl
         shaders/effects/*.frag
         shaders/effects/*.metal
+        textures/*.png
         src/core/ShaderInterop.h
     )
     
     # Add compiled metallib if it exists/will be built
     if(TARGET metal_shaders)
         set(METALLIB_RESOURCE ${CMAKE_BINARY_DIR}/default.metallib)
-        list(APPEND SHADER_RESOURCES ${METALLIB_RESOURCE})
+        list(APPEND BUNDLE_RESOURCES ${METALLIB_RESOURCE})
     endif()
     
     add_library(ShaderCandy MODULE
         ${SCREENSAVER_SOURCES}
-        ${SHADER_RESOURCES}
+        ${BUNDLE_RESOURCES}
     )
     
-    # Set resource location for shaders
-    foreach(res ${SHADER_RESOURCES})
+    # Set resource location for shaders and textures
+    foreach(res ${BUNDLE_RESOURCES})
         get_filename_component(res_name ${res} NAME)
         if(res MATCHES ".*\\.metallib")
              set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+        elseif(res MATCHES ".*\\.png")
+             set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/textures)
         else()
              set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/shaders)
         endif()

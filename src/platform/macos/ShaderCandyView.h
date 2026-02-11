@@ -58,6 +58,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong) id<MTLTexture> sceneTexture;
 @property(nonatomic, strong) id<MTLTexture> bloomTextureA; // Threshold / Blur H
 @property(nonatomic, strong) id<MTLTexture> bloomTextureB; // Blur V
+@property(nonatomic, strong) id<MTLTexture> mainTexture;
 @property(nonatomic, strong) id<MTLSamplerState> samplerState;
 
 // Simulation State (Ping-Pong textures)
