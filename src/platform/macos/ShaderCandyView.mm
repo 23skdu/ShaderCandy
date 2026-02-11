@@ -51,18 +51,20 @@
 #pragma mark - Metal Setup
 
 - (void)setupMetal {
+  NSLog(@"ShaderCandy: Starting Metal setup...");
   // Get default Metal device
   self.device = MTLCreateSystemDefaultDevice();
   if (!self.device) {
-    NSLog(@"Metal is not supported on this device");
+    NSLog(@"ShaderCandy: Metal is not supported on this device");
     return;
   }
+  NSLog(@"ShaderCandy: Metal device created: %@", self.device.name);
 
   // Create command queue
   self.commandQueue = [self.device newCommandQueue];
 
   // Create MTKView for rendering
-  self.mtkView = [[MTKView alloc] initWithFrame:self.frame device:self.device];
+  self.mtkView = [[MTKView alloc] initWithFrame:self.bounds device:self.device];
   self.mtkView.delegate = self;
   self.mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
   self.mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
@@ -70,9 +72,12 @@
   self.mtkView.preferredFramesPerSecond = 60;
   self.mtkView.enableSetNeedsDisplay = NO;
   self.mtkView.paused = NO;
+  self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
   // Add MTKView as subview
   [self addSubview:self.mtkView];
+  NSLog(@"ShaderCandy: MTKView added as subview to frame: %@",
+        NSStringFromRect(self.bounds));
 
   // Create vertex buffer for fullscreen quad (4 vertices for indexed drawing)
   static const float vertices[] = {
@@ -250,8 +255,14 @@
     NSArray *contents = [fm contentsOfDirectoryAtPath:shadersPath error:nil];
 
     for (NSString *file in contents) {
-      if ([file hasSuffix:@".metal"]) {
+      if ([file hasSuffix:@".metal"] || [file hasSuffix:@".frag"]) {
         NSString *name = [file stringByDeletingPathExtension];
+        // Skip utility shaders
+        if ([name isEqualToString:@"common"] ||
+            [name isEqualToString:@"utils"] ||
+            [name isEqualToString:@"ShaderInterop"]) {
+          continue;
+        }
         [shaders addObject:name];
       }
     }
@@ -904,15 +915,15 @@
 }
 
 - (NSWindow *)configureSheet {
-  NSWindow *window =
-      [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 320, 420)
-                                  styleMask:NSWindowStyleMaskTitled
-                                    backing:NSBackingStoreBuffered
-                                      defer:NO];
+  NSPanel *window = [[NSPanel alloc]
+      initWithContentRect:NSMakeRect(0, 0, 320, 480)
+                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                  backing:NSBackingStoreBuffered
+                    defer:NO];
   [window setTitle:@"ShaderCandy Configuration"];
 
   NSView *contentView =
-      [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 420)];
+      [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 480)];
   [window setContentView:contentView];
 
   float y = 380;
@@ -1179,7 +1190,14 @@
 }
 
 - (void)closeConfig:(id)sender {
-  [[NSApplication sharedApplication] endSheet:[sender window]];
+  NSWindow *sheet = [sender window];
+  NSWindow *parent = [sheet sheetParent];
+
+  if (parent) {
+    [parent endSheet:sheet returnCode:NSModalResponseOK];
+  } else {
+    [sheet close];
+  }
 }
 
 #pragma mark - Shader Cycling

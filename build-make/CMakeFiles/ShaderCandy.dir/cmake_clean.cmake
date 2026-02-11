@@ -3,6 +3,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o.d"
   "ShaderCandy.saver/Contents/MacOS/ShaderCandy"
   "ShaderCandy.saver/Contents/MacOS/ShaderCandy.pdb"
+  "ShaderCandy.saver/Contents/Resources/shaders/ShaderInterop.h"
   "ShaderCandy.saver/Contents/Resources/shaders/audio_spectrum.frag"
   "ShaderCandy.saver/Contents/Resources/shaders/bloom.metal"
   "ShaderCandy.saver/Contents/Resources/shaders/clouds.metal"
