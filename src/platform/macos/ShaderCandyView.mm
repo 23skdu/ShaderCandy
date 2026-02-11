@@ -402,6 +402,21 @@
                                             encoding:NSUTF8StringEncoding
                                                error:nil];
     NSLog(@"ShaderCandy: Loaded utils.metal from: %@", utilsPath);
+
+    // Strip redundant #include and using statements to avoid conflicts
+    // (ShaderInterop.h already includes metal_stdlib and uses namespace metal)
+    NSMutableString *cleanedUtils = [utilsHeader mutableCopy];
+    [cleanedUtils
+        replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
+                        withString:@""
+                           options:0
+                             range:NSMakeRange(0, cleanedUtils.length)];
+    [cleanedUtils
+        replaceOccurrencesOfString:@"using namespace metal;\n"
+                        withString:@""
+                           options:0
+                             range:NSMakeRange(0, cleanedUtils.length)];
+    utilsHeader = cleanedUtils;
   } else {
     // Fallback: search in shaders/base (for dev)
     utilsPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
@@ -412,6 +427,20 @@
                                                error:nil];
     if (utilsHeader) {
       NSLog(@"ShaderCandy: Loaded utils.metal from dev path: %@", utilsPath);
+
+      // Strip redundant headers
+      NSMutableString *cleanedUtils = [utilsHeader mutableCopy];
+      [cleanedUtils
+          replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
+                          withString:@""
+                             options:0
+                               range:NSMakeRange(0, cleanedUtils.length)];
+      [cleanedUtils
+          replaceOccurrencesOfString:@"using namespace metal;\n"
+                          withString:@""
+                             options:0
+                               range:NSMakeRange(0, cleanedUtils.length)];
+      utilsHeader = cleanedUtils;
     } else {
       NSLog(@"ShaderCandy: WARNING - Could not find utils.metal");
     }
