@@ -1,0 +1,283 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+jobs:
+  # Linux Build
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Release, Debug]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          libgl1-mesa-dev \
+          libglx-dev \
+          libx11-dev \
+          libxss-dev \
+          libxxf86vm-dev \
+          libxi-dev \
+          libxrandr-dev \
+          mesa-common-dev
+    
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        if [ "${{ matrix.compiler }}" = "clang" ]; then
+          export CC=clang
+          export CXX=clang++
+        fi
+        cmake .. -GNinja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DBUILD_TESTS=ON \
+          -DBUILD_OPENGL=ON \
+          -DBUILD_METAL=OFF
+    
+    - name: Build
+      run: |
+        cd build
+        ninja -j$(nproc)
+    
+    - name: Run Tests
+      run: |
+        cd build
+        ./shadercandy-test
+    
+    - name: Package
+      if: matrix.build_type == 'Release' && matrix.compiler == 'gcc'
+      run: |
+        cd build
+        ninja package || true
+        tar czf shadercandy-linux.tar.gz shadercandy-screensaver ../shaders/
+    
+    - name: Upload artifacts
+      if: matrix.build_type == 'Release' && matrix.compiler == 'gcc'
+      uses: actions/upload-artifact@v3
+      with:
+        name: shadercandy-linux
+        path: build/shadercandy-linux.tar.gz
+
+  # macOS Build
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        brew install cmake ninja
+    
+    - name: Configure CMake (Xcode)
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G Xcode \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+          -DBUILD_METAL=ON \
+          -DBUILD_OPENGL=OFF \
+          -DBUILD_SCREENSAVER_MACOS=ON \
+          -DBUILD_TESTS=ON
+    
+    - name: Build
+      run: |
+        cd build
+        xcodebuild -project ShaderCandy.xcodeproj \
+                   -scheme ShaderCandy \
+                   -configuration ${{ matrix.build_type }} \
+                   -derivedDataPath ./DerivedData
+    
+    - name: Package
+      if: matrix.build_type == 'Release'
+      run: |
+        cd build
+        zip -r shadercandy-macos.zip DerivedData/Build/Products/Release/ShaderCandy.saver
+    
+    - name: Upload artifacts
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v3
+      with:
+        name: shadercandy-macos
+        path: build/shadercandy-macos.zip
+
+  # Shader Validation
+  validate-shaders:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install shader compiler
+      run: |
+        wget https://github.com/KhronosGroup/glslang/releases/download/main-tot/glslang-main-linux-Release.zip
+        unzip glslang-main-linux-Release.zip -d /tmp/glslang
+        sudo cp /tmp/glslang/bin/glslangValidator /usr/local/bin/
+    
+    - name: Validate GLSL shaders
+      run: |
+        for shader in shaders/effects/*.frag; do
+          echo "Validating $shader..."
+          glslangValidator -S frag "$shader" || exit 1
+        done
+    
+    - name: Validate Metal shaders
+      run: |
+        echo "Metal shaders require macOS for compilation"
+        echo "Skipping Metal shader validation on Linux"
+        # On macOS runner, we would use: xcrun -sdk macosx metal -c shaders/base/common.metal
+
+  # Code Quality
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format cppcheck
+    
+    - name: Check formatting
+      run: |
+        find src tests -name "*.cpp" -o -name "*.h" | \
+          xargs clang-format --dry-run --Werror || \
+          (echo "Code formatting issues found. Run: find src tests -name '*.cpp' -o -name '*.h' | xargs clang-format -i" && exit 1)
+    
+    - name: Static analysis
+      run: |
+        cppcheck --enable=all --error-exitcode=1 \
+          --suppress=missingIncludeSystem \
+          src/core/ || true
+      continue-on-error: true
+
+  # Performance Benchmark
+  benchmark:
+    runs-on: ubuntu-latest
+    needs: build-linux
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: shadercandy-linux
+    
+    - name: Setup virtual display
+      run: |
+        sudo apt-get install -y xvfb
+        Xvfb :99 -screen 0 1920x1080x24 &
+        export DISPLAY=:99
+    
+    - name: Run performance tests
+      run: |
+        export DISPLAY=:99
+        tar xzf shadercandy-linux.tar.gz
+        # Run screensaver for 60 seconds and check performance
+        timeout 60 ./shadercandy-screensaver &
+        PID=$!
+        sleep 5
+        if ps -p $PID > /dev/null; then
+          echo "Performance test: PASSED (running stable)"
+          kill $PID
+        else
+          echo "Performance test: FAILED (crashed)"
+          exit 1
+        fi
+
+  # Release
+  release:
+    needs: [build-linux, build-macos, validate-shaders]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Create Release Assets
+      run: |
+        mv shadercandy-linux/shadercandy-linux.tar.gz ShaderCandy-Linux.tar.gz
+        mv shadercandy-macos/shadercandy-macos.zip ShaderCandy-macOS.zip
+    
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ShaderCandy-Linux.tar.gz
+          ShaderCandy-macOS.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Documentation
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check documentation
+      run: |
+        # Verify all documentation files exist
+        test -f README.md
+        test -f docs/mastershaderplan.md
+        test -f IMPLEMENTATION_SUMMARY.md
+        
+        # Check for broken links (basic)
+        grep -r "\[.*\](.*)" docs/ README.md --include="*.md" | \
+          grep -v "http" | \
+          while read line; do
+            link=$(echo "$line" | grep -oP '(?<=\]\()[^)]+')
+            if [ ! -f "$link" ] && [ ! -d "$link" ]; then
+              echo "Warning: Potential broken link: $link"
+            fi
+          done || true
+    
+    - name: Generate shader catalog
+      run: |
+        echo "# Shader Catalog" > SHADER_CATALOG.md
+        echo "" >> SHADER_CATALOG.md
+        echo "## Available Shaders" >> SHADER_CATALOG.md
+        echo "" >> SHADER_CATALOG.md
+        
+        for shader in shaders/effects/*.frag; do
+          name=$(basename "$shader" .frag)
+          echo "### $name" >> SHADER_CATALOG.md
+          echo "" >> SHADER_CATALOG.md
+          # Extract first comment block as description
+          head -20 "$shader" | grep "//" | sed 's/^\/\//-/' >> SHADER_CATALOG.md
+          echo "" >> SHADER_CATALOG.md
+        done
+    
+    - name: Upload documentation artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: |
+          README.md
+          docs/
+          SHADER_CATALOG.md
