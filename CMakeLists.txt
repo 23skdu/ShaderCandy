@@ -140,6 +140,7 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
         shaders/base/*.glsl
         shaders/effects/*.frag
         shaders/effects/*.metal
+        src/core/ShaderInterop.h
     )
     
     # Add compiled metallib if it exists/will be built
@@ -167,6 +168,10 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
         BUNDLE TRUE
         BUNDLE_EXTENSION saver
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/platform/macos/Info.plist.in
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.shadercandy.screensaver"
+        MACOSX_BUNDLE_BUNDLE_NAME "ShaderCandy"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1"
     )
     
     find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
