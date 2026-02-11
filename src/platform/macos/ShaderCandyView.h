@@ -72,6 +72,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, nullable) id<MTLBuffer> particleBuffer;
 @property(nonatomic, assign) NSInteger numParticles;
 
+@property(nonatomic, assign) BOOL isInitialized;
+@property(nonatomic, assign) BOOL metalSetup;
+
 - (void)loadShaders;
 - (void)reloadShaders;
 - (void)setupMetal;
