@@ -9,23 +9,22 @@ kernel void compute_particles(device Particle *particles [[buffer(0)]],
                             uint id [[thread_position_in_grid]]) {
     device Particle &p = particles[id];
     
-    // Interactive Gravity Behavior
+    // 1. Mouse Interaction Behavior (Branchless)
     float2 toMouse = uniforms.mouse - p.position;
     float dist = length(toMouse);
-    float force = 0.0;
     
+    // Branchless force selection based on bitmask
     int buttons = (int)uniforms.mouseButtons;
-    if (buttons & 1) { // Left Click: Strong Pull
-        force = 0.005 * uniforms.gravity;
-    } else if (buttons & 2) { // Right Click: Strong Push
-        force = -0.005 * uniforms.gravity;
-    } else { // No Click: Gentle Swarm
-        force = 0.0005;
-    }
+    float isLeft = float(buttons & 1);
+    float isRight = float((buttons & 2) >> 1);
+    float noClick = 1.0 - clamp(isLeft + isRight, 0.0, 1.0);
     
-    if (dist > 0.01) {
-        p.velocity += normalize(toMouse) * force / (dist + 0.1);
-    }
+    float force = isLeft * (0.005 * uniforms.gravity) + 
+                  isRight * (-0.005 * uniforms.gravity) + 
+                  noClick * 0.0005;
+    
+    // Branchless distance contribution
+    p.velocity += (normalize(toMouse) * force / (dist + 0.1)) * step(0.01, dist);
     
     // 2. Add some turbulence/noise (scaled by intensity)
     float2 noisePos = p.position * 5.0 + uniforms.time * (0.2 * uniforms.speed);
@@ -36,9 +35,9 @@ kernel void compute_particles(device Particle *particles [[buffer(0)]],
     p.position += p.velocity * uniforms.speed;
     p.velocity *= 0.98; // Friction
     
-    // Bounce off walls
-    if (p.position.x < -1.0 || p.position.x > 1.0) p.velocity.x *= -1.0;
-    if (p.position.y < -1.0 || p.position.y > 1.0) p.velocity.y *= -1.0;
+    // 4. Bounce off walls (Branchless using select)
+    bool2 bounds = (abs(p.position) > 1.0);
+    p.velocity = select(p.velocity, p.velocity * -1.0, bounds);
     p.position = clamp(p.position, -1.0, 1.0);
     
     // Lifecycle
@@ -71,13 +70,12 @@ vertex ParticleOut vertex_particles(device Particle *particles [[buffer(0)]],
     return out;
 }
 
-// Render Pass (Fragment)
+// Render Pass (Fragment - Branchless)
 fragment float4 fragment_particles(ParticleOut in [[stage_in]],
                                   float2 pointCoord [[point_coord]]) {
     // Soft round point
     float d = length(pointCoord - 0.5);
-    if (d > 0.5) discard_fragment();
-    
-    float alpha = smoothstep(0.5, 0.2, d) * in.color.a;
+    // Multiply by step-like smoothstep to handle the 0.5 clip branchlessly
+    float alpha = smoothstep(0.5, 0.45, d) * smoothstep(0.5, 0.2, d) * in.color.a;
     return float4(in.color.rgb, alpha);
 }

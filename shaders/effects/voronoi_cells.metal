@@ -18,8 +18,8 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     col = pow(col, float3(3.0));
     col *= float3(0.5 + 0.5 * sin(t), 0.5 + 0.5 * cos(t), 0.8);
     
-    // Edges
-    if(m < 0.05) col += 0.5;
+    // Edges (Branchless)
+    col += 0.5 * step(m, 0.05);
     
     return float4(col, uniforms.alpha);
 }

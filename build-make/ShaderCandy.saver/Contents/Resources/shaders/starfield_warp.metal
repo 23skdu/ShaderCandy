@@ -21,9 +21,8 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
         float d = length(st - pos);
         float size = 0.005 / z;
         
-        if (d < size) {
-            col += float3(1.0, 0.8, 0.5) * fade * (1.0 - d / size);
-        }
+        // Branchless star drawing
+        col += float3(1.0, 0.8, 0.5) * fade * max(0.0, 1.0 - d / size) * step(d, size);
     }
     
     // Background nebula

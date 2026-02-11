@@ -13,13 +13,10 @@ fragment float4 fragment_sim(VertexOut in [[stage_in]],
     // Sample current state (r=U, g=V)
     float4 center = prevTexture.sample(s, uv);
     
-    // Initialize if center is null/clear (first frame)
-    if (uniforms.frame < 10) {
-        // Seed with some noise or a circle
-        float d = length(uv - 0.5);
-        if (d < 0.02) return float4(1.0, 0.5, 0.0, 1.0);
-        return float4(1.0, 0.0, 0.0, 1.0);
-    }
+    // Initialize if center is null/clear (first frame) (Branchless Seed)
+    float d = length(uv - 0.5);
+    float4 seedCol = mix(float4(1.0, 0.0, 0.0, 1.0), float4(1.0, 0.5, 0.0, 1.0), step(d, 0.02));
+    if (uniforms.frame < 10) return seedCol;
     
     float2 state = center.rg;
     
