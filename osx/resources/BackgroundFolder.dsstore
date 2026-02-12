@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN">
+<plist version="1.0">
+<dict>
+    <key>MajorVersion</key>
+    <integer>1</integer>
+    <key>MinorVersion</key>
+    <integer>80</integer>
+    <key>勒</key>
+    <string>Drag to Install</string>
+    <key>Window</key>
+    <dict>
+        <key>Position</key>
+        <string>100, 100</string>
+        <key>Size</key>
+        <string>550, 400</string>
+    </dict>
+    <key>Icon</key>
+    <string>installer.icns</string>
+    <key>Background</key>
+    <string>background.png</string>
+    <key>StreamCD</key>
+    <false/>
+    <key>IncludeStandardEditNotes</key>
+    <false/>
+    <key>IncludeAllFiles</key>
+    <true/>
+    <key>IncludeCreator</key>
+    <false/>
+    <key>IncludeName</key>
+    <true/>
+    <key>IncludeDate</key>
+    <false/>
+    <key>IncludeSize</key>
+    <false/>
+    <key>SortSubdirs</key>
+    <true/>
+</dict>
+</plist>
