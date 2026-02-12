@@ -268,13 +268,18 @@ if(BUILD_TESTS)
 endif()
 
 # Copy shaders to build directory
-file(GLOB SHADER_FILES
-    shaders/base/*.glsl
-    shaders/effects/*.frag
+# Copy shaders to build directory for testing
+file(GLOB_RECURSE SHADER_FILES
+    RELATIVE ${CMAKE_SOURCE_DIR}/shaders
+    shaders/*.glsl
+    shaders/*.frag
+    shaders/*.metal
 )
 
 foreach(shader ${SHADER_FILES})
-    configure_file(${shader} ${CMAKE_BINARY_DIR}/shaders/ COPYONLY)
+    get_filename_component(shader_dir ${shader} DIRECTORY)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders/${shader_dir})
+    configure_file(shaders/${shader} ${CMAKE_BINARY_DIR}/shaders/${shader} COPYONLY)
 endforeach()
 
 # Install scripts

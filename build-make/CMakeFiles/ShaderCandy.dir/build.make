@@ -120,6 +120,14 @@ ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal: /Users/rsd/REPO
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/fractal_zoom.metal ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal
 
+ShaderCandy.saver/Contents/Resources/shaders/julia_3d.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/julia_3d.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/julia_3d.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/julia_3d.metal ShaderCandy.saver/Contents/Resources/shaders/julia_3d.metal
+
+ShaderCandy.saver/Contents/Resources/shaders/julia_set.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/julia_set.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/julia_set.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/julia_set.metal ShaderCandy.saver/Contents/Resources/shaders/julia_set.metal
+
 ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/kaleidoscopic_tunnel.metal
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/kaleidoscopic_tunnel.metal ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal
@@ -128,9 +136,17 @@ ShaderCandy.saver/Contents/Resources/shaders/liquid_gradient.metal: /Users/rsd/R
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/liquid_gradient.metal"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/liquid_gradient.metal ShaderCandy.saver/Contents/Resources/shaders/liquid_gradient.metal
 
+ShaderCandy.saver/Contents/Resources/shaders/mandelbrot_set.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbrot_set.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/mandelbrot_set.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbrot_set.metal ShaderCandy.saver/Contents/Resources/shaders/mandelbrot_set.metal
+
 ShaderCandy.saver/Contents/Resources/shaders/mandelbulb.frag: /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbulb.frag
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/mandelbulb.frag"
 	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbulb.frag ShaderCandy.saver/Contents/Resources/shaders/mandelbulb.frag
+
+ShaderCandy.saver/Contents/Resources/shaders/mandelbulb_3d.metal: /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbulb_3d.metal
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/mandelbulb_3d.metal"
+	$(CMAKE_COMMAND) -E copy /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbulb_3d.metal ShaderCandy.saver/Contents/Resources/shaders/mandelbulb_3d.metal
 
 ShaderCandy.saver/Contents/Resources/shaders/nebula.frag: /Users/rsd/REPOS/ShaderCandy/shaders/effects/nebula.frag
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Copying OS X content ShaderCandy.saver/Contents/Resources/shaders/nebula.frag"
@@ -234,9 +250,13 @@ CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/f
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/flying_toasters.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/fractal_zoom.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/gradient_waves.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/julia_3d.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/julia_set.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/kaleidoscopic_tunnel.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/liquid_gradient.metal
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/mandelbrot_set.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/mandelbulb.frag
+CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/mandelbulb_3d.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/nebula.frag
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/neon_pulse.metal
 CMakeFiles/ShaderCandy.dir/build: ShaderCandy.saver/Contents/Resources/shaders/plasma.metal
