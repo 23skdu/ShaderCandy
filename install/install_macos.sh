@@ -95,14 +95,29 @@ build_with_make() {
 install_screensaver() {
     echo "Installing ShaderCandy screensaver..."
     
-    # Find built screensaver bundle
+    # Find built screensaver bundle - look in multiple possible locations
     SAVER_BUNDLE=""
-    if [ -d "$PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandy.saver" ]; then
-        SAVER_BUNDLE="$PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandy.saver"
+    
+    # Check CMake build directory (primary location for modern builds)
+    if [ -d "$PROJECT_ROOT/build/ShaderCandy.saver" ]; then
+        SAVER_BUNDLE="$PROJECT_ROOT/build/ShaderCandy.saver"
+    # Check build-make directory (legacy Make builds)
     elif [ -d "$PROJECT_ROOT/build-make/ShaderCandy.saver" ]; then
         SAVER_BUNDLE="$PROJECT_ROOT/build-make/ShaderCandy.saver"
+    # Check Xcode DerivedData (Xcode builds)
+    elif [ -d "$PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandy.saver" ]; then
+        SAVER_BUNDLE="$PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandy.saver"
+    # Check Xcode build directory
+    elif [ -d "$PROJECT_ROOT/build/Build/Products/Release/ShaderCandy.saver" ]; then
+        SAVER_BUNDLE="$PROJECT_ROOT/build/Build/Products/Release/ShaderCandy.saver"
     else
         echo "Error: Could not find built screensaver bundle"
+        echo "Searched in:"
+        echo "  - $PROJECT_ROOT/build/ShaderCandy.saver"
+        echo "  - $PROJECT_ROOT/build-make/ShaderCandy.saver"
+        echo "  - $PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandy.saver"
+        echo ""
+        echo "Please build first with: ./install/install_macos.sh"
         exit 1
     fi
     
