@@ -80,6 +80,8 @@ if(MACOS AND BUILD_METAL)
         src/metal/MTLPerformanceReporter.mm
         src/metal/MetalSharedState.mm
         src/metal/HDRPipeline.mm
+        src/metal/DynamicRangeOptimizer.mm
+        src/metal/HDRMetadataGenerator.mm
         src/platform/macos/MacOSMetalViewAdapter.mm
     )
 
