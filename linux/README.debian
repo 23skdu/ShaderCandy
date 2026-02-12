@@ -1,0 +1,86 @@
+# ShaderCandy Linux Package
+
+This directory contains the Debian packaging configuration for ShaderCandy.
+
+## Building the Package
+
+### Prerequisites
+
+```bash
+sudo apt-get install build-essential debhelper cmake libx11-dev \
+                     libgl1-mesa-dev libglu1-mesa-dev libxss-dev
+```
+
+### Quick Build
+
+```bash
+cd linux
+./build-deb.sh
+```
+
+### Manual Build
+
+```bash
+# From project root
+cd ..
+dpkg-buildpackage -us -uc -b
+
+# Or using debuild
+debuild -us -uc -b
+```
+
+## Installing
+
+```bash
+sudo dpkg -i ../shadercandy_1.0.0-1_amd64.deb
+
+# If dependencies are missing:
+sudo apt-get install -f
+```
+
+## Files
+
+- `debian/control` - Package metadata and dependencies
+- `debian/rules` - Build rules
+- `debian/changelog` - Version history
+- `debian/copyright` - License information
+- `debian/install` - Installation manifest
+- `debian/postinst` - Post-installation script
+- `debian/postrm` - Post-removal script
+- `shadercandy.desktop` - Desktop entry
+- `shadercandy.1` - Man page
+
+## XScreenSaver Integration
+
+The package automatically registers with xscreensaver if installed.
+To manually add ShaderCandy to xscreensaver:
+
+1. Edit `~/.xscreensaver`
+2. Add to the `programs:` section:
+   ```
+   glsl: "ShaderCandy" shadercandy-screensaver -root\n\
+   ```
+
+## Custom Shaders
+
+Place custom `.frag` files in:
+- `~/.local/share/shadercandy/shaders/`
+- `/usr/local/share/shadercandy/shaders/`
+
+## Troubleshooting
+
+### Black Screen
+- Ensure OpenGL 3.3+ is supported by your GPU
+- Check `glxinfo | grep "OpenGL version"`
+
+### Missing Shaders
+- Verify shaders are in `/usr/share/shadercandy/shaders/`
+- Use `-shader-dir` option to specify custom path
+
+### Build Errors
+- Ensure all build dependencies are installed
+- Check CMake version is >= 3.20
+
+## License
+
+MIT License - See debian/copyright for details

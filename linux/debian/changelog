@@ -1,0 +1,10 @@
+shadercandy (1.0.0-1) unstable; urgency=medium
+
+  * Initial release
+  * Linux X11/OpenGL screensaver implementation
+  * 25+ GLSL shaders ported from Metal
+  * Cross-fade transitions between shaders
+  * Interactive mouse support
+  * Hot-reload shader support
+
+ -- ShaderCandy Team <dev@shadercandy.io>  Wed, 11 Feb 2026 12:00:00 +0000

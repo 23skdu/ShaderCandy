@@ -3,12 +3,16 @@
 // Uniform buffer shared across all shaders
 layout(std140, binding = 0) uniform Uniforms {
     float time;
+    float speed;
     vec2 resolution;
     vec2 mouse;
+    float mouseButtons;  // Bitmask: 1=Left, 2=Right
+    float intensity;
     vec4 date;
     int frame;
     float deltaTime;
-    vec2 padding;
+    float alpha;         // Cross-fade factor
+    float gravity;
 };
 
 // Uniforms for textures

@@ -1,18 +1,28 @@
 #ifndef SHADER_INTEROP_H
 #define SHADER_INTEROP_H
 
+#include <cstdint>
+
 #ifdef __METAL_VERSION__
 #include <metal_stdlib>
 using namespace metal;
 #define ATTR(n) [[attribute(n)]]
 #define POSITION [[position]]
 #else
+// Platform-specific SIMD types
+#if defined(__APPLE__)
 #include <simd/simd.h>
-#define ATTR(n)
-#define POSITION
 typedef simd_float2 vector_float2;
 typedef simd_float3 vector_float3;
 typedef simd_float4 vector_float4;
+#else
+// Linux/non-Apple platforms - define our own vector types
+typedef struct { float x; float y; } vector_float2;
+typedef struct { float x; float y; float z; } vector_float3;
+typedef struct { float x; float y; float z; float w; } vector_float4;
+#endif
+#define ATTR(n)
+#define POSITION
 #endif
 
 // Shared uniform structure

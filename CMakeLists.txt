@@ -233,7 +233,7 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     endif()
 endif()
 
-# Linux X11 Screensaver (optional - may not be implemented yet)
+# Linux X11 Screensaver
 if(LINUX AND BUILD_SCREENSAVER_LINUX)
     # Check if Linux source files exist
     if(EXISTS "${CMAKE_SOURCE_DIR}/src/platform/linux/screensaver.cpp")
@@ -241,26 +241,37 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
             src/platform/linux/screensaver.cpp
         )
         
+        # Find X11 libraries (Xmu and Xss are optional)
+        find_package(X11 REQUIRED)
+        find_library(XSS_LIB Xss)
+        find_library(XMU_LIB Xmu)
+        
         add_executable(shadercandy-screensaver ${LINUX_SCREENSAVER_SOURCES})
         target_link_libraries(shadercandy-screensaver PRIVATE
-            shadercandy_gl
             shadercandy_core
             ${X11_LIBRARIES}
-            ${X11_Xmu_LIB}
-            ${XSS_LIB}
             GL
         )
+        
+        if(XSS_LIB)
+            target_link_libraries(shadercandy-screensaver PRIVATE ${XSS_LIB})
+        endif()
+        
+        if(XMU_LIB)
+            target_link_libraries(shadercandy-screensaver PRIVATE ${XMU_LIB})
+        endif()
         
         # Install
         install(TARGETS shadercandy-screensaver
             RUNTIME DESTINATION bin
         )
         
-        install(FILES
-            shaders/effects/nebula.frag
-            shaders/effects/raymarch_sculpture.frag
-            shaders/effects/mandelbulb.frag
-            shaders/effects/reaction_diffusion.frag
+        # Install all GLSL shaders
+        file(GLOB GLSL_SHADERS 
+            ${CMAKE_SOURCE_DIR}/shaders/*.frag
+            ${CMAKE_SOURCE_DIR}/shaders/effects/*.frag
+        )
+        install(FILES ${GLSL_SHADERS}
             DESTINATION share/shadercandy/shaders
         )
     else()
