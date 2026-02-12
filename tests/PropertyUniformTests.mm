@@ -32,6 +32,27 @@ public:
         return results;
       }
 
+      // Test Shader Discovery
+      NSArray *shaders = view.availableShaders;
+      NSArray *expected = @[
+        @"mandelbulb_3d", @"julia_3d", @"julia_set", @"mandelbrot_set",
+        @"flying_toasters", @"voronoi_cells", @"tunnel", @"plasma", @"ripples"
+      ];
+
+      bool shadersPass = true;
+      std::string missingShaders = "";
+      for (NSString *name in expected) {
+        if (![shaders containsObject:name]) {
+          shadersPass = false;
+          missingShaders += [name UTF8String];
+          missingShaders += " ";
+        }
+      }
+      results.push_back({"Shader Discovery", shadersPass,
+                         shadersPass ? "All expected shaders found"
+                                     : "Missing: " + missingShaders,
+                         0.0});
+
       // Test Speed
       view.speed = 2.5f;
       [view updateUniforms]; // Trigger render/uniform update

@@ -302,31 +302,41 @@
       [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
 
   if (shadersPath) {
-    NSLog(@"ShaderCandy: Searching for shaders in: %@", shadersPath);
+    NSLog(@"ShaderCandy: Searching for shaders recursively in: %@",
+          shadersPath);
     NSFileManager *fm = [NSFileManager defaultManager];
-    NSArray *contents = [fm contentsOfDirectoryAtPath:shadersPath error:nil];
+    NSDirectoryEnumerator *enumerator =
+        [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
+            includingPropertiesForKeys:@[ NSURLNameKey, NSURLIsDirectoryKey ]
+                               options:NSDirectoryEnumerationSkipsHiddenFiles
+                          errorHandler:nil];
 
-    if (!contents) {
-      NSLog(@"ShaderCandy: No contents found in shaders directory or could not "
-            @"access it.");
-    }
+    for (NSURL *fileURL in enumerator) {
+      NSString *fileName;
+      [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
 
-    for (NSString *file in contents) {
-      // Only use .metal files on macOS (Metal backend)
-      // .frag files are GLSL and won't compile with Metal
-      if ([file hasSuffix:@".metal"]) {
-        NSString *name = [file stringByDeletingPathExtension];
+      NSNumber *isDirectory;
+      [fileURL getResourceValue:&isDirectory
+                         forKey:NSURLIsDirectoryKey
+                          error:nil];
+
+      if (![isDirectory boolValue] && [fileName hasSuffix:@".metal"]) {
+        NSString *name = [fileName stringByDeletingPathExtension];
         // Skip utility shaders and disabled shaders
         if ([name isEqualToString:@"common"] ||
             [name isEqualToString:@"utils"] ||
             [name isEqualToString:@"ShaderInterop"] ||
             [name isEqualToString:@"bloom"] ||
             [name isEqualToString:@"particles"] ||
-            [file hasSuffix:@".disabled"]) {
+            [fileName hasSuffix:@".disabled"]) {
           continue;
         }
-        NSLog(@"ShaderCandy: Found shader: %@", name);
-        [shaders addObject:name];
+        // Check if it's already in the list (if we want to avoid duplicates if
+        // they exist in multiple folders)
+        if (![shaders containsObject:name]) {
+          NSLog(@"ShaderCandy: Found shader: %@", name);
+          [shaders addObject:name];
+        }
       }
     }
     [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
