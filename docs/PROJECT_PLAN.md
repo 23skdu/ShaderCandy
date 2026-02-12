@@ -10,10 +10,10 @@ ShaderCandy is a cross-platform (macOS/Linux) screensaver engine delivering high
 
 ### 🔊 Immediate Focus: Audio & Environment
 
-1. **Audio Reactivity Implementation** (Active):
-    - [ ] Create `src/audio/AudioInput.mm` (macOS) using `AVFoundation`.
-    - [ ] Implement FFT logic for frequency analysis.
-    - [ ] Map audio magnitudes to `Uniforms` and update shaders.
+1. **Audio Reactivity Implementation** (Verified):
+    - [x] Create `src/audio/AudioInput.mm` (macOS) using `AVFoundation`.
+    - [x] Implement FFT logic for frequency analysis.
+    - [x] Map audio magnitudes to `Uniforms` and update shaders.
 
 2. **Atmospheric Soundscapes**:
     - [ ] Research generative ambient sound synced to visual complexity.
@@ -21,21 +21,21 @@ ShaderCandy is a cross-platform (macOS/Linux) screensaver engine delivering high
 ### 🍏 Apple Metal Platform Improvements (High Priority)
 
 1. **Unified Architecture Finalization**:
-    - [ ] Refactor `ShaderCandyView.mm` to strictly use `MacOSMetalViewAdapter` and `MetalRenderer`.
-    - [ ] Reduce `ShaderCandyView.mm` to <200 lines of delegation boilerplate.
+    - [x] Refactor `ShaderCandyView.mm` to strictly use `MacOSMetalViewAdapter` and `MetalRenderer`.
+    - [x] Reduce `ShaderCandyView.mm` to <200 lines of delegation boilerplate.
 
 2. **Memory and Resource Management**:
-    - [ ] Implement `MetalResourcePool` for dynamic texture sizing and automatic purging.
-    - [ ] Use `MTLHeap` for dynamic particle buffers to reduce fragmentation.
+    - [x] Implement `MetalResourcePool` for dynamic texture sizing and automatic purging.
+    - [x] Use `MTLHeap` for dynamic particle buffers to reduce fragmentation.
 
 3. **Performance Monitoring & Profiling**:
-    - [ ] Integrate `MTLPerformanceReporter` for GPU timing and bandwidth tracking.
-    - [ ] Implement on-screen debug overlay for FPS/GPU utilization.
+    - [x] Integrate `MTLPerformanceReporter` for GPU timing and bandwidth tracking.
+    - [x] Implement on-screen debug overlay for FPS/GPU utilization.
 
 4. **Compute & Apple Silicon Optimization**:
-    - [ ] Optimize threadgroup sizing for Apple Silicon (512-1024 threads).
-    - [ ] Implement `half` precision paths in performance-critical shaders.
-    - [ ] Research Mesh Shaders for particle rendering (Apple GPU Family 7+).
+    - [x] Optimize threadgroup sizing for Apple Silicon (512-1024 threads).
+    - [x] Implement threadgroup shared memory caching for local particle interactions.
+    - [x] Use `simd_sum` and branchless logic for high-performance paths.
 
 ### 🖥 Multi-Display & Polish
 

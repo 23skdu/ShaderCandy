@@ -62,22 +62,43 @@ if(MACOS AND BUILD_METAL)
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
     find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
+    find_library(AVFOUNDATION_FRAMEWORK AVFoundation REQUIRED)
+    find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
+    find_library(COREMEDIA_FRAMEWORK CoreMedia REQUIRED)
     
     # Metal sources - unified renderer and supporting classes
     set(METAL_SOURCES
         src/metal/MetalRenderer.mm
         src/metal/ShaderCompiler.mm
         src/metal/MetalPipelineCache.mm
+        src/metal/MetalResourcePool.mm
+        src/metal/MetalHeapManager.mm
+        src/metal/MTLPerformanceReporter.mm
         src/platform/macos/MacOSMetalViewAdapter.mm
+    )
+    
+    set(AUDIO_SOURCES
+        src/audio/AudioInput.mm
     )
     
     add_library(shadercandy_metal STATIC ${METAL_SOURCES})
     target_include_directories(shadercandy_metal PUBLIC src/metal src/platform/macos)
+    target_compile_options(shadercandy_metal PUBLIC -fobjc-arc)
     target_link_libraries(shadercandy_metal PUBLIC
         shadercandy_core
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
         ${QUARTZCORE_FRAMEWORK}
+    )
+
+    add_library(shadercandy_audio STATIC ${AUDIO_SOURCES})
+    target_include_directories(shadercandy_audio PUBLIC src/audio)
+    target_compile_options(shadercandy_audio PUBLIC -fobjc-arc)
+    target_link_libraries(shadercandy_audio PUBLIC
+        shadercandy_core
+        ${AVFOUNDATION_FRAMEWORK}
+        ${ACCELERATE_FRAMEWORK}
+        ${COREMEDIA_FRAMEWORK}
     )
     
     # Check for Metal compiler
@@ -221,11 +242,13 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     target_link_libraries(ShaderCandy PRIVATE
         shadercandy_core
         shadercandy_metal
+        shadercandy_audio
         ${SCREENSAVER_FRAMEWORK}
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
         ${QUARTZCORE_FRAMEWORK}
         ${COCOA_FRAMEWORK}
+        ${COREMEDIA_FRAMEWORK}
     )
     
     if(TARGET metal_shaders)
@@ -301,10 +324,14 @@ if(BUILD_TESTS)
     if(MACOS AND BUILD_METAL)
         target_link_libraries(shadercandy-test PRIVATE 
             shadercandy_metal
+            shadercandy_audio
             ${METAL_FRAMEWORK}
             ${METALKIT_FRAMEWORK}
             ${QUARTZCORE_FRAMEWORK}
             ${SCREENSAVER_FRAMEWORK}
+            ${AVFOUNDATION_FRAMEWORK}
+            ${ACCELERATE_FRAMEWORK}
+            ${COREMEDIA_FRAMEWORK}
             "-framework Foundation"
             "-framework AppKit"
         )

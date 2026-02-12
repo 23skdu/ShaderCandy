@@ -17,9 +17,21 @@ typedef simd_float3 vector_float3;
 typedef simd_float4 vector_float4;
 #else
 // Linux/non-Apple platforms - define our own vector types
-typedef struct { float x; float y; } vector_float2;
-typedef struct { float x; float y; float z; } vector_float3;
-typedef struct { float x; float y; float z; float w; } vector_float4;
+typedef struct {
+  float x;
+  float y;
+} vector_float2;
+typedef struct {
+  float x;
+  float y;
+  float z;
+} vector_float3;
+typedef struct {
+  float x;
+  float y;
+  float z;
+  float w;
+} vector_float4;
 #endif
 #define ATTR(n)
 #define POSITION
@@ -38,6 +50,19 @@ struct Uniforms {
   float deltaTime;
   float alpha;
   float gravity;
+
+  // Audio data
+  float volume;
+  float bass;
+  float mid;
+  float treble;
+  float beat;
+  float audioData[256];
+
+  // Performance metrics
+  float gpuTime;
+  float cpuTime;
+  float fps;
 };
 
 // Shared vertex input structure
