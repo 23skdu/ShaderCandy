@@ -54,6 +54,7 @@ dkms.conf
 # debug information files
 *.dwo
 
+<<<<<<< HEAD
 # Build directories
 build/
 build-*/
@@ -81,3 +82,16 @@ Thumbs.db
 # Compiled shaders
 *.metallib
 *.air
+=======
+# Project specific
+build/
+build-make/
+.cache/
+.agent/
+.gemini/
+*.saver/
+compile_commands.json
+*.metallib
+*.air
+osx/installer/ShaderCandyInstaller.xcodeproj/
+>>>>>>> e3b38cd (Refactor: Unified Metal Renderer architecture and cleanup build artifacts from index)

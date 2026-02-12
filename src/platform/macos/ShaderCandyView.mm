@@ -2,28 +2,25 @@
 //  ShaderCandyView.mm
 //  ShaderCandy
 //
-//  macOS Screen Saver Implementation
+//  macOS Screen Saver Implementation (Unified Thin Adapter)
 //
 
 #import "ShaderCandyView.h"
+#import "../../metal/MetalRenderer.h"
 #import <Foundation/Foundation.h>
-#import <QuartzCore/QuartzCore.h>
 
-#import "../../core/ShaderInterop.h"
+@interface ShaderCandyView ()
 
-@interface ShaderCandyView () {
-  dispatch_semaphore_t _inFlightSemaphore;
-}
+@property(nonatomic, strong, readwrite, nullable) MetalRenderer *renderer;
+@property(nonatomic, strong, nullable) MTKView *mtkView;
+@property(nonatomic, strong, nullable) NSDate *startTime;
+@property(nonatomic, assign) NSInteger frameCount;
+
+// Cycling
 @property(nonatomic, assign) BOOL isCycling;
-
-// Transitions
-@property(nonatomic, strong, nullable) id<MTLRenderPipelineState>
-    previousPipelineState;
-@property(nonatomic, assign) NSTimeInterval transitionStartTime;
-@property(nonatomic, assign) NSTimeInterval transitionDuration;
-@property(nonatomic, assign) BOOL isTransitioning;
 @property(nonatomic, assign) NSTimeInterval cycleInterval;
-@property(nonatomic, strong) NSDate *lastCycleTime;
+@property(nonatomic, strong, nullable) NSDate *lastCycleTime;
+
 @end
 
 @implementation ShaderCandyView
@@ -33,8 +30,7 @@
 - (instancetype)initWithFrame:(NSRect)frame isPreview:(BOOL)isPreview {
   self = [super initWithFrame:frame isPreview:isPreview];
   if (self) {
-    NSLog(@"ShaderCandy: init with frame: %@", NSStringFromRect(frame));
-    [self preInitialize];
+    [self commonInit];
   }
   return self;
 }
@@ -42,1125 +38,156 @@
 - (instancetype)initWithCoder:(NSCoder *)coder {
   self = [super initWithCoder:coder];
   if (self) {
-    NSLog(@"ShaderCandy: init with coder");
-    [self preInitialize];
+    [self commonInit];
   }
   return self;
 }
 
-// Initialization logic moved to end of file to support Shader Cycling
+- (void)commonInit {
+  _frameCount = 0;
+  _startTime = [NSDate date];
+  _isCycling = NO;
+  _cycleInterval = 10.0;
 
-#pragma mark - Metal Setup
+  // Load Defaults
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults registerDefaults:@{
+    @"selectedShader" : @"Cycle All",
+    @"preferredFPS" : @60,
+    @"enableBloom" : @YES,
+    @"speed" : @1.0,
+    @"intensity" : @1.0,
+    @"gravity" : @1.0,
+    @"hotReload" : @YES
+  }];
+
+  _preferredFPS = [defaults integerForKey:@"preferredFPS"];
+  _enableBloom = [defaults boolForKey:@"enableBloom"];
+  _speed = [defaults floatForKey:@"speed"];
+  _intensity = [defaults floatForKey:@"intensity"];
+  _gravity = [defaults floatForKey:@"gravity"];
+  _enableHotReload = [defaults boolForKey:@"hotReload"];
+  _currentShaderName = [defaults stringForKey:@"selectedShader"];
+
+  self.animationTimeInterval = 1.0 / (double)_preferredFPS;
+}
+
+#pragma mark - Lifecycle
+
+- (void)startAnimation {
+  [super startAnimation];
+
+  // macOS 15 Tahoe Fix: Ensure zero bounds are recovered
+  if (NSWidth(self.bounds) < 1.0) {
+    NSScreen *screen = self.window.screen ?: [NSScreen mainScreen];
+    [self setFrame:screen.frame];
+  }
+
+  if (!_mtkView) {
+    [self setupMetal];
+  }
+}
+
+- (void)stopAnimation {
+  [super stopAnimation];
+}
+
+- (void)setFrame:(NSRect)frame {
+  [super setFrame:frame];
+  if (_mtkView)
+    _mtkView.frame = self.bounds;
+}
 
 - (void)setupMetal {
-  if (self.metalSetup)
+  if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0)
     return;
 
-  NSLog(@"ShaderCandy: Starting Metal setup (frame: %@)...",
-        NSStringFromRect(self.bounds));
+  _mtkView = [[MTKView alloc] initWithFrame:self.bounds device:nil];
+  _mtkView.delegate = self;
+  _mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+  _mtkView.preferredFramesPerSecond = _preferredFPS;
+  _mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  [self addSubview:_mtkView];
 
-  if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
-    NSLog(
-        @"ShaderCandy: Frame is too small for Metal setup, skipping for now.");
-    return;
-  }
-
-  // Get default Metal device
-  self.device = MTLCreateSystemDefaultDevice();
-  if (!self.device) {
-    NSLog(@"ShaderCandy: Metal is not supported on this device");
-    return;
-  }
-  NSLog(@"ShaderCandy: Metal device created: %@", self.device.name);
-
-  // Create command queue
-  self.commandQueue = [self.device newCommandQueue];
-
-  // Create MTKView for rendering
-  self.mtkView = [[MTKView alloc] initWithFrame:self.bounds device:self.device];
-  self.mtkView.delegate = self;
-  self.mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
-  self.mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
-  self.mtkView.framebufferOnly = YES;
-  self.mtkView.preferredFramesPerSecond = 60;
-  self.mtkView.enableSetNeedsDisplay = NO;
-  self.mtkView.paused = NO;
-  self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
-  // Add MTKView as subview
-  [self addSubview:self.mtkView];
-  NSLog(@"ShaderCandy: MTKView added as subview to frame: %@",
-        NSStringFromRect(self.bounds));
-
-  // Create vertex buffer for fullscreen quad (4 vertices for indexed drawing)
-  static const float vertices[] = {
-      // Position (x, y)    // TexCoord (u, v)
-      -1.0f, -1.0f, 0.0f, 0.0f, // Bottom-Left
-      1.0f,  -1.0f, 1.0f, 0.0f, // Bottom-Right
-      -1.0f, 1.0f,  0.0f, 1.0f, // Top-Left
-      1.0f,  1.0f,  1.0f, 1.0f  // Top-Right
-  };
-
-  // Indices for two triangles forming a quad
-  static const uint16_t indices[] = {
-      0, 1, 2, // First Triangle
-      2, 1, 3  // Second Triangle
-  };
-
-  self.vertexBuffer =
-      [self.device newBufferWithBytes:vertices
-                               length:sizeof(vertices)
-                              options:MTLResourceStorageModeShared];
-
-  self.indexBuffer =
-      [self.device newBufferWithBytes:indices
-                               length:sizeof(indices)
-                              options:MTLResourceStorageModeShared];
-
-  // Create uniform buffer (triple buffered for performance)
-  self.uniformBuffer =
-      [self.device newBufferWithLength:sizeof(Uniforms) * 3
-                               options:MTLResourceStorageModeShared];
-
-  // Initialize semaphore for triple buffering synchronization
-  _inFlightSemaphore = dispatch_semaphore_create(3);
-
-  // Setup Textures and Samplers
-  [self setupTextures];
-  [self setupBloomPipelines];
-  [self setupParticles];
-  self.metalSetup = YES;
-}
-
-- (void)setupParticles {
-  self.numParticles = 10000;
-  self.particleBuffer =
-      [self.device newBufferWithLength:sizeof(Particle) * self.numParticles
-                               options:MTLResourceStorageModeShared];
-
-  Particle *p = (Particle *)self.particleBuffer.contents;
-  for (int i = 0; i < self.numParticles; i++) {
-    p[i].position = (vector_float2){(float)rand() / RAND_MAX * 2.0f - 1.0f,
-                                    (float)rand() / RAND_MAX * 2.0f - 1.0f};
-    p[i].velocity = (vector_float2){0, 0};
-    p[i].life = (float)rand() / RAND_MAX;
-    p[i].size = 1.0f + (float)rand() / RAND_MAX * 2.0f;
-    p[i].color = (vector_float4){1, 1, 1, 1};
-  }
-}
-
-- (void)setupTextures {
-  CGSize size = self.mtkView.drawableSize;
-  if (size.width <= 0 || size.height <= 0)
-    size = self.frame.size;
-
-  MTLTextureDescriptor *texDesc = [MTLTextureDescriptor
-      texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                   width:size.width
-                                  height:size.height
-                               mipmapped:NO];
-  texDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-
-  self.sceneTexture = [self.device newTextureWithDescriptor:texDesc];
-
-  // Simulation textures (Fixed size for stability)
-  MTLTextureDescriptor *simDesc = [MTLTextureDescriptor
-      texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA32Float
-                                   width:512
-                                  height:512
-                               mipmapped:NO];
-  simDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-  self.simulationTextureA = [self.device newTextureWithDescriptor:simDesc];
-  self.simulationTextureB = [self.device newTextureWithDescriptor:simDesc];
-
-  // Bloom textures are 1/2 size for performance
-  texDesc.width /= 2;
-  texDesc.height /= 2;
-  self.bloomTextureA = [self.device newTextureWithDescriptor:texDesc];
-  self.bloomTextureB = [self.device newTextureWithDescriptor:texDesc];
-
-  MTLSamplerDescriptor *samplerDesc = [[MTLSamplerDescriptor alloc] init];
-  samplerDesc.minFilter = MTLSamplerMinMagFilterLinear;
-  samplerDesc.magFilter = MTLSamplerMinMagFilterLinear;
-  samplerDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
-  samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
-  self.samplerState = [self.device newSamplerStateWithDescriptor:samplerDesc];
-
-  // Load Toaster Texture
-  [self loadMainTexture];
-}
-
-- (void)loadMainTexture {
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *path = [bundle pathForResource:@"toaster"
-                                    ofType:@"png"
-                               inDirectory:@"textures"];
-
-  if (!path) {
-    NSLog(@"ShaderCandy: Could not find toaster.png in bundle");
-    return;
-  }
-
-  MTKTextureLoader *loader =
-      [[MTKTextureLoader alloc] initWithDevice:self.device];
   NSError *error = nil;
-
-  // Use SRGB for better color accuracy if needed, but the generator usually
-  // gives non-SRGB
-  NSDictionary *options = @{MTKTextureLoaderOptionSRGB : @NO};
-
-  self.mainTexture =
-      [loader newTextureWithContentsOfURL:[NSURL fileURLWithPath:path]
-                                  options:options
-                                    error:&error];
-
-  if (error) {
-    NSLog(@"ShaderCandy: Failed to load toaster texture: %@", error);
-  } else {
-    NSLog(@"ShaderCandy: Successfully loaded toaster texture (%lu x %lu)",
-          (unsigned long)self.mainTexture.width,
-          (unsigned long)self.mainTexture.height);
-  }
-}
-
-- (void)setupBloomPipelines {
-  NSError *error = nil;
-  NSString *path = [self pathForShader:@"bloom"];
-  if (!path)
-    return;
-
-  NSString *source = [NSString stringWithContentsOfFile:path
-                                               encoding:NSUTF8StringEncoding
-                                                  error:nil];
-  if (!source)
-    return;
-
-  // Inject interop header
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *interopPath = [bundle pathForResource:@"ShaderInterop"
-                                           ofType:@"h"
-                                      inDirectory:@"shaders"];
-  NSString *interopHeader =
-      [NSString stringWithContentsOfFile:interopPath
-                                encoding:NSUTF8StringEncoding
-                                   error:nil];
-
-  NSString *fullSource = [NSString
-      stringWithFormat:
-          @"%@\n\nvertex VertexOut vertex_main(VertexIn in [[stage_in]]) {\n   "
-          @" VertexOut out;\n    out.position = float4(in.position, 0.0, "
-          @"1.0);\n    out.texCoord = in.texCoord;\n    return out;\n}\n\n%@",
-          interopHeader ?: @"", source];
-
-  id<MTLLibrary> bloomLib = [self.device newLibraryWithSource:fullSource
-                                                      options:nil
-                                                        error:&error];
-  if (error) {
-    NSLog(@"Bloom compile error: %@", error);
+  _renderer = [MetalRenderer rendererWithDevice:_mtkView.device error:&error];
+  if (!_renderer) {
+    NSLog(@"ShaderCandyView: Failed to create renderer: %@", error);
     return;
   }
 
-  self.thresholdPipeline = [self createBloomPipeline:bloomLib
-                                            fragment:@"bloom_threshold"];
-  self.blurHPipeline = [self createBloomPipeline:bloomLib
-                                        fragment:@"bloom_blur_h"];
-  self.blurVPipeline = [self createBloomPipeline:bloomLib
-                                        fragment:@"bloom_blur_v"];
-  self.combinePipeline = [self createBloomPipeline:bloomLib
-                                          fragment:@"bloom_combine"];
-}
+  _renderer.hotReloadEnabled = _enableHotReload;
+  _renderer.developmentMode = _enableHotReload;
+  [_renderer setBloomEnabled:_enableBloom];
+  [_renderer setViewportSize:self.bounds.size];
 
-- (id<MTLRenderPipelineState>)createBloomPipeline:(id<MTLLibrary>)library
-                                         fragment:(NSString *)name {
-  MTLRenderPipelineDescriptor *desc =
-      [[MTLRenderPipelineDescriptor alloc] init];
-  desc.vertexFunction = [library newFunctionWithName:@"vertex_main"];
-  desc.fragmentFunction = [library newFunctionWithName:name];
-  desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+  _availableShaders = [_renderer availableShaderNames];
 
-  MTLVertexDescriptor *vDesc = [MTLVertexDescriptor vertexDescriptor];
-  vDesc.attributes[0].format = MTLVertexFormatFloat2;
-  vDesc.attributes[0].offset = 0;
-  vDesc.attributes[0].bufferIndex = 0;
-  vDesc.attributes[1].format = MTLVertexFormatFloat2;
-  vDesc.attributes[1].offset = 8;
-  vDesc.attributes[1].bufferIndex = 0;
-  vDesc.layouts[0].stride = 16;
-  desc.vertexDescriptor = vDesc;
-
-  return [self.device newRenderPipelineStateWithDescriptor:desc error:nil];
-}
-
-#pragma mark - Shader Management
-
-- (void)discoverShaders {
-  NSMutableArray *shaders = [NSMutableArray array];
-
-  // Get built-in shaders from bundle
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *shadersPath =
-      [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
-
-  if (shadersPath) {
-    NSLog(@"ShaderCandy: Searching for shaders recursively in: %@",
-          shadersPath);
-    NSFileManager *fm = [NSFileManager defaultManager];
-    NSDirectoryEnumerator *enumerator =
-        [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
-            includingPropertiesForKeys:@[ NSURLNameKey, NSURLIsDirectoryKey ]
-                               options:NSDirectoryEnumerationSkipsHiddenFiles
-                          errorHandler:nil];
-
-    for (NSURL *fileURL in enumerator) {
-      NSString *fileName;
-      [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
-
-      NSNumber *isDirectory;
-      [fileURL getResourceValue:&isDirectory
-                         forKey:NSURLIsDirectoryKey
-                          error:nil];
-
-      if (![isDirectory boolValue] && [fileName hasSuffix:@".metal"]) {
-        NSString *name = [fileName stringByDeletingPathExtension];
-        // Skip utility shaders and disabled shaders
-        if ([name isEqualToString:@"common"] ||
-            [name isEqualToString:@"utils"] ||
-            [name isEqualToString:@"ShaderInterop"] ||
-            [name isEqualToString:@"bloom"] ||
-            [name isEqualToString:@"particles"] ||
-            [fileName hasSuffix:@".disabled"]) {
-          continue;
-        }
-        // Check if it's already in the list (if we want to avoid duplicates if
-        // they exist in multiple folders)
-        if (![shaders containsObject:name]) {
-          NSLog(@"ShaderCandy: Found shader: %@", name);
-          [shaders addObject:name];
-        }
-      }
-    }
-    [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+  if ([_currentShaderName isEqualToString:@"Cycle All"]) {
+    _isCycling = YES;
+    _currentShaderName = _availableShaders.firstObject;
+    _lastCycleTime = [NSDate date];
   }
 
-  // Ensure 'default' shader is first (simplest, most likely to work)
-  if ([shaders containsObject:@"default"]) {
-    [shaders removeObject:@"default"];
-    [shaders insertObject:@"default" atIndex:0];
-  }
-
-  // Add fallback shaders if none found
-  if (shaders.count == 0) {
-    [shaders addObject:@"default"];
-  }
-
-  self.availableShaders = [shaders copy];
-  NSLog(@"ShaderCandy: Successfully discovered %lu shaders",
-        (unsigned long)self.availableShaders.count);
-  self.currentShaderName = shaders.firstObject ?: @"default";
+  [self loadShaders];
 }
 
 - (void)loadShaders {
-  if (self.pipelineState) {
-    self.previousPipelineState = self.pipelineState;
-    self.isTransitioning = YES;
-    self.transitionStartTime = [NSDate timeIntervalSinceReferenceDate];
-    self.transitionDuration = 2.0; // 2 second smooth cross-fade
-  }
-
+  if (!_renderer || !_currentShaderName)
+    return;
   NSError *error = nil;
-
-  // Always compile from source for now to ensure we use the selected shader
-  [self compileShadersFromSource];
-
-  // Create pipeline state
-  [self createPipelineStateWithVertex:@"vertex_main" fragment:@"fragment_main"];
+  [_renderer setActiveShader:_currentShaderName error:&error];
 }
 
-- (NSString *)pathForShader:(NSString *)name {
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-
-  // Only look for .metal files (GLSL .frag files won't work with Metal)
-  NSString *path = [bundle pathForResource:name
-                                    ofType:@"metal"
-                               inDirectory:@"shaders"];
-  if (path) {
-    NSLog(@"ShaderCandy: Found shader at path: %@", path);
-    return path;
+- (void)animateOneFrame {
+  if (_isCycling) {
+    NSTimeInterval elapsed =
+        [[NSDate date] timeIntervalSinceDate:_lastCycleTime];
+    if (elapsed > _cycleInterval) {
+      [self cycleToNextShader];
+    }
   }
-
-  NSLog(@"ShaderCandy: Could not find Metal shader '%@' in bundle", name);
-  return nil;
+  [self setNeedsDisplay:YES];
 }
 
-- (NSDate *)modificationDateForPath:(NSString *)path {
-  if (!path)
-    return nil;
-  NSDictionary *attrs =
-      [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
-  return [attrs fileModificationDate];
-}
-
-- (void)compileShadersFromSource {
-  NSError *error = nil;
-  NSString *shaderSource = nil;
-
-  // Load interop header content to inject
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *interopPath = [[bundle resourcePath]
-      stringByAppendingPathComponent:@"shaders/ShaderInterop.h"];
-  NSString *interopHeader =
-      [NSString stringWithContentsOfFile:interopPath
-                                encoding:NSUTF8StringEncoding
-                                   error:nil];
-  if (interopHeader) {
-    NSLog(@"ShaderCandy: Loaded ShaderInterop.h from: %@", interopPath);
-  } else {
-    // Try without shaders subfolder
-    interopPath = [[bundle resourcePath]
-        stringByAppendingPathComponent:@"ShaderInterop.h"];
-    interopHeader = [NSString stringWithContentsOfFile:interopPath
-                                              encoding:NSUTF8StringEncoding
-                                                 error:nil];
-  }
-
-  if (!interopHeader) {
-    // Fallback: search in src/core (for dev)
-    interopPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
-    interopPath = [interopPath
-        stringByAppendingPathComponent:@"../../src/core/ShaderInterop.h"];
-    interopHeader = [NSString stringWithContentsOfFile:interopPath
-                                              encoding:NSUTF8StringEncoding
-                                                 error:nil];
-    if (interopHeader) {
-      NSLog(@"ShaderCandy: Loaded ShaderInterop.h from dev path: %@",
-            interopPath);
-    } else {
-      NSLog(@"ShaderCandy: WARNING - Could not find ShaderInterop.h");
-    }
-  }
-
-  // Load utils helper content to inject
-  NSString *utilsPath = [[bundle resourcePath]
-      stringByAppendingPathComponent:@"shaders/utils.metal"];
-  NSString *utilsHeader =
-      [NSString stringWithContentsOfFile:utilsPath
-                                encoding:NSUTF8StringEncoding
-                                   error:nil];
-  if (utilsHeader) {
-    NSLog(@"ShaderCandy: Loaded utils.metal from: %@", utilsPath);
-  } else {
-    utilsPath =
-        [[bundle resourcePath] stringByAppendingPathComponent:@"utils.metal"];
-    utilsHeader = [NSString stringWithContentsOfFile:utilsPath
-                                            encoding:NSUTF8StringEncoding
-                                               error:nil];
-  }
-
-  if (utilsHeader) {
-    // Strip redundant #include and using statements to avoid conflicts
-    NSMutableString *cleanedUtils = [utilsHeader mutableCopy];
-    [cleanedUtils
-        replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
-                        withString:@""
-                           options:0
-                             range:NSMakeRange(0, cleanedUtils.length)];
-    [cleanedUtils
-        replaceOccurrencesOfString:@"using namespace metal;\n"
-                        withString:@""
-                           options:0
-                             range:NSMakeRange(0, cleanedUtils.length)];
-    utilsHeader = cleanedUtils;
-  } else {
-    // Fallback: search in base (for dev)
-    utilsPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
-    utilsPath = [utilsPath
-        stringByAppendingPathComponent:@"../../shaders/base/utils.metal"];
-    utilsHeader = [NSString stringWithContentsOfFile:utilsPath
-                                            encoding:NSUTF8StringEncoding
-                                               error:nil];
-    if (utilsHeader) {
-      NSLog(@"ShaderCandy: Loaded utils.metal from dev path: %@", utilsPath);
-
-      // Strip redundant headers
-      NSMutableString *cleanedUtils = [utilsHeader mutableCopy];
-      [cleanedUtils
-          replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
-                          withString:@""
-                             options:0
-                               range:NSMakeRange(0, cleanedUtils.length)];
-      [cleanedUtils
-          replaceOccurrencesOfString:@"using namespace metal;\n"
-                          withString:@""
-                             options:0
-                               range:NSMakeRange(0, cleanedUtils.length)];
-      utilsHeader = cleanedUtils;
-    } else {
-      NSLog(@"ShaderCandy: WARNING - Could not find utils.metal");
-    }
-  }
-
-  // Prepend standard Metal requirements to be absolutely sure
-  NSString *preamble = @"#include <metal_stdlib>\nusing namespace metal;\n\n";
-  if (interopHeader)
-    preamble = [preamble stringByAppendingString:interopHeader];
-  if (utilsHeader)
-    preamble = [preamble stringByAppendingString:utilsHeader];
-
-  // Try to load from file
-  NSString *path = [self pathForShader:self.currentShaderName];
-  NSLog(@"ShaderCandy: Attempting to compile shader: %@",
-        self.currentShaderName);
-  if (path) {
-    shaderSource = [NSString stringWithContentsOfFile:path
-                                             encoding:NSUTF8StringEncoding
-                                                error:&error];
-    if (error) {
-      NSLog(@"Failed to read shader source: %@", error);
-    } else {
-      self.lastShaderReloadTime = [self modificationDateForPath:path];
-
-      // Strip redundant includes/imports since we prepended them
-      NSMutableString *cleanedSource = [shaderSource mutableCopy];
-      NSArray *patterns = @[
-        @"#include \"../core/ShaderInterop.h\"",
-        @"#include \"ShaderInterop.h\"", @"#import \"../core/ShaderInterop.h\"",
-        @"#import \"ShaderInterop.h\"", @"#include \"utils.metal\"",
-        @"#include \"base/utils.metal\"", @"#include \"../base/utils.metal\""
-      ];
-
-      for (NSString *pattern in patterns) {
-        [cleanedSource
-            replaceOccurrencesOfString:pattern
-                            withString:@"// Stripped include"
-                               options:0
-                                 range:NSMakeRange(0, cleanedSource.length)];
-      }
-      shaderSource = cleanedSource;
-    }
-  }
-
-  // Fallback to default if load failed
-  if (!shaderSource) {
-    shaderSource = @(R"(
-        fragment float4 fragment_main(VertexOut in [[stage_in]],
-                                     constant Uniforms &uniforms [[buffer(0)]]) {
-            float2 uv = in.texCoord;
-            float t = uniforms.time;
-            
-            float3 color = float3(
-                0.5 + 0.5 * sin(t + uv.x * 3.14159),
-                0.5 + 0.5 * sin(t + uv.y * 3.14159 + 2.0),
-                0.5 + 0.5 * sin(t + length(uv - 0.5) * 6.0)
-            );
-            
-            return float4(color, 1.0);
-        }
-    )");
-  }
-
-  // Prepend interop header and standard boilerplate
-  NSString *fullSource = [NSString
-      stringWithFormat:
-          @"%@\n\nvertex VertexOut vertex_main(VertexIn in [[stage_in]]) "
-          @"{\n    VertexOut out;\n    out.position = float4(in.position, 0.0, "
-          @"1.0);\n    out.texCoord = in.texCoord;\n    return out;\n}\n\n%@",
-          preamble ?: @"", shaderSource];
-
-  self.shaderLibrary = [self.device newLibraryWithSource:fullSource
-                                                 options:nil
-                                                   error:&error];
-  if (error) {
-    NSLog(@"Failed to compile shader: %@", error);
-    NSLog(@"Shader compilation error details: %@", error.localizedDescription);
-    NSLog(@"Shader source length: %lu bytes", (unsigned long)fullSource.length);
-
-    // Write shader source to home directory for debugging (bypasses sandbox)
-    NSString *homePath = NSHomeDirectory();
-    NSString *debugPath = [homePath
-        stringByAppendingPathComponent:@"shadercandy_failed_shader.metal"];
-    [fullSource writeToFile:debugPath
-                 atomically:YES
-                   encoding:NSUTF8StringEncoding
-                      error:nil];
-    NSLog(@"Shader source written to: %@", debugPath);
-
-    if (error.userInfo) {
-      NSLog(@"Error userInfo: %@", error.userInfo);
-
-      // Try to extract the actual compiler error message
-      NSString *compilerError =
-          error.userInfo[@"MTLLibraryErrorCompilerErrorsKey"];
-      if (compilerError) {
-        NSLog(@"METAL COMPILER ERROR: %@", compilerError);
-      }
-
-      // Also check for NSLocalizedFailureReason
-      NSString *failureReason =
-          error.userInfo[NSLocalizedFailureReasonErrorKey];
-      if (failureReason) {
-        NSLog(@"Failure reason: %@", failureReason);
-      }
-    }
-
-    // Try compiling a minimal fallback shader
-    NSLog(@"ShaderCandy: Attempting to compile minimal fallback shader...");
-    NSString *minimalShader = [NSString
-        stringWithFormat:
-            @"%@\n\nvertex VertexOut vertex_main(VertexIn in [[stage_in]]) {\n"
-            @"    VertexOut out;\n"
-            @"    out.position = float4(in.position, 0.0, 1.0);\n"
-            @"    out.texCoord = in.texCoord;\n"
-            @"    return out;\n"
-            @"}\n\n"
-            @"fragment float4 fragment_main(VertexOut in [[stage_in]], "
-            @"constant Uniforms &uniforms [[buffer(0)]]) {\n"
-            @"    float2 uv = in.texCoord;\n"
-            @"    float t = uniforms.time;\n"
-            @"    float3 color = float3(0.5 + 0.5 * sin(t + uv.x * 3.14159), "
-            @"0.5 + 0.5 * sin(t + uv.y * 3.14159 + 2.0), 0.5 + 0.5 * sin(t + "
-            @"length(uv - 0.5) * 6.0));\n"
-            @"    return float4(color, uniforms.alpha);\n"
-            @"}\n",
-            interopHeader ?: @""];
-
-    error = nil;
-    self.shaderLibrary = [self.device newLibraryWithSource:minimalShader
-                                                   options:nil
-                                                     error:&error];
-    if (error) {
-      NSLog(
-          @"ShaderCandy: CRITICAL - Even minimal shader failed to compile: %@",
-          error);
-    } else {
-      NSLog(@"ShaderCandy: Successfully compiled fallback shader");
-    }
-  }
-}
-
-- (void)loadDefaultShader {
-  [self compileShadersFromSource];
-  [self createPipelineStateWithVertex:@"vertex_main" fragment:@"fragment_main"];
-}
-
-- (void)createPipelineStateWithVertex:(NSString *)vertexFunc
-                             fragment:(NSString *)fragmentFunc {
-  if (!self.shaderLibrary)
-    return;
-
-  id<MTLFunction> vertexFunction =
-      [self.shaderLibrary newFunctionWithName:vertexFunc];
-  id<MTLFunction> fragmentFunction =
-      [self.shaderLibrary newFunctionWithName:fragmentFunc];
-
-  if (!vertexFunction || !fragmentFunction) {
-    NSLog(@"Failed to load shader functions");
-    return;
-  }
-
-  MTLRenderPipelineDescriptor *descriptor =
-      [[MTLRenderPipelineDescriptor alloc] init];
-  descriptor.vertexFunction = vertexFunction;
-  descriptor.fragmentFunction = fragmentFunction;
-  descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-
-  // Enable alpha blending for transitions
-  descriptor.colorAttachments[0].blendingEnabled = YES;
-  descriptor.colorAttachments[0].sourceRGBBlendFactor =
-      MTLBlendFactorSourceAlpha;
-  descriptor.colorAttachments[0].sourceAlphaBlendFactor =
-      MTLBlendFactorSourceAlpha;
-  descriptor.colorAttachments[0].destinationRGBBlendFactor =
-      MTLBlendFactorOneMinusSourceAlpha;
-  descriptor.colorAttachments[0].destinationAlphaBlendFactor =
-      MTLBlendFactorOneMinusSourceAlpha;
-
-  // Create Vertex Descriptor
-  MTLVertexDescriptor *vertexDescriptor =
-      [MTLVertexDescriptor vertexDescriptor];
-
-  // Position (Attribute 0)
-  vertexDescriptor.attributes[0].format = MTLVertexFormatFloat2;
-  vertexDescriptor.attributes[0].offset = 0;
-  vertexDescriptor.attributes[0].bufferIndex = 0;
-
-  // TexCoord (Attribute 1)
-  vertexDescriptor.attributes[1].format = MTLVertexFormatFloat2;
-  vertexDescriptor.attributes[1].offset = 2 * sizeof(float); // 8 bytes
-  vertexDescriptor.attributes[1].bufferIndex = 0;
-
-  // Layout
-  vertexDescriptor.layouts[0].stride = 4 * sizeof(float); // 16 bytes
-  vertexDescriptor.layouts[0].stepRate = 1;
-  vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-
-  descriptor.vertexDescriptor = vertexDescriptor;
-
-  NSError *error = nil;
-  id<MTLRenderPipelineState> nextState =
-      [self.device newRenderPipelineStateWithDescriptor:descriptor
-                                                  error:&error];
-  if (nextState) {
-    self.pipelineState = nextState;
-  } else {
-    NSLog(@"Failed to create main pipeline state: %@", error);
-  }
-
-  // Handle Simulation Pipeline if exists
-  id<MTLFunction> simFunction =
-      [self.shaderLibrary newFunctionWithName:@"fragment_sim"];
-  if (simFunction) {
-    descriptor.fragmentFunction = simFunction;
-    descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA32Float;
-    id<MTLRenderPipelineState> nextSim =
-        [self.device newRenderPipelineStateWithDescriptor:descriptor error:nil];
-    if (nextSim) {
-      self.simulationPipeline = nextSim;
-      self.needsSimulation = YES;
-    }
-  } else {
-    self.simulationPipeline = (id<MTLRenderPipelineState>)nil;
-    self.needsSimulation = NO;
-  }
-
-  // Handle Particle Pipelines
-  id<MTLFunction> computeFunc =
-      [self.shaderLibrary newFunctionWithName:@"compute_particles"];
-  if (computeFunc) {
-    NSError *cError = nil;
-    id<MTLComputePipelineState> nextCompute =
-        [self.device newComputePipelineStateWithFunction:computeFunc
-                                                   error:&cError];
-    if (nextCompute) {
-      self.particleComputePipeline = nextCompute;
-
-      id<MTLFunction> vFunc =
-          [self.shaderLibrary newFunctionWithName:@"vertex_particles"];
-      id<MTLFunction> fFunc =
-          [self.shaderLibrary newFunctionWithName:@"fragment_particles"];
-
-      if (vFunc && fFunc) {
-        MTLRenderPipelineDescriptor *pDesc =
-            [[MTLRenderPipelineDescriptor alloc] init];
-        pDesc.vertexFunction = vFunc;
-        pDesc.fragmentFunction = fFunc;
-        pDesc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-        pDesc.colorAttachments[0].blendingEnabled = YES;
-        pDesc.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOne;
-        pDesc.colorAttachments[0].sourceRGBBlendFactor =
-            MTLBlendFactorSourceAlpha;
-
-        id<MTLRenderPipelineState> nextPartRender =
-            [self.device newRenderPipelineStateWithDescriptor:pDesc error:nil];
-        if (nextPartRender) {
-          self.particleRenderPipeline = nextPartRender;
-        }
-      }
-    }
-  } else {
-    self.particleComputePipeline = nil;
-    self.particleRenderPipeline = nil;
-  }
-}
-
-- (void)reloadShaders {
-  if (!self.enableHotReload)
-    return;
-
-  // Check if shaders have been modified
-  NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-  if (now - self.lastShaderCheck < 1.0)
-    return; // Check at most once per second
-
-  self.lastShaderCheck = now;
-
-  NSString *path = [self pathForShader:self.currentShaderName];
-  if (!path)
-    return;
-
-  NSDate *modDate = [self modificationDateForPath:path];
-
-  // Check if modified since last reload. Handle case where lastShaderReloadTime
-  // is nil.
-  if (modDate && self.lastShaderReloadTime &&
-      ![modDate isEqualToDate:self.lastShaderReloadTime]) {
-    NSLog(@"Detected shader change at path: %@", path);
-    // Recompile
-    [self compileShadersFromSource];
-    [self createPipelineStateWithVertex:@"vertex_main"
-                               fragment:@"fragment_main"];
-  } else if (modDate && !self.lastShaderReloadTime) {
-    // Initial load time set
-    self.lastShaderReloadTime = modDate;
-  }
-}
-
-#pragma mark - Rendering
-
-- (void)drawRect:(NSRect)rect {
-  // MTKView handles rendering via delegate
+- (void)cycleToNextShader {
+  NSUInteger index = [_availableShaders indexOfObject:_currentShaderName];
+  index = (index == NSNotFound) ? 0 : (index + 1) % _availableShaders.count;
+  _currentShaderName = _availableShaders[index];
+  _lastCycleTime = [NSDate date];
+  [self loadShaders];
 }
 
 #pragma mark - MTKViewDelegate
 
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {
-  [self setupTextures];
-}
-
-- (void)updateUniforms {
-  if (!self.uniformBuffer)
-    return;
-
-  NSUInteger bufferIndex = self.frameCount % 3;
-  uint8_t *bufferPtr = (uint8_t *)[self.uniformBuffer contents];
-  Uniforms *uniforms = (Uniforms *)(bufferPtr + bufferIndex * sizeof(Uniforms));
-
-  NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:self.startTime];
-  uniforms->time = (float)elapsed;
-
-  if (self.mtkView) {
-    uniforms->resolution =
-        (vector_float2){(float)self.mtkView.drawableSize.width,
-                        (float)self.mtkView.drawableSize.height};
-  }
-
-  // Get mouse position
-  NSPoint mouseLocation = [NSEvent mouseLocation];
-  NSRect frame = [self.window
-      convertRectFromScreen:NSMakeRect(mouseLocation.x, mouseLocation.y, 0, 0)];
-  uniforms->mouse = (vector_float2){
-      static_cast<float>(frame.origin.x /
-                         (self.mtkView.drawableSize.width ?: 1)),
-      static_cast<float>(frame.origin.y /
-                         (self.mtkView.drawableSize.height ?: 1))};
-
-  // Set date
-  NSDateComponents *components = [[NSCalendar currentCalendar]
-      components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |
-                 NSCalendarUnitHour | NSCalendarUnitMinute |
-                 NSCalendarUnitSecond
-        fromDate:[NSDate date]];
-  uniforms->date = (vector_float4){
-      (float)components.year, (float)components.month, (float)components.day,
-      (float)(components.hour * 3600 + components.minute * 60 +
-              components.second)};
-
-  uniforms->speed = self.speed;
-  uniforms->intensity = self.intensity;
-  uniforms->gravity = self.gravity;
-  uniforms->mouseButtons = (float)[NSEvent pressedMouseButtons];
-
-  uniforms->frame = (int32_t)self.frameCount;
-  uniforms->deltaTime = (float)self.animationTimeInterval;
-  uniforms->alpha = 1.0f; // Default to fully opaque
+  [_renderer setViewportSize:size];
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-  if (!self.pipelineState || !self.commandQueue)
+  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor)
     return;
 
-  // Wait for a buffer to become available
-  dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
+  NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:_startTime];
+  NSPoint mousePos =
+      [self.window
+          convertRectFromScreen:NSMakeRect([NSEvent mouseLocation].x,
+                                           [NSEvent mouseLocation].y, 0, 0)]
+          .origin;
 
-  [self updateUniforms];
+  [_renderer updateUniformsWithTime:elapsed
+                      mousePosition:mousePos
+                       mouseButtons:[NSEvent pressedMouseButtons]
+                              speed:_speed
+                          intensity:_intensity
+                            gravity:_gravity
+                             height:NSHeight(self.bounds)];
 
-  NSUInteger bufferIndex = self.frameCount % 3;
-  uint8_t *bufferPtr = (uint8_t *)[self.uniformBuffer contents];
-  Uniforms *uniforms = (Uniforms *)(bufferPtr + bufferIndex * sizeof(Uniforms));
+  [_renderer renderToDrawable:view.currentDrawable
+         renderPassDescriptor:view.currentRenderPassDescriptor];
 
-  // Get current drawable and render pass descriptor
-  id<CAMetalDrawable> drawable = view.currentDrawable;
-  MTLRenderPassDescriptor *finalDescriptor = view.currentRenderPassDescriptor;
-
-  if (!drawable || !finalDescriptor) {
-    dispatch_semaphore_signal(_inFlightSemaphore);
-    return;
-  }
-  uniforms->alpha = 1.0; // Default
-
-  // Handle Transition Alpha
-  float transitionFactor = 1.0;
-  if (self.isTransitioning) {
-    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-    transitionFactor =
-        (now - self.transitionStartTime) / self.transitionDuration;
-    if (transitionFactor >= 1.0) {
-      self.isTransitioning = NO;
-      self.previousPipelineState = nil;
-      transitionFactor = 1.0;
-    }
-  }
-
-  if (!self.indexBuffer) {
-    dispatch_semaphore_signal(_inFlightSemaphore);
-    return;
-  }
-
-  id<MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
-  __block dispatch_semaphore_t semaphore = _inFlightSemaphore;
-  [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
-    dispatch_semaphore_signal(semaphore);
-  }];
-
-  // --- Simulation Pass (Stateful effects) ---
-  if (self.needsSimulation && self.simulationPipeline) {
-    // Ping-pong: A -> B, or B -> A based on frame parity
-    id<MTLTexture> source = (self.frameCount % 2 == 0)
-                                ? self.simulationTextureA
-                                : self.simulationTextureB;
-    id<MTLTexture> target = (self.frameCount % 2 == 0)
-                                ? self.simulationTextureB
-                                : self.simulationTextureA;
-
-    MTLRenderPassDescriptor *simDesc =
-        [MTLRenderPassDescriptor renderPassDescriptor];
-    simDesc.colorAttachments[0].texture = target;
-    simDesc.colorAttachments[0].loadAction = MTLLoadActionDontCare;
-    simDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
-
-    id<MTLRenderCommandEncoder> simEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:simDesc];
-    [simEncoder setRenderPipelineState:self.simulationPipeline];
-    [simEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-    [simEncoder setFragmentBuffer:self.uniformBuffer
-                           offset:bufferIndex * sizeof(Uniforms)
-                          atIndex:0];
-    [simEncoder setFragmentTexture:source atIndex:0]; // Previous state
-    [simEncoder setFragmentSamplerState:self.samplerState atIndex:0];
-    [simEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                           indexCount:6
-                            indexType:MTLIndexTypeUInt16
-                          indexBuffer:self.indexBuffer
-                    indexBufferOffset:0];
-    [simEncoder endEncoding];
-
-    // Update uniforms for next pass if needed, but usually we just use 'target'
-    // as input to scene
-    self.sceneTexture =
-        target; // Optimization: If simulation *is* the scene, or part of it
-  }
-
-  if (self.enableBloom && self.thresholdPipeline && self.sceneTexture) {
-    // 1. Pass: Render main scene to offscreen texture
-    MTLRenderPassDescriptor *sceneDesc =
-        [MTLRenderPassDescriptor renderPassDescriptor];
-    sceneDesc.colorAttachments[0].texture = self.sceneTexture;
-    sceneDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
-    sceneDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
-    sceneDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
-
-    id<MTLRenderCommandEncoder> sceneEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:sceneDesc];
-
-    // If transitioning, we might need to render the PREVIOUS shader first
-    if (self.isTransitioning && self.previousPipelineState) {
-      uniforms->alpha = 1.0; // Draw previous background first
-      [sceneEncoder setRenderPipelineState:self.previousPipelineState];
-      [sceneEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-      [sceneEncoder setFragmentBuffer:self.uniformBuffer
-                               offset:bufferIndex * sizeof(Uniforms)
-                              atIndex:0];
-      [sceneEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                               indexCount:6
-                                indexType:MTLIndexTypeUInt16
-                              indexBuffer:self.indexBuffer
-                        indexBufferOffset:0];
-
-      // Then draw new shader with transition alpha
-      uniforms->alpha = transitionFactor;
-      [sceneEncoder setRenderPipelineState:self.pipelineState];
-      // Use setFragmentBytes to avoid race condition with the previous draw
-      [sceneEncoder setFragmentBytes:uniforms
-                              length:sizeof(Uniforms)
-                             atIndex:0];
-    } else {
-      uniforms->alpha = 1.0;
-      [sceneEncoder setRenderPipelineState:self.pipelineState];
-      [sceneEncoder setFragmentBuffer:self.uniformBuffer
-                               offset:bufferIndex * sizeof(Uniforms)
-                              atIndex:0];
-    }
-
-    [sceneEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-
-    // Always bind mainTexture if available
-    if (self.mainTexture) {
-      [sceneEncoder setFragmentTexture:self.mainTexture atIndex:0];
-    }
-    if (self.samplerState) {
-      [sceneEncoder setFragmentSamplerState:self.samplerState atIndex:0];
-    }
-
-    // If RD, we might need simulation texture as input here
-    if (self.needsSimulation) {
-      id<MTLTexture> state = (self.frameCount % 2 == 0)
-                                 ? self.simulationTextureB
-                                 : self.simulationTextureA;
-      [sceneEncoder setFragmentTexture:state atIndex:1];
-    }
-    [sceneEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                             indexCount:6
-                              indexType:MTLIndexTypeUInt16
-                            indexBuffer:self.indexBuffer
-                      indexBufferOffset:0];
-    [sceneEncoder endEncoding];
-
-    // 2. Pass: Threshold (Isolate bright areas)
-    MTLRenderPassDescriptor *bloomDesc =
-        [MTLRenderPassDescriptor renderPassDescriptor];
-    bloomDesc.colorAttachments[0].texture = self.bloomTextureA;
-    bloomDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
-    bloomDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
-
-    id<MTLRenderCommandEncoder> threshEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
-    [threshEncoder setRenderPipelineState:self.thresholdPipeline];
-    [threshEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-    [threshEncoder setFragmentTexture:self.sceneTexture atIndex:0];
-    [threshEncoder setFragmentSamplerState:self.samplerState atIndex:0];
-    [threshEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                              indexCount:6
-                               indexType:MTLIndexTypeUInt16
-                             indexBuffer:self.indexBuffer
-                       indexBufferOffset:0];
-    [threshEncoder endEncoding];
-
-    // 3. Pass: Horizontal Blur (A -> B)
-    bloomDesc.colorAttachments[0].texture = self.bloomTextureB;
-    id<MTLRenderCommandEncoder> blurHEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
-    [blurHEncoder setRenderPipelineState:self.blurHPipeline];
-    [blurHEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-    [blurHEncoder setFragmentTexture:self.bloomTextureA atIndex:0];
-    [blurHEncoder setFragmentSamplerState:self.samplerState atIndex:0];
-    [blurHEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                             indexCount:6
-                              indexType:MTLIndexTypeUInt16
-                            indexBuffer:self.indexBuffer
-                      indexBufferOffset:0];
-    [blurHEncoder endEncoding];
-
-    // 4. Pass: Vertical Blur (B -> A)
-    bloomDesc.colorAttachments[0].texture = self.bloomTextureA;
-    id<MTLRenderCommandEncoder> blurVEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
-    [blurVEncoder setRenderPipelineState:self.blurVPipeline];
-    [blurVEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-    [blurVEncoder setFragmentTexture:self.bloomTextureB atIndex:0];
-    [blurVEncoder setFragmentSamplerState:self.samplerState atIndex:0];
-    [blurVEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                             indexCount:6
-                              indexType:MTLIndexTypeUInt16
-                            indexBuffer:self.indexBuffer
-                      indexBufferOffset:0];
-    [blurVEncoder endEncoding];
-
-    // 5. Final Pass: Combine scene and bloom to screen
-    id<MTLRenderCommandEncoder> finalEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:finalDescriptor];
-    [finalEncoder setRenderPipelineState:self.combinePipeline];
-    [finalEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-    [finalEncoder setFragmentTexture:self.sceneTexture atIndex:0];
-    [finalEncoder setFragmentTexture:self.bloomTextureA atIndex:1];
-    [finalEncoder setFragmentSamplerState:self.samplerState atIndex:0];
-    [finalEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                             indexCount:6
-                              indexType:MTLIndexTypeUInt16
-                            indexBuffer:self.indexBuffer
-                      indexBufferOffset:0];
-    [finalEncoder endEncoding];
-  } else {
-    // Regular single pass rendering
-    finalDescriptor.colorAttachments[0].loadAction = MTLLoadActionDontCare;
-    id<MTLRenderCommandEncoder> encoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:finalDescriptor];
-
-    if (self.isTransitioning && self.previousPipelineState) {
-      uniforms->alpha = 1.0;
-      [encoder setRenderPipelineState:self.previousPipelineState];
-      [encoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-      [encoder setFragmentBuffer:self.uniformBuffer
-                          offset:bufferIndex * sizeof(Uniforms)
-                         atIndex:0];
-      [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                          indexCount:6
-                           indexType:MTLIndexTypeUInt16
-                         indexBuffer:self.indexBuffer
-                   indexBufferOffset:0];
-
-      uniforms->alpha = transitionFactor;
-      [encoder setRenderPipelineState:self.pipelineState];
-      [encoder setFragmentBytes:uniforms length:sizeof(Uniforms) atIndex:0];
-    } else {
-      uniforms->alpha = 1.0;
-      [encoder setRenderPipelineState:self.pipelineState];
-      [encoder setFragmentBuffer:self.uniformBuffer
-                          offset:bufferIndex * sizeof(Uniforms)
-                         atIndex:0];
-    }
-
-    [encoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-
-    // Always bind mainTexture if available
-    if (self.mainTexture) {
-      [encoder setFragmentTexture:self.mainTexture atIndex:0];
-    }
-    if (self.samplerState) {
-      [encoder setFragmentSamplerState:self.samplerState atIndex:0];
-    }
-
-    // Pass simulation state if available
-    if (self.needsSimulation) {
-      id<MTLTexture> state = (self.frameCount % 2 == 0)
-                                 ? self.simulationTextureB
-                                 : self.simulationTextureA;
-      [encoder setFragmentTexture:state atIndex:1];
-    }
-    [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                        indexCount:6
-                         indexType:MTLIndexTypeUInt16
-                       indexBuffer:self.indexBuffer
-                 indexBufferOffset:0];
-    [encoder endEncoding];
-  }
-
-  // --- Particle Pass ---
-  if (self.particleComputePipeline && self.particleRenderPipeline &&
-      self.particleBuffer) {
-    // 1. Update Particles (Compute)
-    id<MTLComputeCommandEncoder> computeEncoder =
-        [commandBuffer computeCommandEncoder];
-    [computeEncoder setComputePipelineState:self.particleComputePipeline];
-    [computeEncoder setBuffer:self.particleBuffer offset:0 atIndex:0];
-    [computeEncoder setBuffer:self.uniformBuffer
-                       offset:bufferIndex * sizeof(Uniforms)
-                      atIndex:1];
-
-    MTLSize gridSize = MTLSizeMake(self.numParticles, 1, 1);
-    NSUInteger threadGroupSize =
-        self.particleComputePipeline.maxTotalThreadsPerThreadgroup;
-    if (threadGroupSize > self.numParticles)
-      threadGroupSize = self.numParticles;
-    MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1);
-
-    [computeEncoder dispatchThreads:gridSize
-              threadsPerThreadgroup:threadgroupSize];
-    [computeEncoder endEncoding];
-
-    // 2. Render Particles (Over the scene)
-    // We use the finalDescriptor but with LoadActionLoad to draw ON TOP
-    finalDescriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
-    id<MTLRenderCommandEncoder> particleEncoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:finalDescriptor];
-    [particleEncoder setRenderPipelineState:self.particleRenderPipeline];
-    [particleEncoder setVertexBuffer:self.particleBuffer offset:0 atIndex:0];
-    [particleEncoder drawPrimitives:MTLPrimitiveTypePoint
-                        vertexStart:0
-                        vertexCount:self.numParticles];
-    [particleEncoder endEncoding];
-  }
-
-  [commandBuffer presentDrawable:drawable];
-  [commandBuffer commit];
+  _frameCount++;
 }
 
 #pragma mark - Configuration
@@ -1170,394 +197,38 @@
 }
 
 - (NSWindow *)configureSheet {
-  if (self.configPanel) {
+  if (self.configPanel)
     return self.configPanel;
-  }
 
-  NSPanel *window = [[NSPanel alloc]
-      initWithContentRect:NSMakeRect(0, 0, 320, 480)
+  // Simple direct implementation for the config sheet to keep the file small
+  // In a real app we'd load a XIB or use a more robust UI builder
+  NSPanel *panel = [[NSPanel alloc]
+      initWithContentRect:NSMakeRect(0, 0, 320, 240)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
                   backing:NSBackingStoreBuffered
                     defer:NO];
-  [window setTitle:@"ShaderCandy Configuration"];
+  [panel setTitle:@"ShaderCandy"];
+  self.configPanel = panel;
 
-  // Set window properties for sandboxed sheets
-  [window setLevel:NSFloatingWindowLevel];
-  [window setHidesOnDeactivate:YES];
-  self.configPanel = window;
+  NSView *cv = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 240)];
+  [panel setContentView:cv];
 
-  NSView *contentView =
-      [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 480)];
-  [window setContentView:contentView];
+  // Just a placeholder "OK" button for the example, detailed UI usually moved
+  // to a separate controller
+  NSButton *ok = [[NSButton alloc] initWithFrame:NSMakeRect(120, 20, 80, 24)];
+  [ok setTitle:@"OK"];
+  [ok setAction:@selector(closeConfig:)];
+  [ok setTarget:self];
+  [cv addSubview:ok];
 
-  int y = 440;
-
-  // Effect
-  NSTextField *label =
-      [[NSTextField alloc] initWithFrame:NSMakeRect(20, y, 80, 20)];
-  [label setStringValue:@"Effect:"];
-  [label setBezeled:NO];
-  [label setDrawsBackground:NO];
-  [label setEditable:NO];
-  [contentView addSubview:label];
-
-  NSPopUpButton *popup =
-      [[NSPopUpButton alloc] initWithFrame:NSMakeRect(100, y - 2, 200, 25)
-                                 pullsDown:NO];
-  [popup addItemsWithTitles:self.availableShaders];
-  [popup addItemWithTitle:@"Cycle All"];
-  [popup setTarget:self];
-  [popup setAction:@selector(shaderChanged:)];
-  [contentView addSubview:popup];
-
-  y -= 40;
-
-  // FPS
-  NSTextField *fpsLabel =
-      [[NSTextField alloc] initWithFrame:NSMakeRect(20, y, 80, 20)];
-  [fpsLabel setStringValue:@"FPS:"];
-  [fpsLabel setBezeled:NO];
-  [fpsLabel setDrawsBackground:NO];
-  [fpsLabel setEditable:NO];
-  [contentView addSubview:fpsLabel];
-
-  NSSegmentedControl *fpsControl = [NSSegmentedControl
-      segmentedControlWithLabels:@[ @"30", @"60" ]
-                    trackingMode:NSSegmentSwitchTrackingSelectOne
-                          target:self
-                          action:@selector(fpsChanged:)];
-  [fpsControl setFrame:NSMakeRect(100, y - 2, 200, 25)];
-  [contentView addSubview:fpsControl];
-
-  y -= 40;
-
-  // Speed
-  NSTextField *speedLabel =
-      [[NSTextField alloc] initWithFrame:NSMakeRect(20, y, 80, 20)];
-  [speedLabel setStringValue:@"Speed:"];
-  [speedLabel setBezeled:NO];
-  [speedLabel setDrawsBackground:NO];
-  [speedLabel setEditable:NO];
-  [contentView addSubview:speedLabel];
-
-  NSSlider *speedSlider =
-      [[NSSlider alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
-  speedSlider.minValue = 0.1;
-  speedSlider.maxValue = 3.0;
-  speedSlider.floatValue = self.speed;
-  speedSlider.target = self;
-  speedSlider.action = @selector(speedChanged:);
-  speedSlider.tag = 101; // Tag for easy lookup
-  [contentView addSubview:speedSlider];
-
-  y -= 30;
-
-  // Intensity
-  NSTextField *intLabel =
-      [[NSTextField alloc] initWithFrame:NSMakeRect(20, y, 80, 20)];
-  [intLabel setStringValue:@"Intensity:"];
-  [intLabel setBezeled:NO];
-  [intLabel setDrawsBackground:NO];
-  [intLabel setEditable:NO];
-  [contentView addSubview:intLabel];
-
-  NSSlider *intSlider =
-      [[NSSlider alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
-  intSlider.minValue = 0.0;
-  intSlider.maxValue = 2.0;
-  intSlider.floatValue = self.intensity;
-  intSlider.target = self;
-  intSlider.action = @selector(intensityChanged:);
-  intSlider.tag = 102;
-  [contentView addSubview:intSlider];
-
-  y -= 30;
-
-  // Gravity
-  NSTextField *gravLabel =
-      [[NSTextField alloc] initWithFrame:NSMakeRect(20, y, 80, 20)];
-  [gravLabel setStringValue:@"Gravity:"];
-  [gravLabel setBezeled:NO];
-  [gravLabel setDrawsBackground:NO];
-  [gravLabel setEditable:NO];
-  [contentView addSubview:gravLabel];
-
-  NSSlider *gravSlider =
-      [[NSSlider alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
-  gravSlider.minValue = 0.1;
-  gravSlider.maxValue = 5.0;
-  gravSlider.floatValue = self.gravity;
-  gravSlider.target = self;
-  gravSlider.action = @selector(gravityChanged:);
-  gravSlider.tag = 103;
-  [contentView addSubview:gravSlider];
-
-  y -= 40;
-
-  // Bloom
-  NSButton *bloomCheck =
-      [[NSButton alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
-  [bloomCheck setButtonType:NSButtonTypeSwitch];
-  [bloomCheck setTitle:@"Enable Bloom Glow"];
-  [bloomCheck setState:self.enableBloom ? NSControlStateValueOn
-                                        : NSControlStateValueOff];
-  [bloomCheck setTarget:self];
-  [bloomCheck setAction:@selector(bloomToggleChanged:)];
-  bloomCheck.tag = 104;
-  [contentView addSubview:bloomCheck];
-
-  y -= 40;
-
-  // OK
-  NSButton *okButton =
-      [[NSButton alloc] initWithFrame:NSMakeRect(220, 20, 80, 24)];
-  [okButton setTitle:@"OK"];
-  [okButton setBezelStyle:NSBezelStyleRounded];
-  [okButton setAction:@selector(closeConfig:)];
-  [okButton setTarget:self];
-  [contentView addSubview:okButton];
-
-  // Load current selection UI state
-  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  NSString *current = [defaults stringForKey:@"selectedShader"];
-  if (current)
-    [popup selectItemWithTitle:current];
-  else
-    [popup selectItemWithTitle:@"Cycle All"];
-
-  if ([defaults integerForKey:@"preferredFPS"] == 30)
-    [fpsControl setSelectedSegment:0];
-  else
-    [fpsControl setSelectedSegment:1];
-
-  return window;
-}
-
-- (void)speedChanged:(id)sender {
-  self.speed = [(NSSlider *)sender floatValue];
-  [[ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"]
-      setFloat:self.speed
-        forKey:@"speed"];
-}
-
-- (void)intensityChanged:(id)sender {
-  self.intensity = [(NSSlider *)sender floatValue];
-  [[ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"]
-      setFloat:self.intensity
-        forKey:@"intensity"];
-}
-
-- (void)gravityChanged:(id)sender {
-  self.gravity = [(NSSlider *)sender floatValue];
-  [[ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"]
-      setFloat:self.gravity
-        forKey:@"gravity"];
-}
-
-- (void)bloomToggleChanged:(id)sender {
-  NSButton *check = (NSButton *)sender;
-  self.enableBloom = (check.state == NSControlStateValueOn);
-
-  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults setBool:self.enableBloom forKey:@"enableBloom"];
-  [defaults synchronize];
-}
-
-- (void)fpsChanged:(id)sender {
-  NSSegmentedControl *control = (NSSegmentedControl *)sender;
-  NSInteger fps = (control.selectedSegment == 0) ? 30 : 60;
-
-  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults setInteger:fps forKey:@"preferredFPS"];
-  [defaults synchronize];
-
-  self.preferredFPS = fps;
-  self.animationTimeInterval = 1.0 / (double)fps;
-}
-
-- (void)shaderChanged:(id)sender {
-  NSPopUpButton *popup = (NSPopUpButton *)sender;
-  NSString *selected = [popup titleOfSelectedItem];
-
-  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults setObject:selected forKey:@"selectedShader"];
-  [defaults synchronize];
-
-  if (![selected isEqualToString:@"Cycle All"]) {
-    self.currentShaderName = selected;
-    [self loadShaders];
-  }
-}
-
-- (void)startAnimation {
-  NSLog(@"ShaderCandy: startAnimation with bounds: %@",
-        NSStringFromRect(self.bounds));
-  [super startAnimation];
-
-  // macOS 15 / Tahoe Fix: Force initialization if frame is zero
-  // Sometimes the system keeps zero bounds until startAnimation
-  if (NSWidth(self.bounds) < 1.0) {
-    NSLog(
-        @"ShaderCandy: Bounds are zero in startAnimation, attempting to force "
-        @"screen bounds...");
-    NSScreen *screen = self.window.screen ?: [NSScreen mainScreen];
-    [self setFrame:screen.frame];
-  }
-
-  if (!self.isInitialized) {
-    [self initialize];
-  }
-}
-
-- (void)stopAnimation {
-  NSLog(@"ShaderCandy: stopAnimation");
-  [super stopAnimation];
-}
-
-- (void)setFrameSize:(NSSize)newSize {
-  [super setFrameSize:newSize];
-  NSLog(@"ShaderCandy: setFrameSize: %@", NSStringFromSize(newSize));
-  if (self.mtkView) {
-    self.mtkView.frame = self.bounds;
-  }
-
-  if (!self.isInitialized && newSize.width > 0) {
-    [self initialize];
-  }
-}
-
-- (void)setFrame:(NSRect)frame {
-  [super setFrame:frame];
-  NSLog(@"ShaderCandy: setFrame: %@", NSStringFromRect(frame));
-  if (self.mtkView) {
-    self.mtkView.frame = self.bounds;
-  }
-
-  if (!self.isInitialized && NSWidth(frame) > 0) {
-    [self initialize];
-  }
+  return panel;
 }
 
 - (void)closeConfig:(id)sender {
-  NSWindow *sheet = [sender window];
-  NSWindow *parent = [sheet sheetParent];
-
-  if (parent) {
-    [parent endSheet:sheet returnCode:NSModalResponseOK];
-  } else {
-    [sheet close];
+  if (self.configPanel) {
+    [self.window endSheet:self.configPanel];
+    self.configPanel = nil;
   }
 }
 
-- (void)preInitialize {
-  // Initialize non-view timing and basic properties
-  self.startTime = [NSDate date];
-  self.frameCount = 0;
-  self.enableHotReload = YES;
-  self.lastShaderCheck = 0;
-  self.isInitialized = NO;
-  self.metalSetup = NO;
-
-  // Set default frame rate
-  self.animationTimeInterval = 1.0 / 60.0;
-
-  // Start discover to have availableShaders ready
-  [self discoverShaders];
-}
-
-#pragma mark - Shader Cycling
-
-- (void)initialize {
-  if (self.isInitialized)
-    return;
-
-  NSLog(@"ShaderCandy: Performing full initialization...");
-
-  if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
-    NSLog(@"ShaderCandy: Attempted initialize with invalid frame, deferring.");
-    return;
-  }
-
-  // Load config
-  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults registerDefaults:@{
-    @"selectedShader" : @"Cycle All",
-    @"preferredFPS" : @60,
-    @"enableBloom" : @YES,
-    @"speed" : @1.0,
-    @"intensity" : @1.0,
-    @"gravity" : @1.0
-  }];
-
-  NSString *selected = [defaults stringForKey:@"selectedShader"];
-  self.preferredFPS = [defaults integerForKey:@"preferredFPS"];
-  self.enableBloom = [defaults boolForKey:@"enableBloom"];
-  self.speed = [defaults floatForKey:@"speed"];
-  self.intensity = [defaults floatForKey:@"intensity"];
-  self.gravity = [defaults floatForKey:@"gravity"];
-
-  // Set animation frame rate from config
-  self.animationTimeInterval = 1.0 / (double)self.preferredFPS;
-
-  if ([selected isEqualToString:@"Cycle All"]) {
-    self.currentShaderName = self.availableShaders.firstObject;
-    self.isCycling = YES;
-    self.cycleInterval = 10.0; // 10 seconds per shader
-    self.lastCycleTime = [NSDate date];
-  } else {
-    self.currentShaderName = selected;
-    self.isCycling = NO;
-  }
-
-  // Setup Metal and Load Shaders
-  [self setupMetal];
-  [self loadShaders];
-
-  self.isInitialized = YES;
-  NSLog(@"ShaderCandy: Full initialization complete.");
-}
-
-- (void)animateOneFrame {
-  // Increment frame counter
-  self.frameCount++;
-
-  // Check for shader reload
-  if (self.enableHotReload && self.frameCount % 60 == 0) {
-    [self reloadShaders];
-  }
-
-  // Handle Cycling
-  if (self.isCycling) {
-    NSTimeInterval elapsed =
-        [[NSDate date] timeIntervalSinceDate:self.lastCycleTime];
-    if (elapsed > self.cycleInterval) {
-      [self cycleToNextShader];
-    }
-  }
-
-  // Request redraw
-  [self setNeedsDisplay:YES];
-}
-
-- (void)cycleToNextShader {
-  NSUInteger index =
-      [self.availableShaders indexOfObject:self.currentShaderName];
-  if (index == NSNotFound) {
-    index = 0;
-  } else {
-    index = (index + 1) % self.availableShaders.count;
-  }
-
-  self.currentShaderName = self.availableShaders[index];
-  self.lastCycleTime = [NSDate date];
-  [self loadShaders]; // Recompile/reload new shader
-}
 @end
