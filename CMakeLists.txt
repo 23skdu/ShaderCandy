@@ -280,6 +280,8 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
           src/platform/macos/PresetImportExportSheet.mm
           src/neural/NeuralStyleEngine.mm
           src/neural/StyleTransferModel.mm
+          src/neural/StyleLibrary.mm
+          src/neural/StyleLibraryViewController.mm
       )
      
      # Find Cocoa framework
