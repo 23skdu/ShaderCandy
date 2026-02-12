@@ -154,7 +154,9 @@ install_binaries() {
     
     # Install shaders
     sudo mkdir -p /usr/local/share/shadercandy/shaders
-    sudo cp -r ../shaders/* /usr/local/share/shadercandy/shaders/
+    sudo cp ../shaders/*.frag /usr/local/share/shadercandy/shaders/ 2>/dev/null || true
+    sudo cp ../shaders/effects/*.frag /usr/local/share/shadercandy/shaders/ 2>/dev/null || true
+    sudo cp -r ../shaders/base /usr/local/share/shadercandy/shaders/ 2>/dev/null || true
     
     # Set permissions
     sudo chmod -R 755 /usr/local/share/shadercandy

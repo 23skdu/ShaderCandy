@@ -1,0 +1,21 @@
+# ShaderCandy xscreensaver configuration
+# Add this to your ~/.xscreensaver file or system-wide config
+
+glsl: "ShaderCandy - Nebula" shadercandy-screensaver -shader nebula \
+  -root\n\
+glsl: "ShaderCandy - Mandelbrot" shadercandy-screensaver -shader mandelbrot_set \
+  -root\n\
+glsl: "ShaderCandy - Julia Set" shadercandy-screensaver -shader julia_set \
+  -root\n\
+glsl: "ShaderCandy - Tunnel" shadercandy-screensaver -shader tunnel \
+  -root\n\
+glsl: "ShaderCandy - Plasma" shadercandy-screensaver -shader plasma \
+  -root\n\
+glsl: "ShaderCandy - Mandelbulb 3D" shadercandy-screensaver -shader mandelbulb_3d \
+  -root\n\
+glsl: "ShaderCandy - Starfield" shadercandy-screensaver -shader starfield_warp \
+  -root\n\
+glsl: "ShaderCandy - Voronoi" shadercandy-screensaver -shader voronoi_cells \
+  -root\n\
+glsl: "ShaderCandy - Flying Toasters" shadercandy-screensaver -shader flying_toasters \
+  -root\n\

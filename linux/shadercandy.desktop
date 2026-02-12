@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=ShaderCandy
+Comment=GPU-accelerated screensaver with procedural graphics
+Exec=shadercandy-screensaver
+Type=Application
+Terminal=false
+Categories=Screensaver;Graphics;
+Keywords=screensaver;graphics;gpu;opengl;shaders;fractals;
+Icon=shadercandy
