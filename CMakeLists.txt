@@ -87,6 +87,7 @@ if(MACOS AND BUILD_METAL)
         src/audio/AudioInput.mm
         src/audio/SoundscapeGenerator.mm
         src/audio/AcousticSimulator.mm
+        src/audio/RayAudioEngine.mm
     )
     
     add_library(shadercandy_metal STATIC ${METAL_SOURCES})
@@ -294,6 +295,7 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
           shaders/**/*.frag
           textures/*.png
           shaders/neural/*.metal
+          shaders/audio/*.metal
       )
      
      foreach(res ${STANDALONE_RESOURCES})
