@@ -321,7 +321,21 @@
   [metricsCheck setAction:@selector(metricsChanged:)];
   [contentView addSubview:metricsCheck];
 
-  y -= 50;
+  y -= 30;
+
+  // Auto-scaling toggle
+  NSButton *autoScaleCheck =
+      [[NSButton alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
+  [autoScaleCheck setButtonType:NSButtonTypeSwitch];
+  [autoScaleCheck setTitle:@"Performance Auto-Scaling"];
+  [autoScaleCheck setState:_renderer.autoScalingEnabled
+                               ? NSControlStateValueOn
+                               : NSControlStateValueOff];
+  [autoScaleCheck setTarget:self];
+  [autoScaleCheck setAction:@selector(autoScaleChanged:)];
+  [contentView addSubview:autoScaleCheck];
+
+  y -= 40;
 
   // OK button
   NSButton *okButton =
@@ -362,6 +376,11 @@
 
 - (void)metricsChanged:(id)sender {
   _renderer.showDebugOverlay =
+      [(NSButton *)sender state] == NSControlStateValueOn;
+}
+
+- (void)autoScaleChanged:(id)sender {
+  _renderer.autoScalingEnabled =
       [(NSButton *)sender state] == NSControlStateValueOn;
 }
 
