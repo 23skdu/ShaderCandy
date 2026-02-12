@@ -72,24 +72,10 @@ include CMakeFiles/shadercandy-test.dir/flags.make
 CMakeFiles/shadercandy-test.dir/codegen:
 .PHONY : CMakeFiles/shadercandy-test.dir/codegen
 
-CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: CMakeFiles/shadercandy-test.dir/flags.make
-CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: /Users/rsd/REPOS/ShaderCandy/tests/main.cpp
-CMakeFiles/shadercandy-test.dir/tests/main.cpp.o: CMakeFiles/shadercandy-test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/shadercandy-test.dir/tests/main.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/shadercandy-test.dir/tests/main.cpp.o -MF CMakeFiles/shadercandy-test.dir/tests/main.cpp.o.d -o CMakeFiles/shadercandy-test.dir/tests/main.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/main.cpp
-
-CMakeFiles/shadercandy-test.dir/tests/main.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/shadercandy-test.dir/tests/main.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/rsd/REPOS/ShaderCandy/tests/main.cpp > CMakeFiles/shadercandy-test.dir/tests/main.cpp.i
-
-CMakeFiles/shadercandy-test.dir/tests/main.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/shadercandy-test.dir/tests/main.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/rsd/REPOS/ShaderCandy/tests/main.cpp -o CMakeFiles/shadercandy-test.dir/tests/main.cpp.s
-
 CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o: CMakeFiles/shadercandy-test.dir/flags.make
 CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o: /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp
 CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o: CMakeFiles/shadercandy-test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o -MF CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o.d -o CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp
 
 CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.i: cmake_force
@@ -100,22 +86,52 @@ CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp -o CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.s
 
+CMakeFiles/shadercandy-test.dir/tests/main.mm.o: CMakeFiles/shadercandy-test.dir/flags.make
+CMakeFiles/shadercandy-test.dir/tests/main.mm.o: /Users/rsd/REPOS/ShaderCandy/tests/main.mm
+CMakeFiles/shadercandy-test.dir/tests/main.mm.o: CMakeFiles/shadercandy-test.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building OBJCXX object CMakeFiles/shadercandy-test.dir/tests/main.mm.o"
+	/usr/bin/c++ $(OBJCXX_DEFINES) $(OBJCXX_INCLUDES) -x objective-c++ $(OBJCXX_FLAGS) -MD -MT CMakeFiles/shadercandy-test.dir/tests/main.mm.o -MF CMakeFiles/shadercandy-test.dir/tests/main.mm.o.d -o CMakeFiles/shadercandy-test.dir/tests/main.mm.o -c /Users/rsd/REPOS/ShaderCandy/tests/main.mm
+
+CMakeFiles/shadercandy-test.dir/tests/main.mm.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing OBJCXX source to CMakeFiles/shadercandy-test.dir/tests/main.mm.i"
+	/usr/bin/c++ $(OBJCXX_DEFINES) $(OBJCXX_INCLUDES) $(OBJCXX_FLAGS) -E /Users/rsd/REPOS/ShaderCandy/tests/main.mm > CMakeFiles/shadercandy-test.dir/tests/main.mm.i
+
+CMakeFiles/shadercandy-test.dir/tests/main.mm.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling OBJCXX source to assembly CMakeFiles/shadercandy-test.dir/tests/main.mm.s"
+	/usr/bin/c++ $(OBJCXX_DEFINES) $(OBJCXX_INCLUDES) $(OBJCXX_FLAGS) -S /Users/rsd/REPOS/ShaderCandy/tests/main.mm -o CMakeFiles/shadercandy-test.dir/tests/main.mm.s
+
+CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o: CMakeFiles/shadercandy-test.dir/flags.make
+CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o: /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm
+CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o: CMakeFiles/shadercandy-test.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building OBJCXX object CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o"
+	/usr/bin/c++ $(OBJCXX_DEFINES) $(OBJCXX_INCLUDES) -x objective-c++ $(OBJCXX_FLAGS) -MD -MT CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o -MF CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o.d -o CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o -c /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm
+
+CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing OBJCXX source to CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.i"
+	/usr/bin/c++ $(OBJCXX_DEFINES) $(OBJCXX_INCLUDES) $(OBJCXX_FLAGS) -E /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm > CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.i
+
+CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling OBJCXX source to assembly CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.s"
+	/usr/bin/c++ $(OBJCXX_DEFINES) $(OBJCXX_INCLUDES) $(OBJCXX_FLAGS) -S /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm -o CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.s
+
 # Object files for target shadercandy-test
 shadercandy__test_OBJECTS = \
-"CMakeFiles/shadercandy-test.dir/tests/main.cpp.o" \
-"CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o"
+"CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o" \
+"CMakeFiles/shadercandy-test.dir/tests/main.mm.o" \
+"CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o"
 
 # External object files for target shadercandy-test
 shadercandy__test_EXTERNAL_OBJECTS =
 
-shadercandy-test: CMakeFiles/shadercandy-test.dir/tests/main.cpp.o
 shadercandy-test: CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o
+shadercandy-test: CMakeFiles/shadercandy-test.dir/tests/main.mm.o
+shadercandy-test: CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o
 shadercandy-test: CMakeFiles/shadercandy-test.dir/build.make
 shadercandy-test: libshadercandy_core.a
 shadercandy-test: libshadercandy_metal.a
 shadercandy-test: libshadercandy_core.a
 shadercandy-test: CMakeFiles/shadercandy-test.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable shadercandy-test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/rsd/REPOS/ShaderCandy/build-make/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable shadercandy-test"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/shadercandy-test.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

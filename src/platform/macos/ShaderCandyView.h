@@ -45,10 +45,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, assign) float intensity;
 @property(nonatomic, assign) float gravity;
 
-// Presets
-@property(nonatomic, strong) NSString *currentPresetName;
-@property(nonatomic, strong) NSDictionary *presets;
-
 // Bloom
 @property(nonatomic, assign) BOOL enableBloom;
 @property(nonatomic, strong) id<MTLRenderPipelineState> thresholdPipeline;
@@ -80,6 +76,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)loadShaders;
 - (void)reloadShaders;
 - (void)setupMetal;
+- (void)updateUniforms;
 - (void)createPipelineStateWithVertex:(NSString *)vertexFunc
                              fragment:(NSString *)fragmentFunc;
 

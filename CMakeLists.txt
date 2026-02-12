@@ -235,9 +235,15 @@ endif()
 # Test executable
 if(BUILD_TESTS)
     set(TEST_SOURCES
-        tests/main.cpp
         tests/TestFramework.cpp
     )
+    
+    if(MACOS)
+        list(APPEND TEST_SOURCES tests/main.mm)
+        list(APPEND TEST_SOURCES src/platform/macos/ShaderCandyView.mm)
+    else()
+        list(APPEND TEST_SOURCES tests/main.cpp)
+    endif()
     
     add_executable(shadercandy-test ${TEST_SOURCES})
     target_link_libraries(shadercandy-test PRIVATE
@@ -245,7 +251,15 @@ if(BUILD_TESTS)
     )
     
     if(MACOS AND BUILD_METAL)
-        target_link_libraries(shadercandy-test PRIVATE shadercandy_metal)
+        target_link_libraries(shadercandy-test PRIVATE 
+            shadercandy_metal
+            ${METAL_FRAMEWORK}
+            ${METALKIT_FRAMEWORK}
+            ${QUARTZCORE_FRAMEWORK}
+            ${SCREENSAVER_FRAMEWORK}
+            "-framework Foundation"
+            "-framework AppKit"
+        )
     endif()
     
     if(BUILD_OPENGL)
