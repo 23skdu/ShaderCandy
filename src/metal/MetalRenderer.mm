@@ -333,9 +333,24 @@
   _resourcePool = [[MetalResourcePool alloc] initWithDevice:_device];
   _performanceReporter =
       [[MTLPerformanceReporter alloc] initWithDevice:_device];
-  _heapManager =
-      [[MetalHeapManager alloc] initWithDevice:_device
-                                          size:128 * 1024 * 1024]; // 128MB heap
+
+  // Initialize heap manager with error handling
+  _heapManager = [[MetalHeapManager alloc]
+      initWithDevice:_device
+                size:64 * 1024 * 1024]; // 64MB heap (more conservative)
+  if (!_heapManager) {
+    if (error) {
+      *error =
+          [NSError errorWithDomain:@"MetalRenderer"
+                              code:MetalRendererErrorCodeResourceExhausted
+                          userInfo:@{
+                            NSLocalizedDescriptionKey :
+                                @"Failed to create Metal heap manager - Metal "
+                                @"may not be supported on this device"
+                          }];
+    }
+    return NO;
+  }
 
   // Setup resources
   if (![self createVertexBuffers]) {
@@ -361,7 +376,8 @@
   // Register for device loss notifications
   [self registerForDeviceLoss];
 
-  [self setupDebugOverlay];
+  // Skip debug overlay for standalone app to avoid shader compilation issues
+  // [self setupDebugOverlay];
 
   NSLog(@"MetalRenderer: Initialized with device %@ (Family: %ld)",
         _deviceInfo.name, (long)_deviceInfo.family);
@@ -399,6 +415,7 @@
          selector:@selector(handleDeviceLossNotification:)
              name:MTLDeviceWasRemovedNotification
            object:_device];
+  NSLog(@"Device loss notification registered");
 }
 
 - (void)handleDeviceLossNotification:(NSNotification *)notification {
@@ -526,22 +543,41 @@
   if (!_heapManager)
     return NO;
 
-  // Allocate for maximum possible count to support auto-scaling without
-  // reallocation
-  NSUInteger maxCount = 100000;
-  NSUInteger particleBufferSize = maxCount * sizeof(Particle);
-  if (particleBufferSize == 0)
-    return YES;
+  // Try different buffer sizes from smallest to larger
+  NSArray<NSNumber *> *bufferSizes = @[
+    @(1 * sizeof(Particle)), // 1 particle (48 bytes)
+    @(2 * sizeof(Particle)), // 2 particles (96 bytes)
+    @(4 * sizeof(Particle)), // 4 particles (192 bytes)
+    @(8 * sizeof(Particle)), // 8 particles (384 bytes)
+    @(16 * sizeof(Particle)) // 16 particles (768 bytes)
+  ];
 
-  _resources.particleBufferA =
-      [_heapManager newBufferWithLength:particleBufferSize
-                                options:MTLResourceStorageModeShared];
-  _resources.particleBufferB =
-      [_heapManager newBufferWithLength:particleBufferSize
-                                options:MTLResourceStorageModeShared];
+  for (NSNumber *bufferSize in bufferSizes) {
+    NSUInteger particleBufferSize = bufferSize.unsignedLongValue;
 
-  return (_resources.particleBufferA != nil &&
-          _resources.particleBufferB != nil);
+    NSLog(@"MetalRenderer: Attempting to create particle buffers with size %lu",
+          (unsigned long)particleBufferSize);
+
+    _resources.particleBufferA =
+        [_heapManager newBufferWithLength:particleBufferSize
+                                  options:MTLResourceStorageModeShared];
+    _resources.particleBufferB =
+        [_heapManager newBufferWithLength:particleBufferSize
+                                  options:MTLResourceStorageModeShared];
+
+    if (_resources.particleBufferA && _resources.particleBufferB) {
+      NSLog(@"MetalRenderer: Successfully created particle buffers with %lu "
+            @"bytes",
+            (unsigned long)particleBufferSize);
+      return YES;
+    } else {
+      NSLog(@"MetalRenderer: Failed to create particle buffers with %lu bytes",
+            (unsigned long)particleBufferSize);
+    }
+  }
+
+  NSLog(@"MetalRenderer: Failed to create particle buffers with any size");
+  return NO;
 }
 
 #pragma mark - Texture Management
@@ -702,10 +738,13 @@
 }
 
 - (NSString *)pathForShader:(NSString *)name {
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSBundle *bundle = [NSBundle mainBundle];
   NSString *path = [bundle pathForResource:name
                                     ofType:@"metal"
                                inDirectory:@"shaders"];
+  if (!path) {
+    NSLog(@"Shader not found: %@.metal in shaders/", name);
+  }
   return path;
 }
 
@@ -726,15 +765,10 @@
       appendString:@"#include <metal_stdlib>\nusing namespace metal;\n\n"];
 
   // Load and prepend interop header
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSBundle *bundle = [NSBundle mainBundle];
   NSString *interopPath = [bundle pathForResource:@"ShaderInterop"
                                            ofType:@"h"
                                       inDirectory:@"shaders"];
-  if (!interopPath) {
-    interopPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
-    interopPath = [interopPath
-        stringByAppendingPathComponent:@"src/core/ShaderInterop.h"];
-  }
 
   if (interopPath) {
     NSString *interopHeader =
@@ -751,11 +785,6 @@
   NSString *utilsPath = [bundle pathForResource:@"utils"
                                          ofType:@"metal"
                                     inDirectory:@"shaders"];
-  if (!utilsPath) {
-    utilsPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
-    utilsPath =
-        [utilsPath stringByAppendingPathComponent:@"shaders/base/utils.metal"];
-  }
 
   if (utilsPath) {
     NSString *utilsSource =
@@ -950,11 +979,19 @@
 - (NSArray<NSString *> *)availableShaderNames {
   NSMutableArray *shaders = [NSMutableArray array];
 
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSBundle *bundle = [NSBundle mainBundle];
   NSString *shadersPath =
       [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
 
+  NSLog(@"Looking for shaders in: %@", shadersPath);
+
   NSFileManager *fm = [NSFileManager defaultManager];
+  BOOL isDir = NO;
+  if (![fm fileExistsAtPath:shadersPath isDirectory:&isDir] || !isDir) {
+    NSLog(@"Shaders directory not found at: %@", shadersPath);
+    return @[];
+  }
+
   NSDirectoryEnumerator *enumerator =
       [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
           includingPropertiesForKeys:@[ NSURLNameKey, NSURLIsDirectoryKey ]
@@ -977,13 +1014,15 @@
           ![name isEqualToString:@"utils"] &&
           ![name isEqualToString:@"ShaderInterop"] &&
           ![name isEqualToString:@"bloom"] &&
-          ![name isEqualToString:@"particles"]) {
+          ![name isEqualToString:@"particles"] &&
+          ![name isEqualToString:@"debug_overlay"]) {
         [shaders addObject:name];
       }
     }
   }
 
   [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+  NSLog(@"Discovered %lu shaders: %@", (unsigned long)shaders.count, shaders);
   return [shaders copy];
 }
 
@@ -1041,13 +1080,18 @@
 #pragma mark - File Watching
 
 - (void)setupFileWatcher {
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSBundle *bundle = [NSBundle mainBundle];
   NSString *shadersPath =
       [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
 
+  NSLog(@"Setting up file watcher for: %@", shadersPath);
+
   int fd = open([shadersPath UTF8String], O_RDONLY);
-  if (fd < 0)
+  if (fd < 0) {
+    NSLog(@"Failed to open shaders directory for file watching: %@",
+          shadersPath);
     return;
+  }
 
   _fileWatcherSource = dispatch_source_create(
       DISPATCH_SOURCE_TYPE_VNODE, (uintptr_t)fd,
@@ -1062,6 +1106,7 @@
   });
 
   dispatch_resume(_fileWatcherSource);
+  NSLog(@"File watcher setup complete");
 }
 
 - (void)checkForShaderChanges {
@@ -1215,6 +1260,18 @@
   uniforms->gpuTime = _metrics.gpuTimeMs;
   uniforms->cpuTime = _metrics.cpuTimeMs;
   uniforms->fps = (float)_metrics.currentFPS;
+
+  // Update Game State (Dummy values for capman/parity)
+  uniforms->gameTime = (float)time;
+  uniforms->playerPos = (vector_float2){(float)sin(time * 0.5) * 0.5f,
+                                        (float)cos(time * 0.3) * 0.5f};
+  uniforms->ghostPos[0] = (vector_float2){0.5f, 0.5f};
+  uniforms->ghostPos[1] = (vector_float2){-0.5f, 0.5f};
+  uniforms->ghostPos[2] = (vector_float2){0.5f, -0.5f};
+  uniforms->ghostPos[3] = (vector_float2){-0.5f, -0.5f};
+  uniforms->score = 1000.0f;
+  uniforms->lives = 3.0f;
+  uniforms->level = 1.0f;
 }
 
 - (void)renderToDrawable:(id<CAMetalDrawable>)drawable
@@ -1580,7 +1637,8 @@
 }
 
 - (void)setupDebugOverlay {
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSLog(@"Setting up debug overlay...");
+  NSBundle *bundle = [NSBundle mainBundle];
   NSString *shaderPath = [bundle pathForResource:@"debug_overlay"
                                           ofType:@"metal"
                                      inDirectory:@"shaders"];
@@ -1593,14 +1651,20 @@
   }
 
   if (![[NSFileManager defaultManager] fileExistsAtPath:shaderPath]) {
+    NSLog(@"Debug overlay shader not found at: %@", shaderPath);
     return;
   }
 
+  NSLog(@"Loading debug overlay shader from: %@", shaderPath);
+
   NSError *error = nil;
+  NSLog(@"Compiling debug overlay shader...");
   ShaderCompilationResult *result =
       [[ShaderCompiler sharedCompiler] compileShaderFromPath:shaderPath
                                                       device:_device
                                                        error:&error];
+  NSLog(@"Debug overlay shader compilation result: %@, error: %@", result,
+        error);
 
   if (result.library) {
     id<MTLFunction> fragFunc =

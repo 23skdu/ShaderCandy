@@ -292,18 +292,17 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
      find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
      
       # Bundle resources - shaders and textures (must be before add_executable)
-      file(GLOB STANDALONE_RESOURCES
-          shaders/**/*.metal
-          shaders/**/*.glsl
-          shaders/**/*.frag
-          textures/*.png
-          shaders/neural/*.metal
-          shaders/audio/*.metal
+      file(GLOB_RECURSE STANDALONE_RESOURCES
+          "shaders/*.metal"
+          "shaders/*.glsl"
+          "shaders/*.frag"
+          "textures/*.png"
+          "src/core/ShaderInterop.h"
       )
      
      foreach(res ${STANDALONE_RESOURCES})
          get_filename_component(res_name ${res} NAME)
-         if(res MATCHES ".*\\.metal" OR res MATCHES ".*\\.glsl" OR res MATCHES ".*\\.frag")
+         if(res MATCHES ".*\\.metal" OR res MATCHES ".*\\.glsl" OR res MATCHES ".*\\.frag" OR res MATCHES ".*\\.h")
              set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/shaders)
          elseif(res MATCHES ".*\\.png")
              set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/textures)
@@ -312,10 +311,10 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
      
      add_executable(ShaderCandyPlayer ${STANDALONE_APP_SOURCES} ${STANDALONE_RESOURCES})
      
-      # Set bundle properties
+      # Set bundle properties - use player-specific Info.plist
      set_target_properties(ShaderCandyPlayer PROPERTIES
          MACOSX_BUNDLE TRUE
-         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/platform/macos/Info.plist.in
+         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/platform/macos/Info_Player.plist.in
          MACOSX_BUNDLE_GUI_IDENTIFIER "com.shadercandy.player"
          MACOSX_BUNDLE_BUNDLE_NAME "ShaderCandy Player"
          MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"

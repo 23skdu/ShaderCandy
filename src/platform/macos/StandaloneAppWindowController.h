@@ -45,7 +45,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, assign) BOOL showingMetrics;
 
 // Initialization
-- (instancetype)initWithWindow:(NSWindow *)window;
+- (instancetype _Nullable)initWithWindow:(NSWindow * _Nullable)window;
 - (instancetype)initWithWindowNibName:(NSString *)nibName;
 
 // Shader Management
@@ -55,10 +55,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)previousShader;
 
 // UI Updates
-- (void)updateShaderList;
-- (void)updateMetrics;
-- (void)showShaderList:(BOOL)show;
-- (void)showMetrics:(BOOL)show;
+- (void)setupWindow;
+- (void)setupToolbar;
+- (void)setupShaderList;
+- (void)setupMetricsDisplay;
 
 // Callbacks
 - (void)onShaderSelected:(NSString *)shaderName;

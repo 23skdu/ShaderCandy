@@ -12,9 +12,9 @@
 @protocol StyleLibraryViewControllerDelegate <NSObject>
 
 @optional
-- (void)styleLibrary:(id)controller didSelectStyle:(StylePreset *)style;
-- (void)styleLibrary:(id)controller didApplyStyle:(StylePreset *)style;
-- (void)styleLibraryDidClose:(id)controller;
+- (void)styleLibrary:(id _Nullable)controller didSelectStyle:(StylePreset * _Nullable)style;
+- (void)styleLibrary:(id _Nullable)controller didApplyStyle:(StylePreset * _Nullable)style;
+- (void)styleLibraryDidClose:(id _Nullable)controller;
 
 @end
 
@@ -25,7 +25,7 @@
 @property(nonatomic, assign) float previewStrength;
 
 - (void)reloadStyles;
-- (void)showCategory:(NSString *)category;
+- (void)showCategory:(NSString * _Nullable)category;
 - (void)showFavorites;
 
 @end

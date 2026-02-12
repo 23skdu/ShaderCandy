@@ -1,7 +1,9 @@
 #ifndef SHADER_INTEROP_H
 #define SHADER_INTEROP_H
 
+#ifndef __METAL_VERSION__
 #include <cstdint>
+#endif
 
 #ifdef __METAL_VERSION__
 #include <metal_stdlib>
@@ -63,6 +65,14 @@ struct Uniforms {
   float gpuTime;
   float cpuTime;
   float fps;
+
+  // Game state (optional, used by some shaders like capman)
+  float gameTime;
+  vector_float2 playerPos;
+  vector_float2 ghostPos[4];
+  float score;
+  float lives;
+  float level;
 };
 
 // Shared vertex input structure
