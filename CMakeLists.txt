@@ -27,6 +27,8 @@ set(CORE_SOURCES
     src/core/ShaderManager.cpp
     src/core/UniformBuffer.cpp
     src/core/PerformanceMonitor.cpp
+    src/config/ConfigurationManager.cpp
+    src/config/PresetManager.cpp
 )
 
 set(CORE_HEADERS
@@ -34,6 +36,8 @@ set(CORE_HEADERS
     src/core/UniformBuffer.h
     src/core/PerformanceMonitor.h
     src/core/MathUtils.h
+    src/config/ConfigurationManager.h
+    src/config/PresetManager.h
 )
 
 add_library(shadercandy_core STATIC ${CORE_SOURCES} ${CORE_HEADERS})
@@ -75,12 +79,14 @@ if(MACOS AND BUILD_METAL)
         src/metal/MetalHeapManager.mm
         src/metal/MTLPerformanceReporter.mm
         src/metal/MetalSharedState.mm
+        src/metal/HDRPipeline.mm
         src/platform/macos/MacOSMetalViewAdapter.mm
     )
-    
+
     set(AUDIO_SOURCES
         src/audio/AudioInput.mm
         src/audio/SoundscapeGenerator.mm
+        src/audio/AcousticSimulator.mm
     )
     
     add_library(shadercandy_metal STATIC ${METAL_SOURCES})
@@ -256,9 +262,100 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     if(TARGET metal_shaders)
         add_dependencies(ShaderCandy metal_shaders)
     endif()
-endif()
+ endif()
 
-# Linux X11 Screensaver
+ # macOS Standalone Player App
+ option(BUILD_STANDALONE_APP "Build macOS standalone player app" ON)
+ if(MACOS AND BUILD_STANDALONE_APP)
+     enable_language(OBJCXX)
+     
+      set(STANDALONE_APP_SOURCES
+          src/platform/macos/main.mm
+          src/platform/macos/StandaloneAppDelegate.mm
+          src/platform/macos/StandaloneAppWindowController.mm
+          src/platform/macos/PreferencesWindowController.mm
+          src/platform/macos/ShadersListViewController.mm
+          src/platform/macos/PresetViewController.mm
+          src/platform/macos/PresetObject.mm
+          src/platform/macos/PresetImportExportSheet.mm
+          src/neural/NeuralStyleEngine.mm
+          src/neural/StyleTransferModel.mm
+      )
+     
+     # Find Cocoa framework
+     find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
+     
+      # Bundle resources - shaders and textures (must be before add_executable)
+      file(GLOB STANDALONE_RESOURCES
+          shaders/**/*.metal
+          shaders/**/*.glsl
+          shaders/**/*.frag
+          textures/*.png
+          shaders/neural/*.metal
+      )
+     
+     foreach(res ${STANDALONE_RESOURCES})
+         get_filename_component(res_name ${res} NAME)
+         if(res MATCHES ".*\\.metal" OR res MATCHES ".*\\.glsl" OR res MATCHES ".*\\.frag")
+             set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/shaders)
+         elseif(res MATCHES ".*\\.png")
+             set_source_files_properties(${res} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/textures)
+         endif()
+     endforeach()
+     
+     add_executable(ShaderCandyPlayer ${STANDALONE_APP_SOURCES} ${STANDALONE_RESOURCES})
+     
+      # Set bundle properties
+     set_target_properties(ShaderCandyPlayer PROPERTIES
+         MACOSX_BUNDLE TRUE
+         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/platform/macos/Info.plist.in
+         MACOSX_BUNDLE_GUI_IDENTIFIER "com.shadercandy.player"
+         MACOSX_BUNDLE_BUNDLE_NAME "ShaderCandy Player"
+         MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+         MACOSX_BUNDLE_BUNDLE_VERSION "1"
+     )
+      
+      target_include_directories(ShaderCandyPlayer PRIVATE
+          src/core
+          src/platform/macos
+          src/metal
+          src/audio
+          src/config
+          src/neural
+          ${CMAKE_SOURCE_DIR}
+      )
+     
+      find_library(COREML_FRAMEWORK CoreML REQUIRED)
+      find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
+
+       target_link_libraries(ShaderCandyPlayer PRIVATE
+           shadercandy_core
+           shadercandy_metal
+           shadercandy_audio
+           ${COCOA_FRAMEWORK}
+           ${METAL_FRAMEWORK}
+           ${METALKIT_FRAMEWORK}
+           ${QUARTZCORE_FRAMEWORK}
+           ${AVFOUNDATION_FRAMEWORK}
+           ${ACCELERATE_FRAMEWORK}
+           ${COREMEDIA_FRAMEWORK}
+           ${COREML_FRAMEWORK}
+           ${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}
+           "-framework Foundation"
+          "-framework AppKit"
+      )
+     
+     if(TARGET metal_shaders)
+         add_dependencies(ShaderCandyPlayer metal_shaders)
+     endif()
+     
+     # Install
+     install(TARGETS ShaderCandyPlayer
+         BUNDLE DESTINATION Applications
+     )
+ endif()
+
+ # Linux X11 Screensaver
 if(LINUX AND BUILD_SCREENSAVER_LINUX)
     # Check if Linux source files exist
     if(EXISTS "${CMAKE_SOURCE_DIR}/src/platform/linux/screensaver.cpp")
