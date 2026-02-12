@@ -654,19 +654,20 @@
 #pragma mark - Shader Loading
 
 - (BOOL)loadShaderWithName:(NSString *)name error:(NSError **)error {
+  __block NSError *localError = nil;
+  __block BOOL alreadyLoaded = NO;
+
   dispatch_sync(_shaderQueue, ^{
     // Check for shader file
     NSString *path = [self pathForShader:name];
     if (!path) {
-      if (error) {
-        *error = [NSError
-            errorWithDomain:@"MetalRenderer"
-                       code:MetalRendererErrorCodeShaderCompilationFailed
-                   userInfo:@{
-                     NSLocalizedDescriptionKey : [NSString
-                         stringWithFormat:@"Shader '%@' not found", name]
-                   }];
-      }
+      localError =
+          [NSError errorWithDomain:@"MetalRenderer"
+                              code:MetalRendererErrorCodeShaderCompilationFailed
+                          userInfo:@{
+                            NSLocalizedDescriptionKey : [NSString
+                                stringWithFormat:@"Shader '%@' not found", name]
+                          }];
       return;
     }
 
@@ -675,6 +676,7 @@
     NSDate *lastMod = self.shaderModificationDates[name];
     if (lastMod && [modDate isEqualToDate:lastMod] &&
         self.pipelineCache[name]) {
+      alreadyLoaded = YES;
       return; // Already loaded and unchanged
     }
 
@@ -686,9 +688,7 @@
                                                  encoding:NSUTF8StringEncoding
                                                     error:&compileError];
     if (!source) {
-      if (error) {
-        *error = compileError;
-      }
+      localError = compileError;
       return;
     }
 
@@ -701,9 +701,7 @@
       [self handleShaderCompileError:compileError
                            forShader:name
                               source:fullSource];
-      if (error) {
-        *error = compileError;
-      }
+      localError = compileError;
       return;
     }
 
@@ -716,9 +714,7 @@
                                   shaderName:name
                                        error:&pipelineError];
     if (pipelineError) {
-      if (error) {
-        *error = pipelineError;
-      }
+      localError = pipelineError;
       return;
     }
 
@@ -734,7 +730,11 @@
     }
   });
 
-  return _pipelineCache[name] != nil;
+  if (error && localError) {
+    *error = localError;
+  }
+
+  return alreadyLoaded || _pipelineCache[name] != nil;
 }
 
 - (NSString *)pathForShader:(NSString *)name {

@@ -155,7 +155,7 @@ if(MACOS AND BUILD_METAL)
         
         message(STATUS "Metal shader compilation: Enabled (${METAL_SOURCE_SHADERS})")
     else()
-        message(WARNING "Metal compiler not found. Shaders will be compiled at runtime.")
+        message(STATUS "Metal compiler not found. Shaders will be compiled at runtime.")
         add_custom_target(metal_shaders)
     endif()
 endif()
