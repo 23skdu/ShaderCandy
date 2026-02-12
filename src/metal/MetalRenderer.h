@@ -202,6 +202,8 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, assign) float preferredFPS;
 @property(nonatomic, assign) BOOL audioReactivityEnabled;
 @property(nonatomic, assign) BOOL showDebugOverlay;
+@property(nonatomic, assign) BOOL autoScalingEnabled;
+@property(nonatomic, assign) float autoScaleFPSThreshold;
 @property(nonatomic, strong, readonly)
     MTLPerformanceReporter *performanceReporter;
 @property(nonatomic, assign, nullable) id<MetalRendererDelegate> delegate;

@@ -285,6 +285,8 @@
     _inFlightBufferIndex = 0;
     _frameCount = 0;
     _isDeviceLost = NO;
+    _autoScalingEnabled = YES;
+    _autoScaleFPSThreshold = 55.0f;
   }
   return self;
 }
@@ -522,7 +524,10 @@
   if (!_heapManager)
     return NO;
 
-  NSUInteger particleBufferSize = _particleConfig.count * sizeof(Particle);
+  // Allocate for maximum possible count to support auto-scaling without
+  // reallocation
+  NSUInteger maxCount = 100000;
+  NSUInteger particleBufferSize = maxCount * sizeof(Particle);
   if (particleBufferSize == 0)
     return YES;
 
@@ -1103,6 +1108,20 @@
     _metrics.droppedFrames++;
   }
 
+  // Performance auto-scaling
+  if (_autoScalingEnabled && _frameCount > 60) { // Wait for warm up
+    float fps = _metrics.currentFPS;
+    if (fps < _autoScaleFPSThreshold && _particleConfig.count > 1000) {
+      // Decrease count by 5% if below threshold
+      _particleConfig.count =
+          MAX(1000, (NSInteger)(_particleConfig.count * 0.95));
+    } else if (fps > (_preferredFPS - 2.0f) && _particleConfig.count < 100000) {
+      // Gradually increase if we have headroom
+      _particleConfig.count =
+          MIN(100000, (NSInteger)(_particleConfig.count * 1.01));
+    }
+  }
+
   dispatch_semaphore_signal(_inFlightSemaphore);
 
   if ([_delegate respondsToSelector:@selector(metalRenderer:
@@ -1594,7 +1613,8 @@
 }
 
 - (void)setParticleCount:(NSInteger)count {
-  _particleConfig.count = count;
+  // Clamp to pre-allocated maximum (100k)
+  _particleConfig.count = MIN(100000, MAX(0, count));
 }
 
 - (void)setParticleGravity:(float)gravity {
