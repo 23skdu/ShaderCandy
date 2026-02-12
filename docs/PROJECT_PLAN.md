@@ -40,8 +40,8 @@ ShaderCandy is a cross-platform (macOS/Linux) screensaver engine delivering high
 
 ### 🖥 Multi-Display & Polish
 
-- [ ] **Multi-Monitor Synchronization**: Coordinate `time` and `frame` across multiple `MTKView` instances.
-- [ ] **Performance Auto-Scaling**: Dynamically adjust particle counts if FPS drops below 55.
+- [x] **Multi-Monitor Synchronization**: Coordinate `time` and `frame` across multiple `MTKView` instances using `MetalSharedState`.
+- [x] **Performance Auto-Scaling**: Dynamically adjust particle counts and bloom quality to maintain target FPS.
 
 ---
 

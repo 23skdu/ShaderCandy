@@ -74,6 +74,7 @@ if(MACOS AND BUILD_METAL)
         src/metal/MetalResourcePool.mm
         src/metal/MetalHeapManager.mm
         src/metal/MTLPerformanceReporter.mm
+        src/metal/MetalSharedState.mm
         src/platform/macos/MacOSMetalViewAdapter.mm
     )
     
