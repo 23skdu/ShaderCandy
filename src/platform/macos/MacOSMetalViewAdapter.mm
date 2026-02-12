@@ -8,6 +8,7 @@
 #import "MacOSMetalViewAdapter.h"
 #import "../../audio/SoundscapeGenerator.h"
 #import "../../metal/MetalRenderer.h"
+#import "../../metal/MetalSharedState.h"
 
 @interface MacOSMetalViewAdapter ()
 
@@ -160,8 +161,8 @@
   NSRect frame = [self.window
       convertRectFromScreen:NSMakeRect(mouseLocation.x, mouseLocation.y, 0, 0)];
 
-  // Update uniforms
-  NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:_startTime];
+  // Update uniforms (Multi-Monitor Sync)
+  NSTimeInterval elapsed = [[MetalSharedState sharedState] synchronizedTime];
   [_renderer updateUniformsWithTime:elapsed
                       mousePosition:frame.origin
                        mouseButtons:[NSEvent pressedMouseButtons]

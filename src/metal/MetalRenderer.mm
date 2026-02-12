@@ -11,6 +11,7 @@
 #import "MTLPerformanceReporter.h"
 #import "MetalHeapManager.h"
 #import "MetalResourcePool.h"
+#import "MetalSharedState.h"
 #import "ShaderCompiler.h"
 #import <MetalKit/MetalKit.h>
 #import <mach/mach.h>
@@ -1112,15 +1113,33 @@
   // Performance auto-scaling
   if (_autoScalingEnabled && _frameCount > 60) { // Wait for warm up
     float fps = _metrics.currentFPS;
-    if (fps < _autoScaleFPSThreshold && _particleConfig.count > 1000) {
-      // Decrease count by 5% if below threshold
-      _particleConfig.count =
-          MAX(1000, (NSInteger)(_particleConfig.count * 0.95));
-    } else if (fps > (_preferredFPS - 2.0f) && _particleConfig.count < 100000) {
-      // Gradually increase if we have headroom
-      _particleConfig.count =
-          MIN(100000, (NSInteger)(_particleConfig.count * 1.01));
+    if (fps < _autoScaleFPSThreshold) {
+      if (_particleConfig.count > 1000) {
+        // Stage 1: Reduce particles
+        _particleConfig.count =
+            MAX(1000, (NSInteger)(_particleConfig.count * 0.95));
+      } else if (_bloomConfig.enabled &&
+                 _bloomConfig.quality > MetalBloomQualityLow) {
+        // Stage 2: Reduce quality if particles at minimum
+        _bloomConfig.quality =
+            (MetalBloomQuality)((int)_bloomConfig.quality - 1);
+      }
+    } else if (fps > (_preferredFPS - 2.0f)) {
+      if (_particleConfig.count < 100000) {
+        // Stage 1: Increase particles
+        _particleConfig.count =
+            MIN(100000, (NSInteger)(_particleConfig.count * 1.01));
+      } else if (_bloomConfig.enabled &&
+                 _bloomConfig.quality < MetalBloomQualityUltra) {
+        // Stage 2: Restore quality if we have max particles and still high FPS
+        _bloomConfig.quality =
+            (MetalBloomQuality)((int)_bloomConfig.quality + 1);
+      }
     }
+
+    // Sync with other monitors (Multi-Monitor Sync)
+    _particleConfig.count = [[MetalSharedState sharedState]
+        syncParticleCount:_particleConfig.count];
   }
 
   dispatch_semaphore_signal(_inFlightSemaphore);
