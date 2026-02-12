@@ -6,9 +6,15 @@
 //
 
 #import "MetalRenderer.h"
+#include "../audio/AudioInput.h"
+#import "MTLPerformanceReporter.h"
+#import "MetalHeapManager.h"
+#import "MetalResourcePool.h"
+#import "ShaderCompiler.h"
 #import <MetalKit/MetalKit.h>
 #import <mach/mach.h>
 #import <mach/vm_statistics.h>
+#include <memory>
 
 #pragma mark - Error Implementation
 
@@ -210,6 +216,7 @@
 @property(nonatomic, strong) NSDate *lastShaderCheckTime;
 @property(nonatomic, assign) NSUInteger frameCount;
 @property(nonatomic, assign) BOOL isDeviceLost;
+
 @property(nonatomic, strong) NSMutableArray<MetalRendererError *> *errorLog;
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *frameTimeHistory;
 @property(nonatomic, assign) NSUInteger gpuTimestampStart;
@@ -233,12 +240,18 @@
 @property(nonatomic, strong, readwrite, nullable)
     MetalPipelineState *currentPipeline;
 @property(nonatomic, strong, readwrite, nullable) NSString *activeShaderName;
+@property(nonatomic, strong, readwrite) MetalResourcePool *resourcePool;
+@property(nonatomic, strong, readwrite)
+    MTLPerformanceReporter *performanceReporter;
+@property(nonatomic, strong) MetalHeapManager *heapManager;
 
 @end
 
 #pragma mark - Metal Renderer Implementation
 
-@implementation MetalRenderer
+@implementation MetalRenderer {
+  std::unique_ptr<ShaderCandy::Audio::AudioInput> _audioInput;
+}
 
 #pragma mark - Initialization
 
@@ -313,6 +326,13 @@
     return NO;
   }
 
+  _resourcePool = [[MetalResourcePool alloc] initWithDevice:_device];
+  _performanceReporter =
+      [[MTLPerformanceReporter alloc] initWithDevice:_device];
+  _heapManager =
+      [[MetalHeapManager alloc] initWithDevice:_device
+                                          size:128 * 1024 * 1024]; // 128MB heap
+
   // Setup resources
   if (![self createVertexBuffers]) {
     if (error) {
@@ -327,11 +347,17 @@
     return NO;
   }
 
+  if (![self createParticleBuffers]) {
+    NSLog(@"MetalRenderer: Warning - Failed to create particle buffers");
+  }
+
   // Setup file watcher
   [self setupFileWatcher];
 
   // Register for device loss notifications
   [self registerForDeviceLoss];
+
+  [self setupDebugOverlay];
 
   NSLog(@"MetalRenderer: Initialized with device %@ (Family: %ld)",
         _deviceInfo.name, (long)_deviceInfo.family);
@@ -492,6 +518,25 @@
   return YES;
 }
 
+- (BOOL)createParticleBuffers {
+  if (!_heapManager)
+    return NO;
+
+  NSUInteger particleBufferSize = _particleConfig.count * sizeof(Particle);
+  if (particleBufferSize == 0)
+    return YES;
+
+  _resources.particleBufferA =
+      [_heapManager newBufferWithLength:particleBufferSize
+                                options:MTLResourceStorageModeShared];
+  _resources.particleBufferB =
+      [_heapManager newBufferWithLength:particleBufferSize
+                                options:MTLResourceStorageModeShared];
+
+  return (_resources.particleBufferA != nil &&
+          _resources.particleBufferB != nil);
+}
+
 #pragma mark - Texture Management
 
 - (void)createTexturesForSize:(CGSize)size {
@@ -508,7 +553,9 @@
                                mipmapped:NO];
   texDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
 
-  _resources.sceneTexture = [_device newTextureWithDescriptor:texDesc];
+  if (_resources.sceneTexture)
+    [_resourcePool returnTexture:_resources.sceneTexture];
+  _resources.sceneTexture = [_resourcePool getTextureWithDescriptor:texDesc];
 
   // Simulation textures
   NSInteger simSize = _resources.simulationTextureSize;
@@ -519,15 +566,25 @@
                                mipmapped:NO];
   simDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
 
-  _resources.simulationTextureA = [_device newTextureWithDescriptor:simDesc];
-  _resources.simulationTextureB = [_device newTextureWithDescriptor:simDesc];
+  if (_resources.simulationTextureA)
+    [_resourcePool returnTexture:_resources.simulationTextureA];
+  if (_resources.simulationTextureB)
+    [_resourcePool returnTexture:_resources.simulationTextureB];
+  _resources.simulationTextureA =
+      [_resourcePool getTextureWithDescriptor:simDesc];
+  _resources.simulationTextureB =
+      [_resourcePool getTextureWithDescriptor:simDesc];
 
   // Bloom textures (half resolution)
   texDesc.width = (NSUInteger)size.width / 2;
   texDesc.height = (NSUInteger)size.height / 2;
 
-  _resources.bloomTextureA = [_device newTextureWithDescriptor:texDesc];
-  _resources.bloomTextureB = [_device newTextureWithDescriptor:texDesc];
+  if (_resources.bloomTextureA)
+    [_resourcePool returnTexture:_resources.bloomTextureA];
+  if (_resources.bloomTextureB)
+    [_resourcePool returnTexture:_resources.bloomTextureB];
+  _resources.bloomTextureA = [_resourcePool getTextureWithDescriptor:texDesc];
+  _resources.bloomTextureB = [_resourcePool getTextureWithDescriptor:texDesc];
 
   // Sampler
   MTLSamplerDescriptor *samplerDesc = [[MTLSamplerDescriptor alloc] init];
@@ -1029,38 +1086,23 @@
 #pragma mark - Rendering
 
 - (void)beginFrame {
-  _frameStartTime = [NSDate date];
+  [_performanceReporter beginFrame];
   dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
 }
 
 - (void)endFrame {
-  NSTimeInterval frameTime =
-      [[NSDate date] timeIntervalSinceDate:_frameStartTime] * 1000.0;
-  [_frameTimeHistory addObject:@(frameTime)];
-
-  // Keep only last 120 samples (2 seconds at 60fps)
-  if (_frameTimeHistory.count > 120) {
-    [_frameTimeHistory removeObjectAtIndex:0];
-  }
-
-  // Calculate metrics
-  double avgFrameTime = 0;
-  for (NSNumber *t in _frameTimeHistory) {
-    avgFrameTime += t.doubleValue;
-  }
-  avgFrameTime /= _frameTimeHistory.count;
-
-  _metrics.frameTimeMs = frameTime;
-  _metrics.averageFPS = avgFrameTime > 0 ? 1000.0 / avgFrameTime : 0;
-  _metrics.currentFPS = frameTime > 0 ? 1000.0 / frameTime : 0;
-  _metrics.frameTimeMs = frameTime;
+  GPUFrameStats *stats = [_performanceReporter latestStats];
+  _metrics.frameTimeMs = stats.frameTimeMs;
+  _metrics.averageFPS = [_performanceReporter currentFPS];
+  _metrics.currentFPS = [_performanceReporter currentFPS];
+  _metrics.gpuTimeMs = stats.gpuTimeMs;
+  _metrics.cpuTimeMs = stats.cpuTimeMs;
 
   // Dropped frames check
-  if (frameTime > 33.3) { // Below 30fps
+  if (stats.frameTimeMs > 33.3) { // Below 30fps
     _metrics.droppedFrames++;
   }
 
-  _frameCount++;
   dispatch_semaphore_signal(_inFlightSemaphore);
 
   if ([_delegate respondsToSelector:@selector(metalRenderer:
@@ -1085,8 +1127,28 @@
   uniforms->intensity = intensity;
   uniforms->gravity = gravity;
   uniforms->mouseButtons = (float)buttons;
+  uniforms->alpha =
+      _currentPipeline == _previousPipeline ? 1.0f : 1.0f; // Placeholder
 
-  // Resolution
+  // Update Audio Uniforms
+  if (_audioReactivityEnabled && _audioInput) {
+    ShaderCandy::Audio::AudioData audioData = _audioInput->getCurrentData();
+    uniforms->volume = audioData.volumeSmoothed;
+    uniforms->bass = audioData.bass;
+    uniforms->mid = audioData.mid;
+    uniforms->treble = audioData.treble;
+    uniforms->beat = audioData.beat ? 1.0f : 0.0f;
+
+    ShaderCandy::Audio::Utils::packAudioForShader(audioData,
+                                                  uniforms->audioData, 256);
+  } else {
+    uniforms->volume = 0;
+    uniforms->bass = 0;
+    uniforms->mid = 0;
+    uniforms->treble = 0;
+    uniforms->beat = 0;
+    memset(uniforms->audioData, 0, sizeof(uniforms->audioData));
+  }
   uniforms->resolution = (vector_float2){(float)_resources.viewportSize.width,
                                          (float)_resources.viewportSize.height};
 
@@ -1109,6 +1171,11 @@
   uniforms->frame = (int32_t)_frameCount;
   uniforms->deltaTime = 1.0f / _preferredFPS;
   uniforms->alpha = 1.0f;
+
+  // Performance metrics
+  uniforms->gpuTime = _metrics.gpuTimeMs;
+  uniforms->cpuTime = _metrics.cpuTimeMs;
+  uniforms->fps = (float)_metrics.currentFPS;
 }
 
 - (void)renderToDrawable:(id<CAMetalDrawable>)drawable
@@ -1176,11 +1243,11 @@
       uniforms->alpha = originalAlpha;
 
       // Also adjust current shader's alpha for next frame/pass if needed,
-      // but here current was already drawn with full alpha (which is fine for a
-      // standard blend). Most shadertoy-style shaders look better if current is
-      // drawn with alpha=transitionAlpha over previous drawn with alpha=1 or
-      // vice versa. Given the above, they both currently draw. Standard
-      // blending applies.
+      // but here current was already drawn with full alpha (which is fine for
+      // a standard blend). Most shadertoy-style shaders look better if
+      // current is drawn with alpha=transitionAlpha over previous drawn with
+      // alpha=1 or vice versa. Given the above, they both currently draw.
+      // Standard blending applies.
     }
   }
 
@@ -1190,8 +1257,15 @@
                                   uniforms:uniforms
                                bufferIndex:bufferIndex];
   }
+  if (_showDebugOverlay) {
+    [self renderDebugOverlayWithCommandBuffer:commandBuffer
+                                   descriptor:descriptor
+                                     uniforms:uniforms
+                                  bufferIndex:bufferIndex];
+  }
 
   [commandBuffer presentDrawable:drawable];
+  [_performanceReporter endFrameWithCommandBuffer:commandBuffer];
   [commandBuffer commit];
 
   [self endFrame];
@@ -1331,6 +1405,15 @@
   [finalEncoder endEncoding];
 }
 
+- (id<MTLFunction>)loadSystemShaderWithName:(NSString *)functionName {
+  // Standard system shaders are usually in common.metal or similar
+  // For now, look in the pipeline definition logic or just load a standard
+  // library
+  return [_device newDefaultLibrary]
+             ? [[_device newDefaultLibrary] newFunctionWithName:functionName]
+             : nil;
+}
+
 - (id<MTLRenderPipelineState>)bloomPipeline:(NSString *)functionName {
   static NSMutableDictionary *cache = nil;
   static dispatch_once_t onceToken;
@@ -1406,12 +1489,13 @@
                     atIndex:0];
 
   MTLSize gridSize = MTLSizeMake(_particleConfig.count, 1, 1);
-  NSUInteger threadGroupSize =
+  NSUInteger maxThreads =
       _currentPipeline.computePipeline.maxTotalThreadsPerThreadgroup;
-  if (threadGroupSize > (NSUInteger)_particleConfig.count) {
-    threadGroupSize = _particleConfig.count;
+  NSUInteger threadGroupSizeX = 512; // Matches GROUP_SIZE in particles.metal
+  if (threadGroupSizeX > maxThreads) {
+    threadGroupSizeX = maxThreads;
   }
-  MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1);
+  MTLSize threadgroupSize = MTLSizeMake(threadGroupSizeX, 1, 1);
 
   [computeEncoder dispatchThreads:gridSize
             threadsPerThreadgroup:threadgroupSize];
@@ -1438,12 +1522,100 @@
   _particleConfig.enabled = enabled;
 }
 
+- (void)setupDebugOverlay {
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSString *shaderPath = [bundle pathForResource:@"debug_overlay"
+                                          ofType:@"metal"
+                                     inDirectory:@"shaders"];
+
+  if (!shaderPath) {
+    // Fallback for local development
+    shaderPath = @"shaders/system/debug_overlay.metal";
+    NSString *cwd = [[NSFileManager defaultManager] currentDirectoryPath];
+    shaderPath = [cwd stringByAppendingPathComponent:shaderPath];
+  }
+
+  if (![[NSFileManager defaultManager] fileExistsAtPath:shaderPath]) {
+    return;
+  }
+
+  NSError *error = nil;
+  ShaderCompilationResult *result =
+      [[ShaderCompiler sharedCompiler] compileShaderFromPath:shaderPath
+                                                      device:_device
+                                                       error:&error];
+
+  if (result.library) {
+    id<MTLFunction> fragFunc =
+        [result.library newFunctionWithName:@"debug_overlay_fragment"];
+
+    if (fragFunc) {
+      MTLRenderPipelineDescriptor *desc =
+          [[MTLRenderPipelineDescriptor alloc] init];
+      desc.vertexFunction = [self loadSystemShaderWithName:@"vertex_main"];
+      desc.fragmentFunction = fragFunc;
+      desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+      desc.colorAttachments[0].blendingEnabled = YES;
+      desc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+      desc.colorAttachments[0].destinationRGBBlendFactor =
+          MTLBlendFactorOneMinusSourceAlpha;
+
+      NSError *pError = nil;
+      _resources.debugOverlayPipeline =
+          [_device newRenderPipelineStateWithDescriptor:desc error:&pError];
+    }
+  }
+}
+
+- (void)renderDebugOverlayWithCommandBuffer:(id<MTLCommandBuffer>)commandBuffer
+                                 descriptor:
+                                     (MTLRenderPassDescriptor *)descriptor
+                                   uniforms:(Uniforms *)uniforms
+                                bufferIndex:(NSUInteger)bufferIndex {
+  if (!_showDebugOverlay || !_resources.debugOverlayPipeline)
+    return;
+
+  descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
+
+  id<MTLRenderCommandEncoder> encoder =
+      [commandBuffer renderCommandEncoderWithDescriptor:descriptor];
+  [encoder setRenderPipelineState:_resources.debugOverlayPipeline];
+  [encoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
+  [encoder setFragmentBuffer:_resources.uniformBuffer
+                      offset:bufferIndex * sizeof(Uniforms)
+                     atIndex:0];
+
+  [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                      indexCount:6
+                       indexType:MTLIndexTypeUInt16
+                     indexBuffer:_resources.indexBuffer
+               indexBufferOffset:0];
+  [encoder endEncoding];
+}
+
 - (void)setParticleCount:(NSInteger)count {
   _particleConfig.count = count;
 }
 
 - (void)setParticleGravity:(float)gravity {
   _particleConfig.gravity = gravity;
+}
+
+#pragma mark - Audio
+
+- (void)setAudioReactivityEnabled:(BOOL)enabled {
+  _audioReactivityEnabled = enabled;
+  if (enabled) {
+    if (!_audioInput) {
+      _audioInput = std::make_unique<ShaderCandy::Audio::AudioInput>();
+      _audioInput->initialize(44100, 1024);
+    }
+    _audioInput->start();
+  } else {
+    if (_audioInput) {
+      _audioInput->stop();
+    }
+  }
 }
 
 #pragma mark - Metrics
@@ -1464,8 +1636,8 @@
 #if DEBUG
   // Metal debugger capture is triggered via environment variable or Xcode
   // This is a placeholder for programmatic capture points
-  NSLog(
-      @"MetalRenderer: GPU frame capture triggered (use Xcode Metal Debugger)");
+  NSLog(@"MetalRenderer: GPU frame capture triggered (use Xcode Metal "
+        @"Debugger)");
 #endif
 }
 

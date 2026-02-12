@@ -156,7 +156,11 @@
   index = (index == NSNotFound) ? 0 : (index + 1) % _availableShaders.count;
   _currentShaderName = _availableShaders[index];
   _lastCycleTime = [NSDate date];
-  [self loadShaders];
+
+  NSError *error = nil;
+  [_renderer transitionToShaderNamed:_currentShaderName
+                            duration:2.0
+                               error:&error];
 }
 
 #pragma mark - MTKViewDelegate

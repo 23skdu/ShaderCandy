@@ -14,6 +14,9 @@
 
 #include "../core/ShaderInterop.h"
 
+@class MetalResourcePool;
+@class MTLPerformanceReporter;
+
 NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Error Handling
@@ -121,7 +124,11 @@ typedef NS_ENUM(NSInteger, MetalGPUFamily) {
 @property(nonatomic, strong) id<MTLTexture> simulationTextureB;
 @property(nonatomic, strong) id<MTLTexture> bloomTextureA;
 @property(nonatomic, strong) id<MTLTexture> bloomTextureB;
+@property(nonatomic, strong, nullable) id<MTLBuffer> particleBufferA;
+@property(nonatomic, strong, nullable) id<MTLBuffer> particleBufferB;
 @property(nonatomic, strong) id<MTLSamplerState> samplerState;
+@property(nonatomic, strong, nullable) id<MTLRenderPipelineState>
+    debugOverlayPipeline;
 @property(nonatomic, strong, nullable) id<MTLTexture> mainTexture;
 @property(nonatomic, assign) CGSize viewportSize;
 @property(nonatomic, assign) NSInteger simulationTextureSize;
@@ -181,6 +188,7 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, strong, readonly, nullable) id<MTLDevice> device;
 @property(nonatomic, strong, readonly, nullable) id<MTLCommandQueue>
     commandQueue;
+@property(nonatomic, strong, readonly) MetalResourcePool *resourcePool;
 @property(nonatomic, strong, readonly) MetalDeviceInfo *deviceInfo;
 @property(nonatomic, strong, readonly) MetalRenderResources *resources;
 @property(nonatomic, strong, readonly) MetalPerformanceMetrics *metrics;
@@ -192,6 +200,10 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, assign) BOOL developmentMode;
 @property(nonatomic, assign) BOOL hotReloadEnabled;
 @property(nonatomic, assign) float preferredFPS;
+@property(nonatomic, assign) BOOL audioReactivityEnabled;
+@property(nonatomic, assign) BOOL showDebugOverlay;
+@property(nonatomic, strong, readonly)
+    MTLPerformanceReporter *performanceReporter;
 @property(nonatomic, assign, nullable) id<MetalRendererDelegate> delegate;
 
 // Transition state
@@ -266,6 +278,9 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 - (void)setParticlesEnabled:(BOOL)enabled;
 - (void)setParticleCount:(NSInteger)count;
 - (void)setParticleGravity:(float)gravity;
+
+#pragma mark - Audio
+- (void)setAudioReactivityEnabled:(BOOL)enabled;
 
 #pragma mark - Performance
 
