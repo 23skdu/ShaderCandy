@@ -79,6 +79,7 @@ if(MACOS AND BUILD_METAL)
     
     set(AUDIO_SOURCES
         src/audio/AudioInput.mm
+        src/audio/SoundscapeGenerator.mm
     )
     
     add_library(shadercandy_metal STATIC ${METAL_SOURCES})
