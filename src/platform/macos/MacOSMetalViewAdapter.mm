@@ -6,6 +6,7 @@
 //
 
 #import "MacOSMetalViewAdapter.h"
+#import "../../audio/SoundscapeGenerator.h"
 #import "../../metal/MetalRenderer.h"
 
 @interface MacOSMetalViewAdapter ()
@@ -335,7 +336,21 @@
   [autoScaleCheck setAction:@selector(autoScaleChanged:)];
   [contentView addSubview:autoScaleCheck];
 
-  y -= 40;
+  y -= 30;
+
+  // Soundscape toggle
+  NSButton *soundCheck =
+      [[NSButton alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
+  [soundCheck setButtonType:NSButtonTypeSwitch];
+  [soundCheck setTitle:@"Atmospheric Soundscapes"];
+  [soundCheck setState:[SoundscapeGenerator sharedGenerator].enabled
+                           ? NSControlStateValueOn
+                           : NSControlStateValueOff];
+  [soundCheck setTarget:self];
+  [soundCheck setAction:@selector(soundscapeChanged:)];
+  [contentView addSubview:soundCheck];
+
+  y -= 50;
 
   // OK button
   NSButton *okButton =
@@ -381,6 +396,11 @@
 
 - (void)autoScaleChanged:(id)sender {
   _renderer.autoScalingEnabled =
+      [(NSButton *)sender state] == NSControlStateValueOn;
+}
+
+- (void)soundscapeChanged:(id)sender {
+  [SoundscapeGenerator sharedGenerator].enabled =
       [(NSButton *)sender state] == NSControlStateValueOn;
 }
 

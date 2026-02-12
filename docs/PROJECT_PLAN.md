@@ -16,7 +16,8 @@ ShaderCandy is a cross-platform (macOS/Linux) screensaver engine delivering high
     - [x] Map audio magnitudes to `Uniforms` and update shaders.
 
 2. **Atmospheric Soundscapes**:
-    - [ ] Research generative ambient sound synced to visual complexity.
+    - [x] Implement `SoundscapeGenerator` using `AVAudioEngine`.
+    - [x] Generative ambient sound (Cosmic Drone) synced to visual complexity.
 
 ### 🍏 Apple Metal Platform Improvements (High Priority)
 

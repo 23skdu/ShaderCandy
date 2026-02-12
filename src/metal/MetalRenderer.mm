@@ -7,6 +7,7 @@
 
 #import "MetalRenderer.h"
 #include "../audio/AudioInput.h"
+#import "../audio/SoundscapeGenerator.h"
 #import "MTLPerformanceReporter.h"
 #import "MetalHeapManager.h"
 #import "MetalResourcePool.h"
@@ -1286,6 +1287,24 @@
   [commandBuffer presentDrawable:drawable];
   [_performanceReporter endFrameWithCommandBuffer:commandBuffer];
   [commandBuffer commit];
+
+  // Update soundscape metrics
+  SoundscapeMetrics sMetrics;
+  sMetrics.intensity = uniforms->intensity;
+  sMetrics.speed = uniforms->speed;
+  sMetrics.visualComplexity =
+      (_particleConfig.enabled ? (float)_particleConfig.count / 100000.0f
+                               : 0.0f) +
+      (_bloomConfig.enabled ? 0.5f : 0.0f);
+  sMetrics.activity = 0.0f; // Could be mouse delta
+
+  SoundscapeGenerator *gen = [SoundscapeGenerator sharedGenerator];
+  if (gen.enabled) {
+    if (![gen start]) {
+      // Failed to start, maybe disable to avoid further logs
+    }
+    [gen updateWithMetrics:sMetrics];
+  }
 
   [self endFrame];
 }
