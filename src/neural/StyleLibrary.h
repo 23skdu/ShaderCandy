@@ -12,29 +12,29 @@
 
 @interface StyleLibrary : NSObject
 
-@property(nonatomic, strong, readonly) NSArray<StylePreset *> *allStyles;
-@property(nonatomic, strong, readonly) NSArray<NSString *> *categories;
+@property(nonatomic, strong, readonly, nullable) NSArray<StylePreset *> *allStyles;
+@property(nonatomic, strong, readonly, nullable) NSArray<NSString *> *categories;
 @property(nonatomic, strong, readonly, nullable) StylePreset *currentStyle;
-@property(nonatomic, strong, readonly) NSString *libraryPath;
+@property(nonatomic, strong, readonly, nullable) NSString *libraryPath;
 
-+ (instancetype)sharedLibrary;
++ (instancetype _Nullable)sharedLibrary;
 
 - (void)scanForStyles;
 - (void)reloadLibrary;
 
-- (NSArray<StylePreset *> *)stylesForCategory:(NSString *)category;
-- (nullable StylePreset *)styleNamed:(NSString *)name;
+- (NSArray<StylePreset *> * _Nullable)stylesForCategory:(NSString * _Nullable)category;
+- (StylePreset * _Nullable)styleNamed:(NSString * _Nullable)name;
 - (nullable StylePreset *)styleAtIndex:(NSInteger)index;
 
-- (BOOL)downloadStyle:(NSString *)styleName completion:(void (^)(BOOL success, NSError *error))completion;
-- (BOOL)importStyleFromURL:(NSURL *)url error:(NSError **)error;
-- (BOOL)deleteStyle:(StylePreset *)style error:(NSError **)error;
+- (BOOL)downloadStyle:(NSString * _Nullable)styleName completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (BOOL)importStyleFromURL:(NSURL * _Nullable)url error:(NSError * _Nullable *)error;
+- (BOOL)deleteStyle:(StylePreset * _Nullable)style error:(NSError * _Nullable *__nullable)error;
 
-- (void)addToFavorites:(StylePreset *)style;
-- (void)removeFromFavorites:(StylePreset *)style;
-- (NSArray<StylePreset *> *)favoriteStyles;
+- (void)addToFavorites:(StylePreset * _Nullable)style;
+- (void)removeFromFavorites:(StylePreset * _Nullable)style;
+- (NSArray<StylePreset *> * _Nullable)favoriteStyles;
 
-- (void)prewarmStyle:(NSString *)styleName;
+- (void)prewarmStyle:(NSString * _Nullable)styleName;
 - (void)prewarmAllStyles;
 
 @end
@@ -56,9 +56,9 @@
 @property(nonatomic, assign) NSInteger useCount;
 @property(nonatomic, strong, nullable) NSURL *modelURL;
 
-- (instancetype)initWithIdentifier:(NSString *)identifier
-                              name:(NSString *)name
-                        category:(NSString *)category;
+- (instancetype _Nullable)initWithIdentifier:(NSString * _Nullable)identifier
+                                         name:(NSString * _Nullable)name
+                                   category:(NSString * _Nullable)category;
 
 - (void)loadThumbnail;
 - (void)incrementUseCount;
