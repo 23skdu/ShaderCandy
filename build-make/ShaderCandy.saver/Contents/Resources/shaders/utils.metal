@@ -6,11 +6,13 @@ using namespace metal;
 
 // Utility functions for Metal Shaders
 namespace ShaderUtils {
-    // Vector operations
+    // Scalar and Vector operations
+    inline float mod(float x, float y) { return x - y * floor(x / y); }
     inline float2 mod(float2 x, float2 y) { return x - y * floor(x / y); }
     inline float3 mod(float3 x, float3 y) { return x - y * floor(x / y); }
     inline float4 mod(float4 x, float4 y) { return x - y * floor(x / y); }
     
+    inline float fract(float x) { return x - floor(x); }
     inline float2 fract(float2 x) { return x - floor(x); }
     inline float3 fract(float3 x) { return x - floor(x); }
     inline float4 fract(float4 x) { return x - floor(x); }

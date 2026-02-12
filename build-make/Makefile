@@ -299,6 +299,7 @@ src/platform/macos/ShaderCandyView.o: src/platform/macos/ShaderCandyView.mm.o
 # target to build an object file
 src/platform/macos/ShaderCandyView.mm.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ShaderCandy.dir/build.make CMakeFiles/ShaderCandy.dir/src/platform/macos/ShaderCandyView.mm.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o
 .PHONY : src/platform/macos/ShaderCandyView.mm.o
 
 tests/TestFramework.o: tests/TestFramework.cpp.o
@@ -325,29 +326,13 @@ tests/TestFramework.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.s
 .PHONY : tests/TestFramework.cpp.s
 
-tests/main.o: tests/main.cpp.o
+tests/main.o: tests/main.mm.o
 .PHONY : tests/main.o
 
 # target to build an object file
-tests/main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/tests/main.cpp.o
-.PHONY : tests/main.cpp.o
-
-tests/main.i: tests/main.cpp.i
-.PHONY : tests/main.i
-
-# target to preprocess a source file
-tests/main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/tests/main.cpp.i
-.PHONY : tests/main.cpp.i
-
-tests/main.s: tests/main.cpp.s
-.PHONY : tests/main.s
-
-# target to generate assembly for a file
-tests/main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/tests/main.cpp.s
-.PHONY : tests/main.cpp.s
+tests/main.mm.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/shadercandy-test.dir/build.make CMakeFiles/shadercandy-test.dir/tests/main.mm.o
+.PHONY : tests/main.mm.o
 
 # Help Target
 help:
@@ -380,8 +365,6 @@ help:
 	@echo "... tests/TestFramework.i"
 	@echo "... tests/TestFramework.s"
 	@echo "... tests/main.o"
-	@echo "... tests/main.i"
-	@echo "... tests/main.s"
 .PHONY : help
 
 

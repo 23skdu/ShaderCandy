@@ -298,11 +298,18 @@
 
   // Get built-in shaders from bundle
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *shadersPath = [bundle pathForResource:@"shaders" ofType:nil];
+  NSString *shadersPath =
+      [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
 
   if (shadersPath) {
+    NSLog(@"ShaderCandy: Searching for shaders in: %@", shadersPath);
     NSFileManager *fm = [NSFileManager defaultManager];
     NSArray *contents = [fm contentsOfDirectoryAtPath:shadersPath error:nil];
+
+    if (!contents) {
+      NSLog(@"ShaderCandy: No contents found in shaders directory or could not "
+            @"access it.");
+    }
 
     for (NSString *file in contents) {
       // Only use .metal files on macOS (Metal backend)
@@ -337,9 +344,9 @@
   }
 
   self.availableShaders = [shaders copy];
+  NSLog(@"ShaderCandy: Successfully discovered %lu shaders",
+        (unsigned long)self.availableShaders.count);
   self.currentShaderName = shaders.firstObject ?: @"default";
-  NSLog(@"ShaderCandy: Discovered %lu shaders, selected: %@",
-        (unsigned long)shaders.count, self.currentShaderName);
 }
 
 - (void)loadShaders {
@@ -352,24 +359,8 @@
 
   NSError *error = nil;
 
-  // Try to load from bundle
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *metallibPath = [bundle pathForResource:@"default"
-                                            ofType:@"metallib"];
-
-  if (metallibPath) {
-    // Load pre-compiled metallib
-    self.shaderLibrary = [self.device newLibraryWithFile:metallibPath
-                                                   error:&error];
-    if (error) {
-      NSLog(@"Failed to load metallib: %@", error);
-      [self loadDefaultShader];
-      return;
-    }
-  } else {
-    // Compile from source
-    [self compileShadersFromSource];
-  }
+  // Always compile from source for now to ensure we use the selected shader
+  [self compileShadersFromSource];
 
   // Create pipeline state
   [self createPipelineStateWithVertex:@"vertex_main" fragment:@"fragment_main"];
@@ -405,19 +396,26 @@
 
   // Load interop header content to inject
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *interopPath = [bundle pathForResource:@"ShaderInterop"
-                                           ofType:@"h"
-                                      inDirectory:@"shaders"];
-  NSString *interopHeader = @"";
-  if (interopPath) {
+  NSString *interopPath = [[bundle resourcePath]
+      stringByAppendingPathComponent:@"shaders/ShaderInterop.h"];
+  NSString *interopHeader =
+      [NSString stringWithContentsOfFile:interopPath
+                                encoding:NSUTF8StringEncoding
+                                   error:nil];
+  if (interopHeader) {
+    NSLog(@"ShaderCandy: Loaded ShaderInterop.h from: %@", interopPath);
+  } else {
+    // Try without shaders subfolder
+    interopPath = [[bundle resourcePath]
+        stringByAppendingPathComponent:@"ShaderInterop.h"];
     interopHeader = [NSString stringWithContentsOfFile:interopPath
                                               encoding:NSUTF8StringEncoding
                                                  error:nil];
-    NSLog(@"ShaderCandy: Loaded ShaderInterop.h from: %@", interopPath);
-  } else {
+  }
+
+  if (!interopHeader) {
     // Fallback: search in src/core (for dev)
-    interopPath = [[bundle bundlePath]
-        stringByDeletingLastPathComponent]; // .../ShaderCandy/build-make/
+    interopPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
     interopPath = [interopPath
         stringByAppendingPathComponent:@"../../src/core/ShaderInterop.h"];
     interopHeader = [NSString stringWithContentsOfFile:interopPath
@@ -432,18 +430,24 @@
   }
 
   // Load utils helper content to inject
-  NSString *utilsPath = [bundle pathForResource:@"utils"
-                                         ofType:@"metal"
-                                    inDirectory:@"shaders"];
-  NSString *utilsHeader = @"";
-  if (utilsPath) {
+  NSString *utilsPath = [[bundle resourcePath]
+      stringByAppendingPathComponent:@"shaders/utils.metal"];
+  NSString *utilsHeader =
+      [NSString stringWithContentsOfFile:utilsPath
+                                encoding:NSUTF8StringEncoding
+                                   error:nil];
+  if (utilsHeader) {
+    NSLog(@"ShaderCandy: Loaded utils.metal from: %@", utilsPath);
+  } else {
+    utilsPath =
+        [[bundle resourcePath] stringByAppendingPathComponent:@"utils.metal"];
     utilsHeader = [NSString stringWithContentsOfFile:utilsPath
                                             encoding:NSUTF8StringEncoding
                                                error:nil];
-    NSLog(@"ShaderCandy: Loaded utils.metal from: %@", utilsPath);
+  }
 
+  if (utilsHeader) {
     // Strip redundant #include and using statements to avoid conflicts
-    // (ShaderInterop.h already includes metal_stdlib and uses namespace metal)
     NSMutableString *cleanedUtils = [utilsHeader mutableCopy];
     [cleanedUtils
         replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
@@ -457,7 +461,7 @@
                              range:NSMakeRange(0, cleanedUtils.length)];
     utilsHeader = cleanedUtils;
   } else {
-    // Fallback: search in shaders/base (for dev)
+    // Fallback: search in base (for dev)
     utilsPath = [[bundle bundlePath] stringByDeletingLastPathComponent];
     utilsPath = [utilsPath
         stringByAppendingPathComponent:@"../../shaders/base/utils.metal"];
@@ -485,6 +489,13 @@
     }
   }
 
+  // Prepend standard Metal requirements to be absolutely sure
+  NSString *preamble = @"#include <metal_stdlib>\nusing namespace metal;\n\n";
+  if (interopHeader)
+    preamble = [preamble stringByAppendingString:interopHeader];
+  if (utilsHeader)
+    preamble = [preamble stringByAppendingString:utilsHeader];
+
   // Try to load from file
   NSString *path = [self pathForShader:self.currentShaderName];
   NSLog(@"ShaderCandy: Attempting to compile shader: %@",
@@ -497,6 +508,24 @@
       NSLog(@"Failed to read shader source: %@", error);
     } else {
       self.lastShaderReloadTime = [self modificationDateForPath:path];
+
+      // Strip redundant includes/imports since we prepended them
+      NSMutableString *cleanedSource = [shaderSource mutableCopy];
+      NSArray *patterns = @[
+        @"#include \"../core/ShaderInterop.h\"",
+        @"#include \"ShaderInterop.h\"", @"#import \"../core/ShaderInterop.h\"",
+        @"#import \"ShaderInterop.h\"", @"#include \"utils.metal\"",
+        @"#include \"base/utils.metal\"", @"#include \"../base/utils.metal\""
+      ];
+
+      for (NSString *pattern in patterns) {
+        [cleanedSource
+            replaceOccurrencesOfString:pattern
+                            withString:@"// Stripped include"
+                               options:0
+                                 range:NSMakeRange(0, cleanedSource.length)];
+      }
+      shaderSource = cleanedSource;
     }
   }
 
@@ -522,10 +551,10 @@
   // Prepend interop header and standard boilerplate
   NSString *fullSource = [NSString
       stringWithFormat:
-          @"%@\n%@\n\nvertex VertexOut vertex_main(VertexIn in [[stage_in]]) "
+          @"%@\n\nvertex VertexOut vertex_main(VertexIn in [[stage_in]]) "
           @"{\n    VertexOut out;\n    out.position = float4(in.position, 0.0, "
           @"1.0);\n    out.texCoord = in.texCoord;\n    return out;\n}\n\n%@",
-          interopHeader ?: @"", utilsHeader ?: @"", shaderSource];
+          preamble ?: @"", shaderSource];
 
   self.shaderLibrary = [self.device newLibraryWithSource:fullSource
                                                  options:nil
@@ -767,39 +796,32 @@
   [self setupTextures];
 }
 
-- (void)drawInMTKView:(MTKView *)view {
-  if (!self.pipelineState || !self.commandQueue)
+- (void)updateUniforms {
+  if (!self.uniformBuffer)
     return;
 
-  // Wait for a buffer to become available
-  dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
-
-  // Get current drawable and render pass descriptor
-  id<CAMetalDrawable> drawable = view.currentDrawable;
-  MTLRenderPassDescriptor *finalDescriptor = view.currentRenderPassDescriptor;
-
-  if (!drawable || !finalDescriptor) {
-    dispatch_semaphore_signal(_inFlightSemaphore);
-    return;
-  }
-
-  // Update uniforms
-  NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:self.startTime];
   NSUInteger bufferIndex = self.frameCount % 3;
   uint8_t *bufferPtr = (uint8_t *)[self.uniformBuffer contents];
   Uniforms *uniforms = (Uniforms *)(bufferPtr + bufferIndex * sizeof(Uniforms));
 
+  NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:self.startTime];
   uniforms->time = (float)elapsed;
-  uniforms->resolution = (vector_float2){(float)view.drawableSize.width,
-                                         (float)view.drawableSize.height};
+
+  if (self.mtkView) {
+    uniforms->resolution =
+        (vector_float2){(float)self.mtkView.drawableSize.width,
+                        (float)self.mtkView.drawableSize.height};
+  }
 
   // Get mouse position
   NSPoint mouseLocation = [NSEvent mouseLocation];
   NSRect frame = [self.window
       convertRectFromScreen:NSMakeRect(mouseLocation.x, mouseLocation.y, 0, 0)];
   uniforms->mouse = (vector_float2){
-      static_cast<float>(frame.origin.x / view.drawableSize.width),
-      static_cast<float>(frame.origin.y / view.drawableSize.height)};
+      static_cast<float>(frame.origin.x /
+                         (self.mtkView.drawableSize.width ?: 1)),
+      static_cast<float>(frame.origin.y /
+                         (self.mtkView.drawableSize.height ?: 1))};
 
   // Set date
   NSDateComponents *components = [[NSCalendar currentCalendar]
@@ -819,6 +841,30 @@
 
   uniforms->frame = (int32_t)self.frameCount;
   uniforms->deltaTime = (float)self.animationTimeInterval;
+  uniforms->alpha = 1.0f; // Default to fully opaque
+}
+
+- (void)drawInMTKView:(MTKView *)view {
+  if (!self.pipelineState || !self.commandQueue)
+    return;
+
+  // Wait for a buffer to become available
+  dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
+
+  [self updateUniforms];
+
+  NSUInteger bufferIndex = self.frameCount % 3;
+  uint8_t *bufferPtr = (uint8_t *)[self.uniformBuffer contents];
+  Uniforms *uniforms = (Uniforms *)(bufferPtr + bufferIndex * sizeof(Uniforms));
+
+  // Get current drawable and render pass descriptor
+  id<CAMetalDrawable> drawable = view.currentDrawable;
+  MTLRenderPassDescriptor *finalDescriptor = view.currentRenderPassDescriptor;
+
+  if (!drawable || !finalDescriptor) {
+    dispatch_semaphore_signal(_inFlightSemaphore);
+    return;
+  }
   uniforms->alpha = 1.0; // Default
 
   // Handle Transition Alpha
@@ -1134,28 +1180,7 @@
       [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 480)];
   [window setContentView:contentView];
 
-  float y = 380;
-
-  // Presets
-  NSTextField *presetLabel =
-      [[NSTextField alloc] initWithFrame:NSMakeRect(20, y, 80, 20)];
-  [presetLabel setStringValue:@"Preset:"];
-  [presetLabel setBezeled:NO];
-  [presetLabel setDrawsBackground:NO];
-  [presetLabel setEditable:NO];
-  [contentView addSubview:presetLabel];
-
-  NSPopUpButton *presetPopup =
-      [[NSPopUpButton alloc] initWithFrame:NSMakeRect(100, y - 2, 200, 25)
-                                 pullsDown:NO];
-  [presetPopup addItemsWithTitles:self.presets.allKeys];
-  [presetPopup addItemWithTitle:@"Custom"];
-  [presetPopup selectItemWithTitle:self.currentPresetName ?: @"Custom"];
-  [presetPopup setTarget:self];
-  [presetPopup setAction:@selector(presetChanged:)];
-  [contentView addSubview:presetPopup];
-
-  y -= 40;
+  int y = 440;
 
   // Effect
   NSTextField *label =
@@ -1297,42 +1322,6 @@
     [fpsControl setSelectedSegment:1];
 
   return window;
-}
-
-- (void)presetChanged:(id)sender {
-  NSString *name = [(NSPopUpButton *)sender titleOfSelectedItem];
-  if ([name isEqualToString:@"Custom"])
-    return;
-
-  NSDictionary *p = self.presets[name];
-  if (!p)
-    return;
-
-  self.currentPresetName = name;
-  self.speed = [p[@"speed"] floatValue];
-  self.intensity = [p[@"intensity"] floatValue];
-  self.gravity = [p[@"gravity"] floatValue];
-  self.enableBloom = [p[@"bloom"] boolValue];
-
-  // Update defaults
-  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults setObject:name forKey:@"currentPreset"];
-  [defaults setFloat:self.speed forKey:@"speed"];
-  [defaults setFloat:self.intensity forKey:@"intensity"];
-  [defaults setFloat:self.gravity forKey:@"gravity"];
-  [defaults setBool:self.enableBloom forKey:@"enableBloom"];
-  [defaults synchronize];
-
-  // Update UI if sheet is open
-  NSWindow *sheet = [sender window];
-  [(NSSlider *)[sheet.contentView viewWithTag:101] setFloatValue:self.speed];
-  [(NSSlider *)[sheet.contentView viewWithTag:102]
-      setFloatValue:self.intensity];
-  [(NSSlider *)[sheet.contentView viewWithTag:103] setFloatValue:self.gravity];
-  [(NSButton *)[sheet.contentView viewWithTag:104]
-      setState:self.enableBloom ? NSControlStateValueOn
-                                : NSControlStateValueOff];
 }
 
 - (void)speedChanged:(id)sender {
@@ -1486,34 +1475,6 @@
     return;
   }
 
-  // Initialize Presets
-  self.presets = @{
-    @"Cosmic" : @{
-      @"speed" : @0.8,
-      @"intensity" : @1.2,
-      @"gravity" : @1.0,
-      @"bloom" : @YES
-    },
-    @"Zen" : @{
-      @"speed" : @0.3,
-      @"intensity" : @0.5,
-      @"gravity" : @0.5,
-      @"bloom" : @NO
-    },
-    @"Chaos" : @{
-      @"speed" : @2.0,
-      @"intensity" : @1.8,
-      @"gravity" : @3.0,
-      @"bloom" : @YES
-    },
-    @"Vortex" : @{
-      @"speed" : @0.5,
-      @"intensity" : @1.0,
-      @"gravity" : @5.0,
-      @"bloom" : @YES
-    }
-  };
-
   // Load config
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
@@ -1523,8 +1484,7 @@
     @"enableBloom" : @YES,
     @"speed" : @1.0,
     @"intensity" : @1.0,
-    @"gravity" : @1.0,
-    @"currentPreset" : @"Cosmic"
+    @"gravity" : @1.0
   }];
 
   NSString *selected = [defaults stringForKey:@"selectedShader"];
@@ -1533,7 +1493,6 @@
   self.speed = [defaults floatForKey:@"speed"];
   self.intensity = [defaults floatForKey:@"intensity"];
   self.gravity = [defaults floatForKey:@"gravity"];
-  self.currentPresetName = [defaults stringForKey:@"currentPreset"];
 
   // Set animation frame rate from config
   self.animationTimeInterval = 1.0 / (double)self.preferredFPS;

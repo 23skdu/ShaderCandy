@@ -31,14 +31,20 @@
 },
 {
   "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
-  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/tests/main.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/main.cpp",
-  "file": "/Users/rsd/REPOS/ShaderCandy/tests/main.cpp",
-  "output": "CMakeFiles/shadercandy-test.dir/tests/main.cpp.o"
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp",
+  "file": "/Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp",
+  "output": "CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o"
 },
 {
   "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
-  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o -c /Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp",
-  "file": "/Users/rsd/REPOS/ShaderCandy/tests/TestFramework.cpp",
-  "output": "CMakeFiles/shadercandy-test.dir/tests/TestFramework.cpp.o"
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -x objective-c++ -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/tests/main.mm.o -c /Users/rsd/REPOS/ShaderCandy/tests/main.mm",
+  "file": "/Users/rsd/REPOS/ShaderCandy/tests/main.mm",
+  "output": "CMakeFiles/shadercandy-test.dir/tests/main.mm.o"
+},
+{
+  "directory": "/Users/rsd/REPOS/ShaderCandy/build-make",
+  "command": "/usr/bin/c++ -DUSE_NEON -I/Users/rsd/REPOS/ShaderCandy/src/core -I/Users/rsd/REPOS/ShaderCandy/src/metal -F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -x objective-c++ -O3 -DNDEBUG -std=gnu++17 -arch arm64 -mmacosx-version-min=11.0 -march=armv8-a+fp+simd -o CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o -c /Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm",
+  "file": "/Users/rsd/REPOS/ShaderCandy/src/platform/macos/ShaderCandyView.mm",
+  "output": "CMakeFiles/shadercandy-test.dir/src/platform/macos/ShaderCandyView.mm.o"
 }
 ]

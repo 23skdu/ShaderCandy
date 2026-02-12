@@ -1,11 +1,11 @@
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
     float2 uv = in.texCoord * 2.0 - 1.0;
-    uv.x *= uniforms.resolution.x / uniforms.resolution.y;
+    float aspect = uniforms.resolution.y > 0 ? uniforms.resolution.x / uniforms.resolution.y : 1.0;
+    uv.x *= aspect;
     float t = uniforms.time;
     
     float m = 1.0;
-    float3 col = float3(0.0);
     
     // Voronoi
     for(int i = 0; i < 20; i++) {
@@ -14,7 +14,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
         m = min(m, d);
     }
     
-    col = float3(1.0 - m);
+    float3 col = float3(saturate(1.0 - m));
     col = pow(col, float3(3.0));
     col *= float3(0.5 + 0.5 * sin(t), 0.5 + 0.5 * cos(t), 0.8);
     

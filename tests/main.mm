@@ -6,6 +6,10 @@
 #include "LogicAndUniformTests.cpp"
 #include "MathAndCoreTests.cpp"
 #include "ShaderCompilationTests.cpp"
+#ifdef __APPLE__
+#include "MetalCompilationTests.mm"
+#include "PropertyUniformTests.mm"
+#endif
 
 using namespace ShaderCandy::Test;
 
