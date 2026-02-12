@@ -7,9 +7,9 @@
 
 #pragma once
 
+#import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
-#import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 
 #include "../core/ShaderInterop.h"
@@ -19,15 +19,15 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Error Handling
 
 typedef NS_ENUM(NSInteger, MetalRendererErrorCode) {
-    MetalRendererErrorCodeNone = 0,
-    MetalRendererErrorCodeDeviceCreationFailed,
-    MetalRendererErrorCodeCommandQueueFailed,
-    MetalRendererErrorCodeShaderCompilationFailed,
-    MetalRendererErrorCodePipelineCreationFailed,
-    MetalRendererErrorCodeTextureCreationFailed,
-    MetalRendererErrorCodeDeviceLost,
-    MetalRendererErrorCodeResourceExhausted,
-    MetalRendererErrorCodeInvalidState,
+  MetalRendererErrorCodeNone = 0,
+  MetalRendererErrorCodeDeviceCreationFailed,
+  MetalRendererErrorCodeCommandQueueFailed,
+  MetalRendererErrorCodeShaderCompilationFailed,
+  MetalRendererErrorCodePipelineCreationFailed,
+  MetalRendererErrorCodeTextureCreationFailed,
+  MetalRendererErrorCodeDeviceLost,
+  MetalRendererErrorCodeResourceExhausted,
+  MetalRendererErrorCodeInvalidState,
 };
 
 @interface MetalRendererError : NSObject
@@ -43,7 +43,7 @@ typedef NS_ENUM(NSInteger, MetalRendererErrorCode) {
                       message:(NSString *)message;
 
 + (instancetype)shaderErrorWithMessage:(NSString *)message
-                          compilerError:(nullable NSString *)compilerError
+                         compilerError:(nullable NSString *)compilerError
                             shaderName:(nullable NSString *)shaderName
                             lineNumber:(NSInteger)lineNumber;
 
@@ -52,12 +52,12 @@ typedef NS_ENUM(NSInteger, MetalRendererErrorCode) {
 #pragma mark - GPU Family Detection
 
 typedef NS_ENUM(NSInteger, MetalGPUFamily) {
-    MetalGPUFamilyUnknown = 0,
-    MetalGPUFamilyApple1,  // All Apple Silicon
-    MetalGPUFamilyApple2,  // A7-A11
-    MetalGPUFamilyApple3,  // A12+ with enhanced features
-    MetalGPUFamilyMac1,    // Intel/AMD via Rosetta or discrete
-    MetalGPUFamilyMac2,    // Modern Mac GPUs
+  MetalGPUFamilyUnknown = 0,
+  MetalGPUFamilyApple1, // All Apple Silicon
+  MetalGPUFamilyApple2, // A7-A11
+  MetalGPUFamilyApple3, // A12+ with enhanced features
+  MetalGPUFamilyMac1,   // Intel/AMD via Rosetta or discrete
+  MetalGPUFamilyMac2,   // Modern Mac GPUs
 };
 
 @interface MetalDeviceInfo : NSObject
@@ -96,9 +96,12 @@ typedef NS_ENUM(NSInteger, MetalGPUFamily) {
 @interface MetalPipelineState : NSObject
 
 @property(nonatomic, strong) id<MTLRenderPipelineState> renderPipeline;
-@property(nonatomic, strong, nullable) id<MTLRenderPipelineState> simulationPipeline;
-@property(nonatomic, strong, nullable) id<MTLComputePipelineState> computePipeline;
-@property(nonatomic, strong, nullable) id<MTLRenderPipelineState> particleRenderPipeline;
+@property(nonatomic, strong, nullable) id<MTLRenderPipelineState>
+    simulationPipeline;
+@property(nonatomic, strong, nullable) id<MTLComputePipelineState>
+    computePipeline;
+@property(nonatomic, strong, nullable) id<MTLRenderPipelineState>
+    particleRenderPipeline;
 @property(nonatomic, strong, readonly) NSString *shaderName;
 @property(nonatomic, readonly) NSDate *createdAt;
 
@@ -128,10 +131,10 @@ typedef NS_ENUM(NSInteger, MetalGPUFamily) {
 #pragma mark - Bloom Configuration
 
 typedef NS_ENUM(NSInteger, MetalBloomQuality) {
-    MetalBloomQualityLow = 0,
-    MetalBloomQualityMedium,
-    MetalBloomQualityHigh,
-    MetalBloomQualityUltra,
+  MetalBloomQualityLow = 0,
+  MetalBloomQualityMedium,
+  MetalBloomQualityHigh,
+  MetalBloomQualityUltra,
 };
 
 @interface MetalBloomConfig : NSObject
@@ -162,9 +165,12 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @protocol MetalRendererDelegate <NSObject>
 
 @optional
-- (void)metalRenderer:(id)renderer didEncounterError:(MetalRendererError *)error;
-- (void)metalRenderer:(id)renderer didUpdateMetrics:(MetalPerformanceMetrics *)metrics;
-- (void)metalRenderer:(id)renderer didReloadShadersWithName:(NSString *)shaderName;
+- (void)metalRenderer:(id)renderer
+    didEncounterError:(MetalRendererError *)error;
+- (void)metalRenderer:(id)renderer
+     didUpdateMetrics:(MetalPerformanceMetrics *)metrics;
+- (void)metalRenderer:(id)renderer
+    didReloadShadersWithName:(NSString *)shaderName;
 
 @end
 
@@ -173,11 +179,13 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 #pragma mark - Properties
 
 @property(nonatomic, strong, readonly, nullable) id<MTLDevice> device;
-@property(nonatomic, strong, readonly, nullable) id<MTLCommandQueue> commandQueue;
+@property(nonatomic, strong, readonly, nullable) id<MTLCommandQueue>
+    commandQueue;
 @property(nonatomic, strong, readonly) MetalDeviceInfo *deviceInfo;
 @property(nonatomic, strong, readonly) MetalRenderResources *resources;
 @property(nonatomic, strong, readonly) MetalPerformanceMetrics *metrics;
-@property(nonatomic, strong, readonly, nullable) MetalPipelineState *currentPipeline;
+@property(nonatomic, strong, readonly, nullable)
+    MetalPipelineState *currentPipeline;
 @property(nonatomic, strong, readonly) MetalBloomConfig *bloomConfig;
 @property(nonatomic, strong, readonly) MetalParticleConfig *particleConfig;
 
@@ -185,6 +193,12 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, assign) BOOL hotReloadEnabled;
 @property(nonatomic, assign) float preferredFPS;
 @property(nonatomic, assign, nullable) id<MetalRendererDelegate> delegate;
+
+// Transition state
+@property(nonatomic, readonly) BOOL isTransitioning;
+@property(nonatomic, readonly) float transitionAlpha;
+@property(nonatomic, strong, readonly, nullable)
+    MetalPipelineState *previousPipeline;
 
 #pragma mark - Initialization
 
@@ -203,14 +217,17 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 
 #pragma mark - Shader Management
 
-- (BOOL)loadShaderWithName:(NSString *)name
-                      error:(NSError **)error;
+- (BOOL)loadShaderWithName:(NSString *)name error:(NSError **)error;
 
 - (BOOL)reloadCurrentShader:(NSError **)error;
 
 - (NSArray<NSString *> *)availableShaderNames;
 
 - (BOOL)setActiveShader:(NSString *)name error:(NSError **)error;
+
+- (BOOL)transitionToShaderNamed:(NSString *)name
+                       duration:(NSTimeInterval)duration
+                          error:(NSError **)error;
 
 @property(nonatomic, strong, readonly, nullable) NSString *activeShaderName;
 
@@ -224,15 +241,15 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 #pragma mark - Rendering
 
 - (void)updateUniformsWithTime:(NSTimeInterval)time
-                    mousePosition:(NSPoint)mousePos
-                   mouseButtons:(NSInteger)buttons
-                          speed:(float)speed
-                      intensity:(float)intensity
-                        gravity:(float)gravity
-                         height:(CGFloat)height;
+                 mousePosition:(NSPoint)mousePos
+                  mouseButtons:(NSInteger)buttons
+                         speed:(float)speed
+                     intensity:(float)intensity
+                       gravity:(float)gravity
+                        height:(CGFloat)height;
 
 - (void)renderToDrawable:(id<CAMetalDrawable>)drawable
-      renderPassDescriptor:(MTLRenderPassDescriptor *)descriptor;
+    renderPassDescriptor:(MTLRenderPassDescriptor *)descriptor;
 
 #pragma mark - Viewport
 
@@ -264,7 +281,7 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 - (void)captureGPUFrame;
 
 - (void)writeFailedShaderToFile:(NSString *)source
-                        fileName:(NSString *)fileName;
+                       fileName:(NSString *)fileName;
 
 @end
 

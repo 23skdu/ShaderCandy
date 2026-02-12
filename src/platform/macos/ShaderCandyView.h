@@ -2,7 +2,7 @@
 //  ShaderCandyView.h
 //  ShaderCandy
 //
-//  macOS Screen Saver Implementation
+//  macOS Screen Saver Implementation (Thin Adapter)
 //
 
 #import <Metal/Metal.h>
@@ -11,74 +11,28 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class MetalRenderer;
+
 @interface ShaderCandyView : ScreenSaverView <MTKViewDelegate>
 
-// Metal objects
-@property(nonatomic, strong) id<MTLDevice> device;
-@property(nonatomic, strong) id<MTLCommandQueue> commandQueue;
-@property(nonatomic, strong) id<MTLRenderPipelineState> pipelineState;
-@property(nonatomic, strong, nullable) id<MTLRenderPipelineState>
-    simulationPipeline;
-@property(nonatomic, strong) id<MTLBuffer> vertexBuffer;
-@property(nonatomic, strong) id<MTLBuffer> indexBuffer;
-@property(nonatomic, strong) id<MTLBuffer> uniformBuffer;
-@property(nonatomic, strong) MTKView *mtkView;
-@property(nonatomic, strong, nullable) NSWindow *configPanel;
+// Principal Renderer
+@property(nonatomic, strong, readonly, nullable) MetalRenderer *renderer;
 
-// Shader management
-@property(nonatomic, strong) id<MTLLibrary> shaderLibrary;
-@property(nonatomic, strong) NSString *currentShaderName;
-@property(nonatomic, strong) NSArray<NSString *> *availableShaders;
+// Configuration and State (Principally managed via Renderer, but mirrored for
+// UI/Cycling)
+@property(nonatomic, strong, nullable) NSString *currentShaderName;
+@property(nonatomic, strong, nullable) NSArray<NSString *> *availableShaders;
 
-// Timing
-@property(nonatomic, strong) NSDate *startTime;
-@property(nonatomic, assign) NSInteger frameCount;
-
-// Configuration
-@property(nonatomic, assign) BOOL enableHotReload;
-@property(nonatomic, assign) NSTimeInterval lastShaderCheck;
-@property(nonatomic, strong) NSDate *lastShaderReloadTime;
+// Screen Saver Parameters
 @property(nonatomic, assign) NSInteger preferredFPS;
-
-// Global Parameters
 @property(nonatomic, assign) float speed;
 @property(nonatomic, assign) float intensity;
 @property(nonatomic, assign) float gravity;
-
-// Bloom
 @property(nonatomic, assign) BOOL enableBloom;
-@property(nonatomic, strong) id<MTLRenderPipelineState> thresholdPipeline;
-@property(nonatomic, strong) id<MTLRenderPipelineState> blurHPipeline;
-@property(nonatomic, strong) id<MTLRenderPipelineState> blurVPipeline;
-@property(nonatomic, strong) id<MTLRenderPipelineState> combinePipeline;
-@property(nonatomic, strong) id<MTLTexture> sceneTexture;
-@property(nonatomic, strong) id<MTLTexture> bloomTextureA; // Threshold / Blur H
-@property(nonatomic, strong) id<MTLTexture> bloomTextureB; // Blur V
-@property(nonatomic, strong) id<MTLTexture> mainTexture;
-@property(nonatomic, strong) id<MTLSamplerState> samplerState;
+@property(nonatomic, assign) BOOL enableHotReload;
 
-// Simulation State (Ping-Pong textures)
-@property(nonatomic, strong) id<MTLTexture> simulationTextureA;
-@property(nonatomic, strong) id<MTLTexture> simulationTextureB;
-@property(nonatomic, assign) BOOL needsSimulation;
-
-// Particle System
-@property(nonatomic, strong, nullable) id<MTLComputePipelineState>
-    particleComputePipeline;
-@property(nonatomic, strong, nullable) id<MTLRenderPipelineState>
-    particleRenderPipeline;
-@property(nonatomic, strong, nullable) id<MTLBuffer> particleBuffer;
-@property(nonatomic, assign) NSInteger numParticles;
-
-@property(nonatomic, assign) BOOL isInitialized;
-@property(nonatomic, assign) BOOL metalSetup;
-
-- (void)loadShaders;
-- (void)reloadShaders;
-- (void)setupMetal;
-- (void)updateUniforms;
-- (void)createPipelineStateWithVertex:(NSString *)vertexFunc
-                             fragment:(NSString *)fragmentFunc;
+// UI
+@property(nonatomic, strong, nullable) NSWindow *configPanel;
 
 @end
 
