@@ -316,9 +316,11 @@
 
   _defaultShaderPopup =
       [[NSPopUpButton alloc] initWithFrame:NSMakeRect(150, 155, 150, 24)];
-  [_defaultShaderPopup addItemsWithTitles:@[
-    @"default", @"mandelbulb_3d", @"nebula", @"vortex"
-  ]];
+  if (_availableShaders.count > 0) {
+    [_defaultShaderPopup addItemsWithTitles:_availableShaders];
+  } else {
+    [_defaultShaderPopup addItemWithTitle:@"default"];
+  }
   [content addSubview:_defaultShaderPopup];
 }
 
@@ -402,10 +404,14 @@
 
   // Update shader popup
   [_defaultShaderPopup removeAllItems];
-  // Add all available shaders would go here
-  [_defaultShaderPopup
-      addItemWithTitle:[NSString stringWithUTF8String:settings.defaultShader
-                                                          .c_str()]];
+  if (_availableShaders.count > 0) {
+    [_defaultShaderPopup addItemsWithTitles:_availableShaders];
+    if (_defaultShader) {
+      [_defaultShaderPopup selectItemWithTitle:_defaultShader];
+    }
+  } else {
+    [_defaultShaderPopup addItemWithTitle:_defaultShader ?: @"default"];
+  }
 }
 
 - (void)savePreferences {
@@ -466,6 +472,17 @@
   _autoScaleThreshold = autoScaleThreshold;
   _autoScaleThresholdLabel.stringValue =
       [NSString stringWithFormat:@"%.0f", autoScaleThreshold];
+}
+
+- (void)setAvailableShaders:(NSArray<NSString *> *)availableShaders {
+  _availableShaders = availableShaders;
+  if (_defaultShaderPopup) {
+    [_defaultShaderPopup removeAllItems];
+    [_defaultShaderPopup addItemsWithTitles:_availableShaders];
+    if (_defaultShader) {
+      [_defaultShaderPopup selectItemWithTitle:_defaultShader];
+    }
+  }
 }
 
 @end

@@ -30,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Shader Settings
 @property(nonatomic, assign) BOOL hotReloadEnabled;
 @property(nonatomic, strong) NSString *defaultShader;
+@property(nonatomic, strong) NSArray<NSString *> *availableShaders;
 
 // Initialization
 - (instancetype)init;
