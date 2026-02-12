@@ -1,7 +1,10 @@
 #version 450 core
 
+#ifndef COMMON_GLSL
+#define COMMON_GLSL
+
 // Uniform buffer shared across all shaders
-layout(std140, binding = 0) uniform Uniforms {
+layout(std140) uniform Uniforms {
     float time;
     float speed;
     vec2 resolution;
@@ -16,7 +19,7 @@ layout(std140, binding = 0) uniform Uniforms {
 };
 
 // Uniforms for textures
-layout(binding = 1) uniform sampler2D prevFrame;
+uniform sampler2D prevFrame;
 
 // Utility functions
 #define PI 3.14159265359
@@ -127,7 +130,8 @@ float fbm(vec3 x, int octaves) {
         v += a * snoise(x);
         x = x * 2.0 + shift;
         a *= 0.5;
-    }
+}
+#endif // COMMON_GLSL
     return v;
 }
 
