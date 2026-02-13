@@ -1,5 +1,5 @@
 // Enhanced Linux OpenGL Screensaver for ShaderCandy
-// Supports multiple shaders, transitions, and full uniform compatibility
+// Supports multiple shaders, transitions, audio reactivity, and full uniform compatibility
 #define GL_GLEXT_PROTOTYPES
 
 #include <X11/Xlib.h>
@@ -21,7 +21,11 @@
 #include <algorithm>
 #include <sys/stat.h>
 
-// Extended Uniforms matching common.glsl
+// Audio support
+#include "AudioInput.h"
+using namespace ShaderCandy::Audio;
+
+// Extended Uniforms matching common.glsl and ShaderInterop.h
 struct Uniforms {
     float time;
     float speed;
@@ -34,6 +38,19 @@ struct Uniforms {
     float deltaTime;
     float alpha;
     float gravity;
+    
+    // Audio data (from ShaderInterop.h)
+    float volume;
+    float bass;
+    float mid;
+    float treble;
+    float beat;
+    float audioData[256];
+    
+    // Performance metrics
+    float gpuTime;
+    float cpuTime;
+    float fps;
 };
 
 // Shader program with full UBO support
@@ -110,16 +127,92 @@ public:
         return true;
     }
     
-    bool loadShaderFromFile(const char* fragmentPath) {
-        std::ifstream fragFile(fragmentPath);
-        if (!fragFile.is_open()) {
-            std::cerr << "Failed to open shader: " << fragmentPath << std::endl;
-            return false;
+    std::string loadShaderWithIncludes(const char* path, int depth = 0) {
+        if (depth > 10) {
+            std::cerr << "Include depth exceeded for: " << path << std::endl;
+            return "";
+        }
+
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            std::cerr << "Failed to open: " << path << std::endl;
+            return "";
+        }
+
+        // Get directory of this shader file
+        std::string dir = path;
+        size_t lastSlash = dir.find_last_of("/\\");
+        if (lastSlash != std::string::npos) {
+            dir = dir.substr(0, lastSlash + 1);
+        } else {
+            dir = "./";
+        }
+
+        std::stringstream result;
+        std::string line;
+        while (std::getline(file, line)) {
+            // Strip #version directives - the wrapper provides the version
+            size_t versionPos = line.find("#version");
+            if (versionPos != std::string::npos) {
+                continue;  // Skip version directives
+            }
+
+            // Check for #include directive
+            size_t includePos = line.find("#include");
+            if (includePos != std::string::npos) {
+                // Extract the include path
+                size_t start = line.find('"', includePos);
+                size_t end = std::string::npos;
+                if (start != std::string::npos) {
+                    end = line.find('"', start + 1);
+                }
+                
+                if (start != std::string::npos && end != std::string::npos) {
+                    std::string includePath = line.substr(start + 1, end - start - 1);
+                    
+                    // Resolve relative path
+                    std::string fullPath;
+                    if (includePath[0] == '/') {
+                        fullPath = includePath;
+                    } else if (includePath.substr(0, 3) == "../") {
+                        // Handle ../ by going up one directory
+                        std::string parentDir = dir;
+                        if (parentDir.length() > 0 && (parentDir.back() == '/' || parentDir.back() == '\\')) {
+                            parentDir.pop_back();
+                        }
+                        size_t parentSlash = parentDir.find_last_of("/\\");
+                        if (parentSlash != std::string::npos) {
+                            parentDir = parentDir.substr(0, parentSlash + 1);
+                        }
+                        fullPath = parentDir + includePath.substr(3);
+                    } else if (includePath.substr(0, 2) == "./") {
+                        fullPath = dir + includePath.substr(2);
+                    } else {
+                        fullPath = dir + includePath;
+                    }
+                    
+                    // Recursively load the included file
+                    std::string includeContent = loadShaderWithIncludes(fullPath.c_str(), depth + 1);
+                    if (!includeContent.empty()) {
+                        result << includeContent << "\n";
+                    } else {
+                        std::cerr << "Warning: Could not load include: " << includePath << std::endl;
+                    }
+                    continue;
+                }
+            }
+            result << line << "\n";
         }
         
-        std::stringstream fragStream;
-        fragStream << fragFile.rdbuf();
-        std::string fragStr = fragStream.str();
+        return result.str();
+    }
+    
+    bool loadShaderFromFile(const char* fragmentPath) {
+        std::string fragStr = loadShaderWithIncludes(fragmentPath);
+        if (fragStr.empty()) {
+            std::cerr << "Failed to load shader: " << fragmentPath << std::endl;
+            return false;
+        }
         
         // Extract shader name from path
         name = fragmentPath;
@@ -148,21 +241,7 @@ public:
             in vec2 vTexCoord;
             in vec2 vScreenPos;
             out vec4 fragColor;
-            
-            layout(std140) uniform Uniforms {
-                float time;
-                float speed;
-                vec2 resolution;
-                vec2 mouse;
-                float mouseButtons;
-                float intensity;
-                vec4 date;
-                int frame;
-                float deltaTime;
-                float alpha;
-                float gravity;
-            };
-            
+
             #define PI 3.14159265359
             #define TWO_PI 6.28318530718
             
@@ -302,9 +381,10 @@ public:
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo);
     }
     
-    void updateUniforms(int width, int height, float mouseX, float mouseY, float mouseBtns) {
+    void updateUniforms(int width, int height, float mouseX, float mouseY, float mouseBtns,
+                        const AudioData* audioData = nullptr) {
         auto now = std::chrono::steady_clock::now();
-        
+
         uniforms.time = std::chrono::duration<float>(now - startTime).count();
         uniforms.resolution[0] = static_cast<float>(width);
         uniforms.resolution[1] = static_cast<float>(height);
@@ -313,17 +393,32 @@ public:
         uniforms.mouseButtons = mouseBtns;
         uniforms.frame = frameCount++;
         uniforms.deltaTime = std::chrono::duration<float>(now - lastFrame).count();
-        
+
         time_t t = time(nullptr);
         tm* lt = localtime(&t);
         uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
         uniforms.date[1] = static_cast<float>(lt->tm_mon + 1);
         uniforms.date[2] = static_cast<float>(lt->tm_mday);
         uniforms.date[3] = static_cast<float>(lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec);
-        
+
+        // Update audio uniforms if audio data is available
+        if (audioData) {
+            uniforms.volume = audioData->volume;
+            uniforms.bass = audioData->bass;
+            uniforms.mid = audioData->mid;
+            uniforms.treble = audioData->treble;
+            uniforms.beat = audioData->beat ? 1.0f : 0.0f;
+
+            // Copy spectrum data (limited to 256 samples)
+            int samplesToCopy = std::min(256, (int)audioData->spectrum.size());
+            for (int i = 0; i < samplesToCopy; ++i) {
+                uniforms.audioData[i] = audioData->spectrum[i];
+            }
+        }
+
         glBindBuffer(GL_UNIFORM_BUFFER, ubo);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Uniforms), &uniforms);
-        
+
         lastFrame = now;
     }
 
@@ -380,6 +475,10 @@ private:
     std::vector<std::string> shaderPaths;
     std::string shaderDir;
     
+    // Audio input
+    AudioInput* audioInput = nullptr;
+    bool enableAudio = false;
+    
 public:
     X11Screensaver() = default;
     ~X11Screensaver() {
@@ -404,6 +503,8 @@ public:
                 initialShader = argv[++i];
             } else if (strcmp(argv[i], "-shader-dir") == 0 && i + 1 < argc) {
                 addShaderDirectory(argv[++i]);
+            } else if (strcmp(argv[i], "-audio") == 0) {
+                enableAudio = true;
             }
         }
         
@@ -522,6 +623,25 @@ public:
         XFree(vi);
         
         shaderStartTime = std::chrono::steady_clock::now();
+        
+        // Initialize audio if requested
+        if (enableAudio) {
+            audioInput = new AudioInput();
+            if (audioInput->initialize()) {
+                if (audioInput->autoSelectDevice()) {
+                    audioInput->start();
+                    std::cout << "Audio input initialized successfully" << std::endl;
+                } else {
+                    std::cerr << "Failed to auto-select audio device" << std::endl;
+                    delete audioInput;
+                    audioInput = nullptr;
+                }
+            } else {
+                std::cerr << "Failed to initialize audio input" << std::endl;
+                delete audioInput;
+                audioInput = nullptr;
+            }
+        }
         
         return true;
     }
@@ -669,21 +789,26 @@ public:
             delete shader;
         }
         shaders.clear();
-        
+
+        if (audioInput) {
+            delete audioInput;
+            audioInput = nullptr;
+        }
+
         if (vbo) { glDeleteBuffers(1, &vbo); vbo = 0; }
         if (vao) { glDeleteVertexArrays(1, &vao); vao = 0; }
-        
+
         if (context) {
             glXMakeCurrent(display, None, nullptr);
             glXDestroyContext(display, context);
             context = nullptr;
         }
-        
+
         if (window) {
             XDestroyWindow(display, window);
             window = 0;
         }
-        
+
         if (display) {
             XCloseDisplay(display);
             display = nullptr;
@@ -722,38 +847,42 @@ private:
     
     void render() {
         glClear(GL_COLOR_BUFFER_BIT);
-        
+
+        // Get current audio data if available
+        const AudioData* audioData = nullptr;
+        AudioData currentAudio;
+        if (audioInput && audioInput->isRunning()) {
+            currentAudio = audioInput->getCurrentData();
+            audioData = &currentAudio;
+        }
+
         if (currentShader && currentShader->program) {
             if (inTransition && nextShader && nextShader->program) {
-                // Render transition between shaders
                 float alpha1 = 1.0f - transitionProgress;
                 float alpha2 = transitionProgress;
-                
-                // Render current shader
+
                 currentShader->use();
                 currentShader->uniforms.alpha = alpha1;
-                currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns);
+                currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
                 glDrawArrays(GL_TRIANGLES, 0, 6);
-                
-                // Render next shader with blending
+
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                
+
                 nextShader->use();
                 nextShader->uniforms.alpha = alpha2;
-                nextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns);
+                nextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
                 glDrawArrays(GL_TRIANGLES, 0, 6);
-                
+
                 glDisable(GL_BLEND);
             } else {
-                // Normal rendering
                 currentShader->use();
                 currentShader->uniforms.alpha = 1.0f;
-                currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns);
+                currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
         }
-        
+
         glXSwapBuffers(display, window);
     }
 };
@@ -766,6 +895,7 @@ void printUsage(const char* program) {
               << "  -shader-dir <path>   Add shader directory\n"
               << "  -window-id <id>      Run in existing window\n"
               << "  -root                Run on root window\n"
+              << "  -audio               Enable audio reactivity\n"
               << "\nControls:\n"
               << "  Right Arrow          Next shader\n"
               << "  ESC or Q             Quit\n"

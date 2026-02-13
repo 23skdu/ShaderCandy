@@ -6,7 +6,7 @@
 // Responds to music with flowing particle bars
 
 // Audio uniforms (when audio input is available)
-layout(std140, binding = 2) uniform AudioUniforms {
+layout(std140) uniform AudioUniforms {
     float audioVolume;
     float audioBass;
     float audioMid;
