@@ -18,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong)
     NSMutableDictionary<NSString *, StyleTransferModel *> *loadedModels;
 @property(nonatomic, strong) dispatch_queue_t libraryQueue;
-@property(nonatomic, copy) NSString *libraryPath;
+@property(nonatomic, strong, nullable) NSString *libraryPath;
 @property(nonatomic, strong, readwrite, nullable) StylePreset *currentStyle;
 
 @end
@@ -257,7 +257,7 @@ NS_ASSUME_NONNULL_BEGIN
   return NO;
 }
 
-- (BOOL)importStyleFromURL:(NSURL *)url error:(NSError **)error {
+- (BOOL)importStyleFromURL:(nullable NSURL *)url error:(NSError **)error {
   if (![url.pathExtension isEqualToString:@"mlmodelc"] &&
       ![url.pathExtension isEqualToString:@"mlmodel"]) {
     if (error) {
@@ -291,7 +291,7 @@ NS_ASSUME_NONNULL_BEGIN
   return success;
 }
 
-- (BOOL)deleteStyle:(StylePreset *)style error:(NSError **)error {
+- (BOOL)deleteStyle:(nullable StylePreset *)style error:(NSError **)error {
   if (style.isBuiltIn) {
     if (error) {
       *error = [NSError
@@ -323,13 +323,13 @@ NS_ASSUME_NONNULL_BEGIN
   return success;
 }
 
-- (void)addToFavorites:(StylePreset *)style {
+- (void)addToFavorites:(nullable StylePreset *)style {
   [_favoriteIdentifiers addObject:style.identifier];
   style.isFavorite = YES;
   [self saveFavorites];
 }
 
-- (void)removeFromFavorites:(StylePreset *)style {
+- (void)removeFromFavorites:(nullable StylePreset *)style {
   [_favoriteIdentifiers removeObject:style.identifier];
   style.isFavorite = NO;
   [self saveFavorites];
@@ -345,7 +345,7 @@ NS_ASSUME_NONNULL_BEGIN
   return favorites;
 }
 
-- (void)prewarmStyle:(NSString *)styleName {
+- (void)prewarmStyle:(nullable NSString *)styleName {
   dispatch_async(_libraryQueue, ^{
     StyleTransferModel *model = self.loadedModels[styleName];
     if (!model) {
