@@ -73,24 +73,24 @@ All foundational phases have been verified as completed and production-ready:
 ## 📂 Documentation Manifest
 
 ### Current Documentation
-- **[ARCHITECTURE_MASTER_PLAN.md](./ARCHITECTURE_MASTER_PLAN.md)**: Core architecture and foundation implementation
-- **[IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)**: Consolidated implementation details (Phase 1-5)
-- **[MASTER_STATUS_AND_ROADMAP.md](./MASTER_STATUS_AND_ROADMAP.md)**: This document - current status and remaining roadmap
-- **[HDR_IMPLEMENTATION.md](./HDR_IMPLEMENTATION.md)**: Technical guide for high-bit-depth rendering
-- **[NEURAL_EFFECTS_GUIDE.md](./NEURAL_EFFECTS_GUIDE.md)**: How to use CoreML style transfer
-- **[WALLPAPER_MODE_GUIDE.md](./WALLPAPER_MODE_GUIDE.md)**: Desktop integration instructions
-- **[STANDALONE_APP_GUIDE.md](./STANDALONE_APP_GUIDE.md)**: Manual for the Player app
-- **[FALLOUT_SHADER.md](./FALLOUT_SHADER.md)**: Documentation for the fallout effect shader
-- **[TEST_RESULTS.md](./TEST_RESULTS.md)**: Latest test results and build status
-- **[LINUX_FEATURES.md](./LINUX_FEATURES.md)**: Linux-specific features and usage guide
+- **[ArchitectureMasterPlan.md](./ArchitectureMasterPlan.md)**: Core architecture and foundation implementation
+- **[ImplementationSummary.md](./ImplementationSummary.md)**: Consolidated implementation details (Phase 1-5)
+- **[MasterStatusAndRoadmap.md](./MasterStatusAndRoadmap.md)**: This document - current status and remaining roadmap
+- **[HdrImplementation.md](./HdrImplementation.md)**: Technical guide for high-bit-depth rendering
+- **[NeuralEffectsGuide.md](./NeuralEffectsGuide.md)**: How to use CoreML style transfer
+- **[WallpaperModeGuide.md](./WallpaperModeGuide.md)**: Desktop integration instructions
+- **[StandaloneAppGuide.md](./StandaloneAppGuide.md)**: Manual for the Player app
+- **[FalloutShader.md](./FalloutShader.md)**: Documentation for the fallout effect shader
+- **[TestResults.md](./TestResults.md)**: Latest test results and build status
+- **[LinuxFeatures.md](./LinuxFeatures.md)**: Linux-specific features and usage guide
 
 ### Archived Documentation (Historical)
-- **[archive/PROJECT_PLAN.md](./archive/PROJECT_PLAN.md)**: Original 15-part roadmap (Historical)
-- **[archive/mastershaderplan.md](./archive/mastershaderplan.md)**: Shader-specific development history
-- **[archive/LINUX_PORT_SUMMARY.md](./archive/LINUX_PORT_SUMMARY.md)**: Details on the GLSL porting effort
-- **[archive/IMPLEMENTATION_SUMMARY.md](./archive/IMPLEMENTATION_SUMMARY.md)**: Original Phase 1 summary
-- **[archive/PHASE2_SUMMARY.md](./archive/PHASE2_SUMMARY.md)**: Phase 2 details
-- **[archive/PHASE3_SUMMARY.md](./archive/PHASE3_SUMMARY.md)**: Phase 3 advanced features
+- **[archive/ProjectPlan.md](./archive/ProjectPlan.md)**: Original 15-part roadmap (Historical)
+- **[archive/MasterShaderPlan.md](./archive/MasterShaderPlan.md)**: Shader-specific development history
+- **[archive/LinuxPortSummary.md](./archive/LinuxPortSummary.md)**: Details on the GLSL porting effort
+- **[archive/ImplementationSummaryOld.md](./archive/ImplementationSummaryOld.md)**: Original Phase 1 summary
+- **[archive/Phase2Summary.md](./archive/Phase2Summary.md)**: Phase 2 details
+- **[archive/Phase3Summary.md](./archive/Phase3Summary.md)**: Phase 3 advanced features
 
 ---
 
