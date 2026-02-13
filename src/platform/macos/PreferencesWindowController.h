@@ -32,6 +32,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong) NSString *defaultShader;
 @property(nonatomic, strong) NSArray<NSString *> *availableShaders;
 
+// Neural Settings
+@property(nonatomic, assign) BOOL neuralEnabled;
+@property(nonatomic, assign) float styleStrength;
+@property(nonatomic, strong) NSString *neuralStyle;
+
+// Advanced Audio Settings
+@property(nonatomic, assign) BOOL spatialAudioEnabled;
+@property(nonatomic, assign) float roomSize;
+@property(nonatomic, assign) float reverbDamping;
+
 // Initialization
 - (instancetype)init;
 

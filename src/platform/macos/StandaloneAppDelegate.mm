@@ -9,6 +9,7 @@
 #import "../../config/ConfigurationManager.h"
 #import "../../metal/MetalRenderer.h"
 #import "../../metal/MetalSharedState.h"
+#import "../../neural/NeuralStyleEngine.h"
 #import "StandaloneAppWindowController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -515,6 +516,19 @@
                             gravity:_gravity
                              height:view.bounds.size.height];
 
+  // Sync renderer with global settings (Phase 5)
+  auto &config = ShaderCandy::Config::ConfigurationManager::getInstance();
+  const auto &settings = config.getSettings();
+  _renderer.hdrEnabled = settings.hdr;
+  _renderer.neuralStyleEnabled = settings.neuralStyleEnabled;
+  _renderer.styleStrength = settings.neuralStyleStrength;
+  if (settings.neuralStyleEnabled && settings.neuralStyleName.length() > 0) {
+    [[NeuralStyleEngine sharedEngine]
+        loadStyleNamed:[NSString stringWithUTF8String:settings.neuralStyleName
+                                                          .c_str()]
+                 error:nil];
+  }
+
   // Begin frame
   [_renderer beginFrame];
 
@@ -644,7 +658,7 @@
   NSString *docsPath = [[NSBundle mainBundle] pathForResource:@"README"
                                                        ofType:@"md"];
   if (docsPath) {
-    [[NSWorkspace sharedWorkspace] openFile:docsPath];
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:docsPath]];
   }
 }
 

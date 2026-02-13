@@ -10,34 +10,45 @@
 @class StyleTransferModel;
 @class StylePreset;
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface StyleLibrary : NSObject
 
-@property(nonatomic, strong, readonly, nullable) NSArray<StylePreset *> *allStyles;
-@property(nonatomic, strong, readonly, nullable) NSArray<NSString *> *categories;
+@property(nonatomic, strong, readonly, nullable)
+    NSArray<StylePreset *> *allStyles;
+@property(nonatomic, strong, readonly, nullable)
+    NSArray<NSString *> *categories;
 @property(nonatomic, strong, readonly, nullable) StylePreset *currentStyle;
 @property(nonatomic, strong, readonly, nullable) NSString *libraryPath;
 
-+ (instancetype _Nullable)sharedLibrary;
++ (nullable instancetype)sharedLibrary;
 
 - (void)scanForStyles;
 - (void)reloadLibrary;
 
-- (NSArray<StylePreset *> * _Nullable)stylesForCategory:(NSString * _Nullable)category;
-- (StylePreset * _Nullable)styleNamed:(NSString * _Nullable)name;
+- (nullable NSArray<StylePreset *> *)stylesForCategory:
+    (nullable NSString *)category;
+- (nullable StylePreset *)styleNamed:(nullable NSString *)name;
 - (nullable StylePreset *)styleAtIndex:(NSInteger)index;
 
-- (BOOL)downloadStyle:(NSString * _Nullable)styleName completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
-- (BOOL)importStyleFromURL:(NSURL * _Nullable)url error:(NSError * _Nullable *)error;
-- (BOOL)deleteStyle:(StylePreset * _Nullable)style error:(NSError * _Nullable *__nullable)error;
+- (BOOL)downloadStyle:(nullable NSString *)styleName
+           completion:(void (^_Nullable)(BOOL success,
+                                         NSError *_Nullable error))completion;
+- (BOOL)importStyleFromURL:(nullable NSURL *)url error:(NSError **)error;
+- (BOOL)deleteStyle:(nullable StylePreset *)style error:(NSError **)error;
 
-- (void)addToFavorites:(StylePreset * _Nullable)style;
-- (void)removeFromFavorites:(StylePreset * _Nullable)style;
-- (NSArray<StylePreset *> * _Nullable)favoriteStyles;
+- (void)addToFavorites:(nullable StylePreset *)style;
+- (void)removeFromFavorites:(nullable StylePreset *)style;
+- (nullable NSArray<StylePreset *> *)favoriteStyles;
 
-- (void)prewarmStyle:(NSString * _Nullable)styleName;
+- (void)prewarmStyle:(nullable NSString *)styleName;
 - (void)prewarmAllStyles;
 
 @end
+
+NS_ASSUME_NONNULL_END
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface StylePreset : NSObject
 
@@ -56,11 +67,13 @@
 @property(nonatomic, assign) NSInteger useCount;
 @property(nonatomic, strong, nullable) NSURL *modelURL;
 
-- (instancetype _Nullable)initWithIdentifier:(NSString * _Nullable)identifier
-                                         name:(NSString * _Nullable)name
-                                   category:(NSString * _Nullable)category;
+- (instancetype)initWithIdentifier:(NSString *)identifier
+                              name:(NSString *)name
+                          category:(NSString *)category;
 
 - (void)loadThumbnail;
 - (void)incrementUseCount;
 
 @end
+
+NS_ASSUME_NONNULL_END

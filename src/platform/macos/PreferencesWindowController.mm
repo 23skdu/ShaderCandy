@@ -7,6 +7,7 @@
 
 #import "PreferencesWindowController.h"
 #import "../../config/ConfigurationManager.h"
+#import "../../neural/NeuralStyleEngine.h"
 
 @interface PreferencesWindowController () <NSTabViewDelegate>
 
@@ -128,6 +129,20 @@
   _shadersTab.label = @"Shaders";
   [_tabView addTabViewItem:_shadersTab];
   [self setupShadersTab];
+
+  // Neural tab
+  NSTabViewItem *neuralTab =
+      [[NSTabViewItem alloc] initWithIdentifier:@"neural"];
+  neuralTab.label = @"Neural";
+  [_tabView addTabViewItem:neuralTab];
+  [self setupNeuralTab:neuralTab.view];
+
+  // Advanced tab
+  NSTabViewItem *advancedTab =
+      [[NSTabViewItem alloc] initWithIdentifier:@"advanced"];
+  advancedTab.label = @"Advanced";
+  [_tabView addTabViewItem:advancedTab];
+  [self setupAdvancedTab:advancedTab.view];
 
   // Buttons
   [self setupButtons];
@@ -373,6 +388,15 @@
   _defaultShader =
       [NSString stringWithUTF8String:settings.defaultShader.c_str()];
 
+  _neuralEnabled = settings.neuralStyleEnabled;
+  _styleStrength = settings.neuralStyleStrength;
+  _neuralStyle =
+      [NSString stringWithUTF8String:settings.neuralStyleName.c_str()];
+
+  _spatialAudioEnabled = settings.spatialAudio;
+  _roomSize = settings.roomSize;
+  _reverbDamping = settings.reverbDamping;
+
   // Update UI
   [_fpsPopup
       selectItemWithTitle:[NSString stringWithFormat:@"%ld", (long)_targetFPS]];
@@ -434,6 +458,15 @@
   settings.enableHotReload = _hotReloadEnabled;
   settings.defaultShader = [_defaultShader UTF8String];
 
+  settings.neuralStyleEnabled = _neuralEnabled;
+  settings.neuralStyleStrength = _styleStrength;
+  if (_neuralStyle)
+    settings.neuralStyleName = [_neuralStyle UTF8String];
+
+  settings.spatialAudio = _spatialAudioEnabled;
+  settings.roomSize = _roomSize;
+  settings.reverbDamping = _reverbDamping;
+
   // Save to disk
   config.saveToFile(
       ShaderCandy::Config::ConfigurationManager::getConfigDirectory() +
@@ -472,6 +505,111 @@
   _autoScaleThreshold = autoScaleThreshold;
   _autoScaleThresholdLabel.stringValue =
       [NSString stringWithFormat:@"%.0f", autoScaleThreshold];
+}
+
+- (void)setupNeuralTab:(NSView *)content {
+  // Neural Enable
+  NSButton *neuralCheck =
+      [[NSButton alloc] initWithFrame:NSMakeRect(20, 200, 250, 24)];
+  neuralCheck.buttonType = NSButtonTypeSwitch;
+  neuralCheck.title = @"Enable AI Style Transfer";
+  neuralCheck.state =
+      self.neuralEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+  neuralCheck.target = self;
+  neuralCheck.action = @selector(neuralToggled:);
+  [content addSubview:neuralCheck];
+
+  // Style Strength
+  NSTextField *strengthLabel =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(20, 160, 120, 20)];
+  strengthLabel.stringValue = @"AI Effect Intensity:";
+  strengthLabel.editable = NO;
+  strengthLabel.bordered = NO;
+  [content addSubview:strengthLabel];
+
+  NSSlider *strengthSlider =
+      [[NSSlider alloc] initWithFrame:NSMakeRect(150, 160, 200, 24)];
+  strengthSlider.minValue = 0.0;
+  strengthSlider.maxValue = 1.0;
+  strengthSlider.floatValue = self.styleStrength;
+  strengthSlider.target = self;
+  strengthSlider.action = @selector(styleStrengthChanged:);
+  [content addSubview:strengthSlider];
+
+  // Import Model Button
+  NSButton *importButton =
+      [[NSButton alloc] initWithFrame:NSMakeRect(20, 120, 150, 30)];
+  importButton.buttonType = NSButtonTypeMomentaryPushIn;
+  importButton.title = @"Import Custom Model...";
+  importButton.target = self;
+  importButton.action = @selector(importModelPressed:);
+  [content addSubview:importButton];
+}
+
+- (void)setupAdvancedTab:(NSView *)content {
+  // Spatial Audio
+  NSButton *spatialCheck =
+      [[NSButton alloc] initWithFrame:NSMakeRect(20, 200, 250, 24)];
+  spatialCheck.buttonType = NSButtonTypeSwitch;
+  spatialCheck.title = @"Ray-Traced Spatial Audio";
+  spatialCheck.state =
+      self.spatialAudioEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+  spatialCheck.target = self;
+  spatialCheck.action = @selector(spatialToggled:);
+  [content addSubview:spatialCheck];
+
+  // Room Size
+  NSTextField *roomLabel =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(20, 160, 120, 20)];
+  roomLabel.stringValue = @"Virtual Room Size:";
+  roomLabel.editable = NO;
+  roomLabel.bordered = NO;
+  [content addSubview:roomLabel];
+
+  NSSlider *roomSlider =
+      [[NSSlider alloc] initWithFrame:NSMakeRect(150, 160, 200, 24)];
+  roomSlider.minValue = 0.5;
+  roomSlider.maxValue = 5.0;
+  roomSlider.floatValue = self.roomSize;
+  roomSlider.target = self;
+  roomSlider.action = @selector(roomSizeChanged:);
+  [content addSubview:roomSlider];
+}
+
+- (void)neuralToggled:(NSButton *)sender {
+  self.neuralEnabled = sender.state == NSControlStateValueOn;
+}
+
+- (void)styleStrengthChanged:(NSSlider *)sender {
+  self.styleStrength = sender.floatValue;
+}
+
+- (void)spatialToggled:(NSButton *)sender {
+  self.spatialAudioEnabled = sender.state == NSControlStateValueOn;
+}
+
+- (void)roomSizeChanged:(NSSlider *)sender {
+  self.roomSize = sender.floatValue;
+}
+
+- (void)importModelPressed:(NSButton *)sender {
+  NSOpenPanel *panel = [NSOpenPanel openPanel];
+  panel.allowedFileTypes = @[ @"mlmodel", @"mlpackage" ];
+  panel.canChooseFiles = YES;
+
+  if ([panel runModal] == NSModalResponseOK) {
+    NSURL *url = panel.URL;
+    NSError *error = nil;
+
+    // Load in engine
+    if ([[NeuralStyleEngine sharedEngine] loadModelAtPath:url error:&error]) {
+      self.neuralStyle = url.lastPathComponent.stringByDeletingPathExtension;
+      NSLog(@"Neural style model loaded: %@", self.neuralStyle);
+    } else {
+      NSAlert *alert = [NSAlert alertWithError:error];
+      [alert runModal];
+    }
+  }
 }
 
 - (void)setAvailableShaders:(NSArray<NSString *> *)availableShaders {

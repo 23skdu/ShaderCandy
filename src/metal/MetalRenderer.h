@@ -13,6 +13,7 @@
 #import <QuartzCore/QuartzCore.h>
 
 #include "../core/ShaderInterop.h"
+#import "HDRPipeline.h"
 
 @class MetalResourcePool;
 @class MTLPerformanceReporter;
@@ -202,6 +203,12 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, assign) float preferredFPS;
 @property(nonatomic, assign) BOOL audioReactivityEnabled;
 @property(nonatomic, assign) BOOL showDebugOverlay;
+@property(nonatomic, assign) BOOL hdrEnabled;
+@property(nonatomic, assign) ToneMappingOperator toneMapping;
+@property(nonatomic, assign) float maxBrightness;
+@property(nonatomic, assign) BOOL neuralStyleEnabled;
+@property(nonatomic, assign) float styleStrength;
+@property(nonatomic, copy, nullable) NSString *currentNeuralStyle;
 @property(nonatomic, assign) BOOL autoScalingEnabled;
 @property(nonatomic, assign) float autoScaleFPSThreshold;
 @property(nonatomic, strong, readonly)

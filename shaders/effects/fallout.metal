@@ -5,36 +5,12 @@
 //  Nuclear blast and mushroom cloud effect
 //
 
-#include <metal_stdlib>
-#include "base/common.metal"
-#include "base/utils.metal"
+using namespace ShaderUtils;
 
-using namespace metal;
-
-// Noise functions for procedural effects
-#include "base/noise.metal"
-
-struct FragmentUniforms {
-    float time;
-    float speed;
-    float2 resolution;
-    float2 mouse;
-    float mouseButtons;
-    float intensity;
-    float4 date;
-    int32_t frame;
-    float deltaTime;
-    float alpha;
-    float gravity;
-    
-    // Audio reactivity
-    float volume;
-    float bass;
-    float mid;
-    float treble;
-    float beat;
-    float audioData[256];
-};
+// Helper to bridge 1-arg fbm to ShaderUtils::fbm
+inline float fbm(float3 p) {
+    return ShaderUtils::fbm(p, 5);
+}
 
 // Mushroom cloud SDF
 float mushroomCloudSDF(float3 p, float time) {
@@ -63,8 +39,8 @@ float fireballSDF(float3 p, float time) {
     float sphere = length(p - center) - radius;
     
     // Add turbulence
-    float noise = fbm(p * 5.0 + time * 2.0) * 0.1;
-    return sphere + noise;
+    float noiseVal = fbm(p * 5.0 + time * 2.0) * 0.1;
+    return sphere + noiseVal;
 }
 
 // Smoke accumulation
@@ -74,9 +50,9 @@ float smokeDensity(float3 p, float time) {
     float base = max(0.0, 0.4 - spread);
     
     // Add billowy noise
-    float noise = fbm(p * 3.0 + float3(0.0, time * 0.5, time * 0.3));
+    float noiseVal = fbm(p * 3.0 + float3(0.0, time * 0.5, time * 0.3));
     
-    return base * (0.5 + 0.5 * noise) * max(0.0, 1.0 - rise);
+    return base * (0.5 + 0.5 * noiseVal) * max(0.0, 1.0 - rise);
 }
 
 // Nuclear flash
@@ -126,9 +102,9 @@ float groundGlow(float2 uv, float time) {
 }
 
 // Main fragment shader
-fragment float4 falloutFragment(
+fragment float4 fragment_main(
     VertexOut in [[stage_in]],
-    constant FragmentUniforms& uniforms [[buffer(0)]]
+    constant Uniforms& uniforms [[buffer(0)]]
 ) {
     float2 uv = in.texCoord;
     
@@ -149,31 +125,30 @@ fragment float4 falloutFragment(
     color = skyColor;
     
     // Ground plane
-    float groundUV = uv.y;
     if (uv.y < 0.35) {
         // Scorched earth effect
-        float noise = fbm(float3(uv * 10.0, time * 0.1));
-        float3 groundColor = mix(float3(0.1, 0.08, 0.05), float3(0.15, 0.1, 0.08), noise);
+        float noiseVal = fbm(float3(uv * 10.0, time * 0.1));
+        float3 groundColor = mix(float3(0.1, 0.08, 0.05), float3(0.15, 0.1, 0.08), noiseVal);
         float groundDist = 0.35 - uv.y;
         float groundFade = smoothstep(0.0, 0.1, groundDist);
         color = mix(groundColor * 0.3, color, groundFade);
     }
     
     // Fireball at center
-    float3 fireballPos = float3(0.0, -0.1, 0.0);
-    float3 toFireball = float3(centeredUV, -1.0);
+    float2 centeredUVFire = centeredUV;
+    float3 toFireball = float3(centeredUVFire, -1.0);
     float fireballDist = length(toFireball);
     float fireballRadius = 0.15 + 0.05 * sin(time * 3.0) * intensity;
     
     if (fireballDist < fireballRadius * 2.0) {
-        float fireballNoise = fbm(float3(centeredUV * 8.0, time * 3.0));
+        float fireballNoise = fbm(float3(centeredUVFire * 8.0, time * 3.0));
         float fireballCore = smoothstep(fireballRadius * 2.0, 0.0, fireballDist);
         float fireballEdge = smoothstep(fireballRadius, 0.0, fireballDist - fireballRadius);
-        float fireballIntensity = fireballCore * (0.8 + 0.2 * fireballNoise);
+        float fireballIntensityVal = fireballCore * (0.8 + 0.2 * fireballNoise);
         
         // Fireball color gradient
-        float3 fireballColor = nuclearPalette(length(centeredUV) / fireballRadius, 1.0 - fireballCore);
-        color = mix(color, fireballColor * (2.0 + audio), fireballEdge * fireballIntensity);
+        float3 fireballColor = nuclearPalette(length(centeredUVFire) / fireballRadius, 1.0 - fireballCore);
+        color = mix(color, fireballColor * (2.0 + audio), fireballEdge * fireballIntensityVal);
     }
     
     // Rising mushroom cloud
@@ -185,10 +160,6 @@ fragment float4 falloutFragment(
         
         // Multiple cloud layers for depth
         for (int i = 0; i < 3; i++) {
-            float layerOffset = float(i) * 0.15;
-            float3 layerPos = cloudPos - float3(0.0, layerOffset, 0.0);
-            
-            // Turbulence
             float turbulence = fbm(float3(centeredUV * 4.0 + float2(time * 0.3, cloudBase), time * 0.2));
             
             // Mushroom cap shape
@@ -200,11 +171,11 @@ fragment float4 falloutFragment(
             float stem = smoothstep(0.08, 0.0, abs(centeredUV.x)) * smoothstep(0.3, 0.0, uv.y - 0.3 + cloudBase * 0.5);
             
             // Combine
-            float cloudDensity = max(cap, stem) * (0.5 + 0.5 * turbulence);
+            float cloudDensityVal = max(cap, stem) * (0.5 + 0.5 * turbulence);
             
             // Color
             float3 cloudColor = nuclearPalette(0.3 + 0.2 * turbulence, 1.0);
-            color = mix(color, cloudColor * intensity, cloudDensity * 0.7);
+            color = mix(color, cloudColor * intensity, cloudDensityVal * 0.7);
         }
     }
     
@@ -240,7 +211,6 @@ fragment float4 falloutFragment(
     color += glowColor;
     
     // Add audio-reactive particles/embers
-    float emberCount = floor(uniforms.bass * 50.0);
     for (float i = 0.0; i < 20.0; i++) {
         float emberSeed = i * 12.9898;
         float emberX = fract(sin(emberSeed + time) * 43758.5453);
@@ -253,8 +223,8 @@ fragment float4 falloutFragment(
             float emberSize = 0.005 * (1.0 + sin(time * 10.0));
             
             if (emberDist < emberSize) {
-                float emberIntensity = (1.0 - emberDist / emberSize) * (emberLife - 0.5) * 2.0;
-                float3 emberColor = float3(1.0, 0.5, 0.1) * emberIntensity * uniforms.bass;
+                float emberIntensityVal = (1.0 - emberDist / emberSize) * (emberLife - 0.5) * 2.0;
+                float3 emberColor = float3(1.0, 0.5, 0.1) * emberIntensityVal * uniforms.bass;
                 color += emberColor;
             }
         }
@@ -282,16 +252,5 @@ fragment float4 falloutFragment(
     // Final color adjustment
     color *= 1.2;
     
-    return float4(color, 1.0);
-}
-
-// Vertex shader
-vertex VertexOut falloutVertex(
-    VertexIn in [[stage_in]],
-    constant float4x4& viewProjection [[buffer(1)]]
-) {
-    VertexOut out;
-    out.position = viewProjection * float4(in.position, 1.0);
-    out.texCoord = in.texCoord;
-    return out;
+    return float4(color * uniforms.alpha, uniforms.alpha);
 }
