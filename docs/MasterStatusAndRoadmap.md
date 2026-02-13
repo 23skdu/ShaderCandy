@@ -41,12 +41,10 @@ ShaderCandy has successfully transitioned from a technical foundation to a featu
 
 - [ ] **Universal Preset API**: Cloud-based sharing (Simple AWS/Backend) for community presets.
 - [ ] **HDR Calibration UI**: Add visual calibration patterns (SMPTE/Color bars) to the preferences window for HDR/EDR tuning.
-- [ ] **Renderer Polish**: Continue refining frame synchronization and GPU memory handling for ultra-high resolution displays. (Ongoing)
 
 ### 2. Platform Parity & Next-Gen
 
 - [ ] **GLSL HDR Implementation**: Port ACES and Reinhard tone mappers to the Linux OpenGL pipeline.
-- [ ] **Wayland Support**: Native Wayland backend for modern Linux distributions.
 - [ ] **Vulkan Backend**: Research replacing OpenGL with Vulkan for better performance/HDR on Linux.
 - [ ] **Neural Effect Custom Training**: Allow users to drop in their own `.mlmodel` for custom styles.
 
@@ -74,21 +72,20 @@ All foundational phases have been verified as completed and production-ready:
 
 ### Current Documentation
 - **[ArchitectureMasterPlan.md](./ArchitectureMasterPlan.md)**: Core architecture and foundation implementation
-- **[ImplementationSummary.md](./ImplementationSummary.md)**: Consolidated implementation details (Phase 1-5)
 - **[MasterStatusAndRoadmap.md](./MasterStatusAndRoadmap.md)**: This document - current status and remaining roadmap
 - **[HdrImplementation.md](./HdrImplementation.md)**: Technical guide for high-bit-depth rendering
 - **[NeuralEffectsGuide.md](./NeuralEffectsGuide.md)**: How to use CoreML style transfer
 - **[WallpaperModeGuide.md](./WallpaperModeGuide.md)**: Desktop integration instructions
 - **[StandaloneAppGuide.md](./StandaloneAppGuide.md)**: Manual for the Player app
 - **[FalloutShader.md](./FalloutShader.md)**: Documentation for the fallout effect shader
-- **[TestResults.md](./TestResults.md)**: Latest test results and build status
 - **[LinuxFeatures.md](./LinuxFeatures.md)**: Linux-specific features and usage guide
+- **[ShaderTranslationStandards.md](./ShaderTranslationStandards.md)**: Metal to GLSL translation guide
 
 ### Archived Documentation (Historical)
 - **[archive/ProjectPlan.md](./archive/ProjectPlan.md)**: Original 15-part roadmap (Historical)
 - **[archive/MasterShaderPlan.md](./archive/MasterShaderPlan.md)**: Shader-specific development history
 - **[archive/LinuxPortSummary.md](./archive/LinuxPortSummary.md)**: Details on the GLSL porting effort
-- **[archive/ImplementationSummaryOld.md](./archive/ImplementationSummaryOld.md)**: Original Phase 1 summary
+- **[archive/ImplementationSummary.md](./archive/ImplementationSummary.md)**: Implementation details (Phase 1-5)
 - **[archive/Phase2Summary.md](./archive/Phase2Summary.md)**: Phase 2 details
 - **[archive/Phase3Summary.md](./archive/Phase3Summary.md)**: Phase 3 advanced features
 
