@@ -50,8 +50,12 @@
 
   id<MTLTexture> newTex = [_device newTextureWithDescriptor:descriptor];
   if (newTex) {
-    _currentMemoryUsageBytes +=
-        (descriptor.width * descriptor.height * 4); // Very rough estimate
+    // Accurate memory calculation based on pixel format
+    NSUInteger bytesPerPixel = 4;
+    if (descriptor.pixelFormat == MTLPixelFormatRGBA32Float) {
+      bytesPerPixel = 16;
+    }
+    _currentMemoryUsageBytes += (descriptor.width * descriptor.height * bytesPerPixel);
   }
   return newTex;
 }

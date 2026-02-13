@@ -215,6 +215,28 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
     MTLPerformanceReporter *performanceReporter;
 @property(nonatomic, assign, nullable) id<MetalRendererDelegate> delegate;
 
+#pragma mark - Frame Synchronization & Display
+
+// Frame pacing and synchronization
+@property(nonatomic, assign) BOOL adaptiveSyncEnabled;
+@property(nonatomic, assign) BOOL framePacingEnabled;
+@property(nonatomic, assign) NSTimeInterval targetFrameTime;
+@property(nonatomic, assign, readonly) NSTimeInterval lastFrameTime;
+
+// Ultra-high resolution support
+@property(nonatomic, assign) BOOL dynamicResolutionEnabled;
+@property(nonatomic, assign) float resolutionScale;
+@property(nonatomic, assign) CGFloat maxTextureDimension;
+
+// Memory management
+@property(nonatomic, assign) NSUInteger maxMemoryBudgetBytes;
+@property(nonatomic, assign, readonly) NSUInteger currentMemoryUsageBytes;
+@property(nonatomic, assign) BOOL aggressiveMemoryPurge;
+
+// Performance states
+@property(nonatomic, assign, readonly) BOOL isThermalThrottling;
+@property(nonatomic, assign, readonly) float thermalLevel;
+
 // Transition state
 @property(nonatomic, readonly) BOOL isTransitioning;
 @property(nonatomic, readonly) float transitionAlpha;
