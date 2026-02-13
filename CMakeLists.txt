@@ -22,6 +22,7 @@ option(BUILD_OPENGL "Build OpenGL backend" ON)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SCREENSAVER_MACOS "Build macOS screensaver" ON)
 option(BUILD_SCREENSAVER_LINUX "Build Linux X11 screensaver" ON)
+option(BUILD_SCREENSAVER_WAYLAND "Build Linux Wayland screensaver" ON)
 
 # Detect platform
 if(APPLE)
@@ -521,6 +522,63 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
     endif()
 endif()
 
+# Linux Wayland Screensaver
+if(LINUX AND BUILD_SCREENSAVER_WAYLAND)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/src/platform/linux/wayland_screensaver.cpp")
+        set(WAYLAND_SCREENSAVER_SOURCES
+            src/platform/linux/wayland_screensaver.cpp
+        )
+        
+        # Find Wayland packages
+        pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
+        pkg_check_modules(WAYLAND_PROTOCOLS wayland-protocols)
+        
+        # wlroots is optional - will use native wayland if not available
+        pkg_check_modules(WLROOTS wlroots>=0.17)
+        
+        # EGL for OpenGL ES
+        pkg_check_modules(EGL REQUIRED egl)
+        pkg_check_modules(GLESV2 REQUIRED glesv2)
+        
+        add_executable(shadercandy-wayland ${WAYLAND_SCREENSAVER_SOURCES})
+        target_include_directories(shadercandy-wayland PRIVATE
+            src/core
+            src/audio
+            ${WAYLAND_CLIENT_INCLUDE_DIRS}
+            ${EGL_INCLUDE_DIRS}
+            ${GLESV2_INCLUDE_DIRS}
+            ${ALSALIB_INCLUDE_DIRS}
+            ${FFTW3_INCLUDE_DIRS}
+        )
+        target_link_libraries(shadercandy-wayland PRIVATE
+            shadercandy_core
+            shadercandy_audio_linux
+            ${WAYLAND_CLIENT_LIBRARIES}
+            ${EGL_LIBRARIES}
+            ${GLESV2_LIBRARIES}
+            ${ALSALIB_LIBRARIES}
+            ${FFTW3_LIBRARIES}
+            pthread
+        )
+        
+        if(WLROOTS_FOUND)
+            target_link_libraries(shadercandy-wayland PRIVATE ${WLROOTS_LIBRARIES})
+            target_compile_definitions(shadercandy-wayland PRIVATE WLR_FOUND=1)
+        endif()
+        
+        install(TARGETS shadercandy-wayland
+            RUNTIME DESTINATION bin
+        )
+        
+        message(STATUS "  Wayland screensaver: ON")
+    else()
+        message(STATUS "Wayland screensaver sources not found. Set BUILD_SCREENSAVER_WAYLAND=OFF to disable.")
+        set(BUILD_SCREENSAVER_WAYLAND OFF CACHE BOOL "Build Linux Wayland screensaver" FORCE)
+    endif()
+else()
+    message(STATUS "  Wayland screensaver: OFF (not supported on this platform)")
+endif()
+
 # Test executable
 if(BUILD_TESTS)
     set(TEST_SOURCES
@@ -593,6 +651,7 @@ message(STATUS "  Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "  Metal backend: ${BUILD_METAL}")
 message(STATUS "  OpenGL backend: ${BUILD_OPENGL}")
 message(STATUS "  macOS screensaver: ${BUILD_SCREENSAVER_MACOS}")
-message(STATUS "  Linux screensaver: ${BUILD_SCREENSAVER_LINUX}")
+message(STATUS "  Linux screensaver (X11): ${BUILD_SCREENSAVER_LINUX}")
+message(STATUS "  Linux screensaver (Wayland): ${BUILD_SCREENSAVER_WAYLAND}")
 message(STATUS "  Tests: ${BUILD_TESTS}")
 message(STATUS "")
