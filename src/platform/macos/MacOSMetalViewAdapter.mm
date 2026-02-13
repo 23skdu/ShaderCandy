@@ -9,6 +9,8 @@
 #import "../../audio/SoundscapeGenerator.h"
 #import "../../metal/MetalRenderer.h"
 #import "../../metal/MetalSharedState.h"
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface MacOSMetalViewAdapter ()
 
@@ -289,9 +291,166 @@
         defaultsForModuleWithName:@"com.shadercandy.screensaver"];
     [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
     [defaults synchronize];
+  } else if ([chars isEqualToString:@"s"] || [chars isEqualToString:@"S"]) {
+    // Screenshot shortcut for screensaver
+    [self saveScreenshot];
   } else {
     [super keyDown:event];
   }
+}
+
+#pragma mark - Screenshot
+
+- (void)saveScreenshot {
+  if (!_renderer || !_mtkView) {
+    NSLog(@"Cannot save screenshot: renderer or view not available");
+    return;
+  }
+  
+  id<CAMetalDrawable> drawable = _mtkView.currentDrawable;
+  if (!drawable) {
+    NSLog(@"Cannot save screenshot: no current drawable");
+    return;
+  }
+  
+  // Get the texture from the drawable
+  id<MTLTexture> texture = drawable.texture;
+  if (!texture) {
+    NSLog(@"Cannot save screenshot: no texture available");
+    return;
+  }
+  
+  // Create save panel
+  NSSavePanel *savePanel = [NSSavePanel savePanel];
+  savePanel.title = @"Save Screenshot";
+  savePanel.nameFieldStringValue = [NSString stringWithFormat:@"shadercandy_screenshot_%@.png", _currentShaderName ?: @"shader"];
+  savePanel.allowedContentTypes = @[[UTType typeWithIdentifier:@"public.png"]];
+  savePanel.directoryURL = [NSURL fileURLWithPath:NSHomeDirectory()];
+  
+  // Present save panel as sheet
+  [savePanel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+    if (result != NSModalResponseOK) {
+      return;
+    }
+    
+    NSURL *url = savePanel.URL;
+    if (!url) {
+      return;
+    }
+    
+    // Capture the screenshot
+    [self captureScreenshotToURL:url texture:texture];
+  }];
+}
+
+- (void)captureScreenshotToURL:(NSURL *)url texture:(id<MTLTexture>)texture {
+  NSUInteger width = texture.width;
+  NSUInteger height = texture.height;
+  
+  // Calculate bytes per row (align to 256 bytes for Metal)
+  size_t bytesPerRow = ((width * 4) + 255) & ~255;
+  size_t bytesPerImage = bytesPerRow * height;
+  
+  id<MTLDevice> device = texture.device;
+  if (!device) {
+    NSLog(@"Cannot capture screenshot: no device available");
+    return;
+  }
+  
+  // Create readback buffer
+  id<MTLBuffer> readback = [device newBufferWithLength:bytesPerImage options:MTLResourceStorageModeShared];
+  if (!readback) {
+    NSLog(@"Cannot capture screenshot: failed to allocate readback buffer");
+    return;
+  }
+  
+  // Create command buffer and blit encoder
+  id<MTLCommandQueue> commandQueue = _renderer.commandQueue;
+  if (!commandQueue) {
+    NSLog(@"Cannot capture screenshot: no command queue available");
+    return;
+  }
+  
+  id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+  id<MTLBlitCommandEncoder> blit = [commandBuffer blitCommandEncoder];
+  
+  // Copy texture to buffer
+  [blit copyFromTexture:texture
+            sourceSlice:0
+            sourceLevel:0
+           sourceOrigin:MTLOriginMake(0, 0, 0)
+             sourceSize:MTLSizeMake(width, height, 1)
+               toBuffer:readback
+      destinationOffset:0
+ destinationBytesPerRow:bytesPerRow
+destinationBytesPerImage:bytesPerImage];
+  
+  [blit endEncoding];
+  
+  // Add completed handler to save the image
+  [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
+    if (buffer.status != MTLCommandBufferStatusCompleted) {
+      NSLog(@"Screenshot GPU readback failed: %@", buffer.error);
+      return;
+    }
+    
+    const uint8_t *rawBytes = (const uint8_t *)readback.contents;
+    if (!rawBytes) {
+      NSLog(@"Screenshot readback buffer is not accessible");
+      return;
+    }
+    
+    // Create image data
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGBitmapInfo bitmapInfo = kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst;
+    
+    CGContextRef context = CGBitmapContextCreate((void *)rawBytes, width, height, 8, bytesPerRow, colorSpace, bitmapInfo);
+    if (!context) {
+      NSLog(@"Failed to create bitmap context for screenshot");
+      CGColorSpaceRelease(colorSpace);
+      return;
+    }
+    
+    CGImageRef cgImage = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    CGColorSpaceRelease(colorSpace);
+    
+    if (!cgImage) {
+      NSLog(@"Failed to create CGImage for screenshot");
+      return;
+    }
+    
+    // Create PNG data
+    NSMutableData *pngData = [NSMutableData data];
+    CGImageDestinationRef dest = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)pngData, (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
+    
+    if (!dest) {
+      NSLog(@"Failed to create PNG destination for screenshot");
+      CGImageRelease(cgImage);
+      return;
+    }
+    
+    CGImageDestinationAddImage(dest, cgImage, NULL);
+    BOOL success = CGImageDestinationFinalize(dest);
+    
+    CFRelease(dest);
+    CGImageRelease(cgImage);
+    
+    if (!success) {
+      NSLog(@"Failed to finalize PNG encoding for screenshot");
+      return;
+    }
+    
+    // Save to file
+    NSError *error = nil;
+    if (![pngData writeToURL:url options:NSDataWritingAtomic error:&error]) {
+      NSLog(@"Failed to save screenshot: %@", error);
+    } else {
+      NSLog(@"Screenshot saved to: %@", url.path);
+    }
+  }];
+  
+  [commandBuffer commit];
 }
 
 #pragma mark - Configuration
