@@ -583,6 +583,10 @@ endif()
 if(BUILD_TESTS)
     set(TEST_SOURCES
         tests/TestFramework.cpp
+        tests/MathAndCoreTests.cpp
+        tests/LogicAndUniformTests.cpp
+        tests/ShaderCompilationTests.cpp
+        tests/RendererFeatureTests.cpp
     )
     
     if(MACOS)
