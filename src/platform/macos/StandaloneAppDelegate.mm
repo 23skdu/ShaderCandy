@@ -21,8 +21,8 @@
 @property(nonatomic, strong) NSMenu *viewMenu;
 @property(nonatomic, strong) NSMenu *settingsMenu;
 @property(nonatomic, strong) NSMenu *helpMenu;
-@property(nonatomic, assign) BOOL isRunning;
 @property(nonatomic, strong) NSArray<NSString *> *availableShaders;
+@property(nonatomic, strong) NSDate *startTime;
 
 @end
 
@@ -45,7 +45,7 @@
   _isRunning = NO;
 
   // Initialize timing
-  _startTime = [NSDate date];
+  self.startTime = [NSDate date];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -127,11 +127,13 @@
       [[MTKView alloc] initWithFrame:frame
                               device:MTLCreateSystemDefaultDevice()];
   mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-  mtkView.enableSetNeedsDisplay = YES;
+  mtkView.enableSetNeedsDisplay = NO;
   mtkView.paused = NO;
   mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
   mtkView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
   mtkView.sampleCount = 1;
+  mtkView.framebufferOnly = NO;
+  mtkView.clearColor = MTLClearColorMake(1.0, 0.5, 0.0, 1.0);
 
   [window.contentView addSubview:mtkView];
   _metalView = mtkView;
@@ -249,6 +251,12 @@
   [_fileMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Export Preset..."
                                                 action:@selector(exportPreset)
                                          keyEquivalent:@"e"]];
+
+  [_fileMenu addItem:[NSMenuItem separatorItem]];
+
+  [_fileMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Screenshot..."
+                                                action:@selector(saveScreenshot)
+                                         keyEquivalent:@"s"]];
 
   [_fileMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Import Preset..."
                                                 action:@selector(importPreset)
@@ -502,7 +510,7 @@
 
   // Update time for shader animation
   NSTimeInterval time = [NSDate timeIntervalSinceReferenceDate] -
-                        [_startTime timeIntervalSinceReferenceDate];
+                        [self.startTime timeIntervalSinceReferenceDate];
 
   // Update uniforms with current time and state
   NSPoint mousePos = [view.window mouseLocationOutsideOfEventStream];
@@ -510,7 +518,7 @@
 
   [_renderer updateUniformsWithTime:time
                       mousePosition:mousePos
-                       mouseButtons:0
+                       mouseButtons:[NSEvent pressedMouseButtons]
                               speed:_speed
                           intensity:_intensity
                             gravity:_gravity
@@ -529,9 +537,6 @@
                  error:nil];
   }
 
-  // Begin frame
-  [_renderer beginFrame];
-
   // Create render pass descriptor
   MTLRenderPassDescriptor *renderPassDescriptor =
       view.currentRenderPassDescriptor;
@@ -541,9 +546,6 @@
   // Render
   [_renderer renderToDrawable:drawable
          renderPassDescriptor:renderPassDescriptor];
-
-  // End frame
-  [_renderer endFrame];
 }
 
 #pragma mark - Configuration
@@ -631,6 +633,35 @@
       // Import preset
       NSLog(@"Importing preset from: %@", url.path);
     }
+  }
+}
+
+- (void)saveScreenshot {
+  // Capture screenshot from the Metal view
+  if (!_metalView || !_renderer) {
+    NSLog(@"Cannot save screenshot: Metal view or renderer not available");
+    return;
+  }
+
+  // Get the current drawable's texture
+  id<CAMetalDrawable> drawable = _metalView.currentDrawable;
+  if (!drawable) {
+    NSLog(@"Cannot save screenshot: No current drawable");
+    return;
+  }
+
+  // Create save panel
+  NSSavePanel *savePanel = [NSSavePanel savePanel];
+  savePanel.title = @"Save Screenshot";
+  savePanel.nameFieldStringValue = @"ShaderCandy_Screenshot.png";
+  savePanel.allowedContentTypes = @[ [UTType typeWithIdentifier:@"public.png"] ];
+  savePanel.directoryURL = [NSURL fileURLWithPath:NSHomeDirectory()];
+
+  if ([savePanel runModal] == NSModalResponseOK) {
+    NSURL *url = savePanel.URL;
+    // Screenshot saving implementation would go here
+    // This would involve rendering to a texture and saving to disk
+    NSLog(@"Saving screenshot to: %@", url.path);
   }
 }
 

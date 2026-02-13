@@ -321,17 +321,18 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
  if(MACOS AND BUILD_STANDALONE_APP)
      enable_language(OBJCXX)
      
-      set(STANDALONE_APP_SOURCES
-          src/platform/macos/main.mm
-          src/platform/macos/StandaloneAppDelegate.mm
-          src/platform/macos/StandaloneAppWindowController.mm
-          src/platform/macos/PreferencesWindowController.mm
-          src/platform/macos/ShadersListViewController.mm
-          src/platform/macos/PresetViewController.mm
-          src/platform/macos/PresetObject.mm
-          src/platform/macos/PresetImportExportSheet.mm
-          src/neural/StyleLibraryViewController.mm
-      )
+       set(STANDALONE_APP_SOURCES
+           src/platform/macos/main.mm
+           src/platform/macos/StandaloneAppDelegate.mm
+           src/platform/macos/StandaloneAppWindowController.mm
+           src/platform/macos/screenshot_utility.mm
+           src/platform/macos/PreferencesWindowController.mm
+           src/platform/macos/ShadersListViewController.mm
+           src/platform/macos/PresetViewController.mm
+           src/platform/macos/PresetObject.mm
+           src/platform/macos/PresetImportExportSheet.mm
+           src/neural/StyleLibraryViewController.mm
+       )
      
      # Find Cocoa framework
      find_library(COCOA_FRAMEWORK Cocoa REQUIRED)

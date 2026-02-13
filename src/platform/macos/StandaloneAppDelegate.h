@@ -17,8 +17,9 @@
 @property(nonatomic, assign) float gravity;
 @property(nonatomic, assign) NSInteger preferredFPS;
 @property(nonatomic, strong) NSString *currentShader;
+@property(nonatomic, assign) BOOL isRunning;
 
-// Timing
-@property(nonatomic, strong) NSDate *startTime;
+// Screenshot functionality
+- (void)saveScreenshot;
 
 @end
