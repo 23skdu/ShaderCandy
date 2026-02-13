@@ -10,6 +10,7 @@ ShaderCandy on Linux now supports the following features that were previously ma
 2. **Standalone Player** - Windowed application for browsing shaders
 3. **Wallpaper Mode** - Set shaders as desktop background
 4. **Hot Reloading** - Automatic shader recompilation on file changes
+5. **Wayland Support** - Native Wayland compositor support (sway, GNOME, KDE)
 
 ## Audio Reactivity
 
@@ -141,6 +142,74 @@ xwinwrap -ov -fs -- shadercandy-wallpaper -shader /usr/share/shadercandy/shaders
 - The `nebula.frag` and `deep_ocean_pulse.frag` shaders work well as wallpapers
 - Audio-reactive wallpapers work best with ambient/electronic music
 
+## Wayland Support
+
+ShaderCandy includes native Wayland support for modern Linux distributions.
+
+### Requirements
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install libwayland-dev libegl-dev libgles2-dev
+
+# Fedora
+sudo dnf install wayland-devel mesa-libEGL-devel mesa-libGLES-devel
+
+# Arch Linux
+sudo pacman -S wayland mesa libglvnd
+```
+
+Optional wlroots for enhanced compositor features:
+```bash
+# Debian/Ubuntu
+sudo apt-get install libwlroots-dev
+
+# Fedora
+sudo dnf install wlroots-devel
+```
+
+### Usage
+
+```bash
+# Basic usage (requires Wayland session)
+shadercandy-wayland
+
+# With specific shader
+shadercandy-wayland --shader ./shaders/plasma.glsl
+
+# List available shaders
+shadercandy-wayland --list
+```
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| Space | Next shader |
+| b | Previous shader |
+| h | Toggle metrics |
+| +/- | Adjust speed |
+| i/o | Adjust intensity |
+| ESC / q | Quit |
+
+### Supported Compositors
+
+- **sway** - wlroots-based tiling window manager
+- **GNOME** - Via GNOME Shell extensions
+- **KDE Plasma** - Via Wayland session
+- **Hyprland** - wlroots-based
+- **River** - wlroots-based
+- Other Wayland-compliant compositors
+
+### Building with Wayland Support
+
+```bash
+cmake .. -DBUILD_SCREENSAVER_WAYLAND=ON
+make shadercandy-wayland
+```
+
+Note: The Wayland screensaver requires an active Wayland session (not X11).
+
 ## Building
 
 ### Prerequisites
@@ -159,6 +228,11 @@ sudo apt-get install libasound2-dev libfftw3-dev
 Standalone player additionally requires:
 ```bash
 sudo apt-get install libglfw3-dev
+```
+
+Wayland screensaver additionally requires:
+```bash
+sudo apt-get install libwayland-dev libegl-dev libgles2-dev
 ```
 
 ### Compile
@@ -183,6 +257,15 @@ cmake .. -DBUILD_STANDALONE_PLAYER=OFF
 
 # Disable wallpaper mode
 cmake .. -DBUILD_WALLPAPER=OFF
+
+# Disable X11 screensaver
+cmake .. -DBUILD_SCREENSAVER_LINUX=OFF
+
+# Disable Wayland screensaver
+cmake .. -DBUILD_SCREENSAVER_WAYLAND=OFF
+
+# Enable Wayland (default on Linux)
+cmake .. -DBUILD_SCREENSAVER_WAYLAND=ON
 ```
 
 ## Troubleshooting
@@ -219,22 +302,23 @@ The Linux implementation differs from macOS in the following ways:
 | Feature | macOS | Linux |
 |---------|-------|-------|
 | Audio API | AVFoundation | ALSA + FFTW3 |
-| Windowing | AppKit/MetalKit | X11 + OpenGL |
-| Standalone UI | Native AppKit | GLFW (planned: ImGui) |
-| Wallpaper | Native NSWindow | X11 override_redirect |
+| Windowing | AppKit/MetalKit | X11/Wayland + OpenGL |
+| Standalone UI | Native AppKit | GLFW |
+| Wallpaper | Native NSWindow | X11/Wayland |
 | Neural Effects | CoreML | Not available |
 | HDR | 10-bit Metal | Limited OpenGL support |
 | Ray-Traced Audio | Yes | Not available |
+| Wayland Support | N/A | Yes |
 
 ## Future Enhancements
 
 Planned improvements for Linux:
 
 1. **ImGui Integration** - Add proper shader browser UI to standalone player
-2. **Wayland Support** - Native Wayland backend
-3. **PipeWire** - Alternative to ALSA for audio
-4. **HDR Support** - 10-bit color via OpenGL
-5. **Multi-Monitor** - Per-monitor wallpapers and improved sync
+2. **PipeWire** - Alternative to ALSA for audio
+3. **HDR Support** - 10-bit color via OpenGL
+4. **Multi-Monitor** - Per-monitor wallpapers and improved sync
+5. **Vulkan Backend** - Replace OpenGL with Vulkan for better performance
 
 ## See Also
 
