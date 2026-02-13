@@ -18,6 +18,9 @@
 @property(nonatomic, strong, nullable) NSWindow *configPanel;
 @property(nonatomic, strong, nullable) NSString *currentShaderName;
 @property(nonatomic, strong, nullable) NSArray<NSString *> *availableShaders;
+@property(nonatomic, assign) BOOL isCycling;
+@property(nonatomic, assign) NSTimeInterval cycleInterval;
+@property(nonatomic, strong, nullable) NSDate *lastCycleTime;
 
 @end
 
@@ -40,33 +43,83 @@
 }
 
 - (void)commonInit {
-  _enableBloom = YES;
-  _speed = 1.0f;
-  _intensity = 1.0f;
-  _gravity = 1.0f;
-  _preferredFPS = 60;
-  _enableHotReload = NO;
-  _frameCount = 0;
+  // Register Defaults
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults registerDefaults:@{
+    @"selectedShader" : @"default",
+    @"preferredFPS" : @60,
+    @"enableBloom" : @YES,
+    @"speed" : @1.0,
+    @"intensity" : @1.0,
+    @"gravity" : @1.0,
+    @"hotReload" : @NO,
+    @"showMetrics" : @NO,
+    @"autoScaling" : @YES,
+    @"soundscape" : @NO,
+    @"cycleShaders" : @YES,
+    @"cycleInterval" : @15.0
+  }];
 
+  _currentShaderName = [defaults stringForKey:@"selectedShader"];
+  _preferredFPS = [defaults integerForKey:@"preferredFPS"];
+  _enableBloom = [defaults boolForKey:@"enableBloom"];
+  _speed = [defaults floatForKey:@"speed"];
+  _intensity = [defaults floatForKey:@"intensity"];
+  _gravity = [defaults floatForKey:@"gravity"];
+  _enableHotReload = [defaults boolForKey:@"hotReload"];
+
+  _isCycling = [defaults boolForKey:@"cycleShaders"];
+  _cycleInterval = [defaults doubleForKey:@"cycleInterval"];
+  _lastCycleTime = [NSDate date];
+  self.animationTimeInterval = 1.0 / (double)_preferredFPS;
+
+  self.wantsLayer = YES;
   NSLog(@"MacOSMetalViewAdapter: Initializing with frame %@",
         NSStringFromRect(self.bounds));
 }
 
+- (void)setFrame:(NSRect)frame {
+  [super setFrame:frame];
+  if (_mtkView) {
+    _mtkView.frame = self.bounds;
+  }
+}
+
+- (void)startAnimation {
+  [super startAnimation];
+
+  // Tahoe/macOS 15 Fix: Ensure zero bounds are recovered for full screen
+  if (!self.isPreview && NSWidth(self.bounds) < 1.0) {
+    NSScreen *screen = self.window.screen ?: [NSScreen mainScreen];
+    [self setFrame:screen.frame];
+  }
+
+  if (!self.mtkView) {
+    [self setupMetal];
+  }
+}
+
 - (void)viewDidMoveToWindow {
   [super viewDidMoveToWindow];
-  [self setupMetal];
+  if (!self.mtkView) {
+    [self setupMetal];
+  }
 }
 
 - (void)setupMetal {
   if (self.mtkView)
     return;
 
-  NSLog(@"MacOSMetalViewAdapter: Setting up Metal...");
-
+  // We allow small frames for isPreview, but not zero.
   if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
-    NSLog(@"MacOSMetalViewAdapter: Frame too small, deferring Metal setup");
+    NSLog(@"MacOSMetalViewAdapter: Frame too small (%@), deferring Metal setup",
+          NSStringFromRect(self.bounds));
     return;
   }
+
+  NSLog(@"MacOSMetalViewAdapter: Setting up Metal for %@ view...",
+        self.isPreview ? @"preview" : @"main");
 
   // Create MTKView
   self.mtkView = [[MTKView alloc] initWithFrame:self.bounds device:nil];
@@ -74,7 +127,7 @@
   self.mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
   self.mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
   self.mtkView.preferredFramesPerSecond = _preferredFPS;
-  self.mtkView.enableSetNeedsDisplay = NO;
+  self.mtkView.enableSetNeedsDisplay = NO; // Driven by display link
   self.mtkView.paused = NO;
   self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
@@ -84,7 +137,7 @@
   NSError *error = nil;
   _renderer = [MetalRenderer rendererWithDevice:self.mtkView.device
                                           error:&error];
-  if (error) {
+  if (error || !_renderer) {
     NSLog(@"MacOSMetalViewAdapter: Failed to create renderer: %@", error);
     return;
   }
@@ -93,17 +146,28 @@
   _renderer.hotReloadEnabled = _enableHotReload;
   _renderer.preferredFPS = _preferredFPS;
 
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  _renderer.showDebugOverlay = [defaults boolForKey:@"showMetrics"];
+  _renderer.autoScalingEnabled = [defaults boolForKey:@"autoScaling"];
+  [SoundscapeGenerator sharedGenerator].enabled =
+      [defaults boolForKey:@"soundscape"];
+
   [_renderer setBloomEnabled:_enableBloom];
   [_renderer setViewportSize:self.mtkView.drawableSize];
 
   // Discover shaders
   _availableShaders = [_renderer availableShaderNames];
-  NSLog(@"MacOSMetalViewAdapter: Found %lu shaders",
-        (unsigned long)_availableShaders.count);
 
-  // Load default shader
+  // Load default/saved shader
   if (_availableShaders.count > 0) {
-    _currentShaderName = _availableShaders.firstObject;
+    if ([_currentShaderName isEqualToString:@"Cycle All"] ||
+        !_currentShaderName) {
+      _isCycling = YES;
+      _currentShaderName = _availableShaders.firstObject;
+    } else if (![_availableShaders containsObject:_currentShaderName]) {
+      _currentShaderName = _availableShaders.firstObject;
+    }
     [self loadShaders];
   }
 
@@ -131,19 +195,48 @@
 
   NSError *error = nil;
   [_renderer reloadCurrentShader:&error];
-  if (error) {
-    NSLog(@"MacOSMetalViewAdapter: Failed to reload shader: %@", error);
-  }
 }
 
 - (void)selectShaderNamed:(NSString *)name {
   if (![_availableShaders containsObject:name]) {
-    NSLog(@"MacOSMetalViewAdapter: Unknown shader '%@'", name);
     return;
   }
 
   _currentShaderName = name;
   [self loadShaders];
+
+  // Save to defaults
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setObject:name forKey:@"selectedShader"];
+  [defaults synchronize];
+}
+
+- (void)animateOneFrame {
+  if (_isCycling) {
+    NSTimeInterval elapsed =
+        [[NSDate date] timeIntervalSinceDate:_lastCycleTime];
+    if (elapsed > _cycleInterval) {
+      [self cycleToNextShader];
+    }
+  }
+  // Drive rendering via ScreenSaverView heartbeat for preview compatibility
+  [self setNeedsDisplay:YES];
+}
+
+- (void)cycleToNextShader {
+  if (_availableShaders.count == 0)
+    return;
+
+  NSUInteger index = [_availableShaders indexOfObject:_currentShaderName];
+  index = (index == NSNotFound) ? 0 : (index + 1) % _availableShaders.count;
+  _currentShaderName = _availableShaders[index];
+  _lastCycleTime = [NSDate date];
+
+  NSError *error = nil;
+  [_renderer transitionToShaderNamed:_currentShaderName
+                            duration:2.0
+                               error:&error];
 }
 
 #pragma mark - MTKViewDelegate
@@ -156,15 +249,18 @@
   if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor)
     return;
 
-  // Get mouse position
-  NSPoint mouseLocation = [NSEvent mouseLocation];
-  NSRect frame = [self.window
-      convertRectFromScreen:NSMakeRect(mouseLocation.x, mouseLocation.y, 0, 0)];
-
-  // Update uniforms (Multi-Monitor Sync)
+  // Update uniforms
   NSTimeInterval elapsed = [[MetalSharedState sharedState] synchronizedTime];
+
+  // Get mouse position relative to window
+  NSPoint mousePos =
+      [self.window
+          convertRectFromScreen:NSMakeRect([NSEvent mouseLocation].x,
+                                           [NSEvent mouseLocation].y, 0, 0)]
+          .origin;
+
   [_renderer updateUniformsWithTime:elapsed
-                      mousePosition:frame.origin
+                      mousePosition:mousePos
                        mouseButtons:[NSEvent pressedMouseButtons]
                               speed:_speed
                           intensity:_intensity
@@ -188,6 +284,11 @@
   NSString *chars = [event charactersIgnoringModifiers];
   if ([chars isEqualToString:@"d"] || [chars isEqualToString:@"D"]) {
     _renderer.showDebugOverlay = !_renderer.showDebugOverlay;
+    // Save state
+    ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+        defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+    [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
+    [defaults synchronize];
   } else {
     [super keyDown:event];
   }
@@ -205,20 +306,18 @@
   }
 
   NSPanel *window = [[NSPanel alloc]
-      initWithContentRect:NSMakeRect(0, 0, 320, 400)
+      initWithContentRect:NSMakeRect(0, 0, 320, 420)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
                   backing:NSBackingStoreBuffered
                     defer:NO];
   [window setTitle:@"ShaderCandy Configuration"];
-  [window setLevel:NSFloatingWindowLevel];
-  [window setHidesOnDeactivate:YES];
   self.configPanel = window;
 
   NSView *contentView =
-      [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 400)];
+      [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 420)];
   [window setContentView:contentView];
 
-  int y = 360;
+  int y = 380;
 
   // Shader selector
   NSTextField *label =
@@ -233,6 +332,7 @@
       [[NSPopUpButton alloc] initWithFrame:NSMakeRect(100, y - 2, 200, 25)
                                  pullsDown:NO];
   [popup addItemsWithTitles:_availableShaders ?: @[ @"default" ]];
+  [popup selectItemWithTitle:_currentShaderName];
   [popup setTarget:self];
   [popup setAction:@selector(shaderSelected:)];
   [contentView addSubview:popup];
@@ -368,46 +468,74 @@
 - (void)shaderSelected:(id)sender {
   NSPopUpButton *popup = (NSPopUpButton *)sender;
   NSString *name = [popup titleOfSelectedItem];
-  if (name && ![name isEqualToString:@"Cycle All"]) {
+  if (name) {
     [self selectShaderNamed:name];
   }
 }
 
 - (void)speedChanged:(id)sender {
   _speed = [(NSSlider *)sender floatValue];
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setFloat:_speed forKey:@"speed"];
 }
 
 - (void)intensityChanged:(id)sender {
   _intensity = [(NSSlider *)sender floatValue];
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setFloat:_intensity forKey:@"intensity"];
 }
 
 - (void)gravityChanged:(id)sender {
   _gravity = [(NSSlider *)sender floatValue];
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setFloat:_gravity forKey:@"gravity"];
 }
 
 - (void)bloomChanged:(id)sender {
   _enableBloom = [(NSButton *)sender state] == NSControlStateValueOn;
   [_renderer setBloomEnabled:_enableBloom];
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setBool:_enableBloom forKey:@"enableBloom"];
 }
 
 - (void)metricsChanged:(id)sender {
   _renderer.showDebugOverlay =
       [(NSButton *)sender state] == NSControlStateValueOn;
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
 }
 
 - (void)autoScaleChanged:(id)sender {
   _renderer.autoScalingEnabled =
       [(NSButton *)sender state] == NSControlStateValueOn;
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setBool:_renderer.autoScalingEnabled forKey:@"autoScaling"];
 }
 
 - (void)soundscapeChanged:(id)sender {
   [SoundscapeGenerator sharedGenerator].enabled =
       [(NSButton *)sender state] == NSControlStateValueOn;
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults setBool:[SoundscapeGenerator sharedGenerator].enabled
+             forKey:@"soundscape"];
 }
 
 - (void)closeConfig:(id)sender {
-  [self.configPanel orderOut:nil];
-  self.configPanel = nil;
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  [defaults synchronize];
+
+  if (self.configPanel) {
+    [self.configPanel orderOut:nil];
+    self.configPanel = nil;
+  }
 }
 
 @end

@@ -9,11 +9,13 @@
 #import <Metal/Metal.h>
 
 typedef NS_ENUM(NSInteger, ToneMappingOperator) {
-    ToneMappingOperatorACES,
-    ToneMappingOperatorReinhard,
-    ToneMappingOperatorFilmic,
-    ToneMappingOperatorHable
+  ToneMappingOperatorACES,
+  ToneMappingOperatorReinhard,
+  ToneMappingOperatorFilmic,
+  ToneMappingOperatorHable
 };
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface HDRPipeline : NSObject
 
@@ -32,20 +34,25 @@ typedef NS_ENUM(NSInteger, ToneMappingOperator) {
 - (MTLPixelFormat)hdrPixelFormat;
 - (MTLPixelFormat)sdrPixelFormat;
 
-- (id<MTLTexture>)createHDRTextureWithWidth:(NSUInteger)width height:(NSUInteger)height;
-- (id<MTLTexture>)createIntermediateTextureWithWidth:(NSUInteger)width height:(NSUInteger)height;
+- (nullable id<MTLTexture>)createHDRTextureWithWidth:(NSUInteger)width
+                                              height:(NSUInteger)height;
+- (nullable id<MTLTexture>)createIntermediateTextureWithWidth:(NSUInteger)width
+                                                       height:
+                                                           (NSUInteger)height;
 
 - (void)toneMapHDRTexture:(id<MTLTexture>)hdrTexture
-                 toSDRTexture:(id<MTLTexture>)sdrTexture
-                 commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
+             toSDRTexture:(id<MTLTexture>)sdrTexture
+            commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
 
 - (void)renderWithEDR:(id<MTLTexture>)texture
         commandBuffer:(id<MTLCommandBuffer>)commandBuffer
-            headroom:(float)headroom;
+             headroom:(float)headroom;
 
 - (BOOL)detectHDRDisplay;
 - (float)currentEDRHeadroom;
 
-- (NSData *)generateHDR10Metadata;
+- (nullable NSData *)generateHDR10Metadata;
 
 @end
+
+NS_ASSUME_NONNULL_END

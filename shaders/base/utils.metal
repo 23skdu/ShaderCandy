@@ -7,26 +7,23 @@ using namespace metal;
 // Utility functions for Metal Shaders
 namespace ShaderUtils {
     // Scalar and Vector operations
-    inline float mod(float x, float y) { return x - y * floor(x / y); }
-    inline float2 mod(float2 x, float2 y) { return x - y * floor(x / y); }
-    inline float3 mod(float3 x, float3 y) { return x - y * floor(x / y); }
-    inline float4 mod(float4 x, float4 y) { return x - y * floor(x / y); }
+    inline float mod(float x, float y) { return fmod(x, y); }
+    inline float2 mod(float2 x, float2 y) { return fmod(x, y); }
+    inline float3 mod(float3 x, float3 y) { return fmod(x, y); }
+    inline float4 mod(float4 x, float4 y) { return fmod(x, y); }
     
-    inline float fract(float x) { return x - floor(x); }
-    inline float2 fract(float2 x) { return x - floor(x); }
-    inline float3 fract(float3 x) { return x - floor(x); }
-    inline float4 fract(float4 x) { return x - floor(x); }
+    // Using Metal built-in fract
     
     // Hash functions
-    inline float hash(float n) { return fract(sin(n) * 43758.5453123); }
+    inline float hash(float n) { return fract(native_sin(n) * 43758.5453123f); }
     inline float2 hash2(float2 p) {
-        float3 p3 = fract(float3(p.xyx) * 0.1031);
-        p3 += dot(p3, p3.yzx + 33.33);
+        float3 p3 = fract(float3(p.xyx) * 0.1031f);
+        p3 += dot(p3, p3.yzx + 33.33f);
         return fract((p3.xx + p3.yz) * p3.zy);
     }
     inline float3 hash3(float2 p) {
-        float3 p3 = fract(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
-        p3 += dot(p3, p3.yxz + 33.33);
+        float3 p3 = fract(float3(p.xyx) * float3(0.1031f, 0.1030f, 0.0973f));
+        p3 += dot(p3, p3.yxz + 33.33f);
         return fract((p3.xxy + p3.yzz) * p3.zyx);
     }
     
@@ -34,31 +31,31 @@ namespace ShaderUtils {
     inline float noise(float2 p) {
         float2 i = floor(p);
         float2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
+        f = f * f * (3.0f - 2.0f * f);
         
-        float n = i.x + i.y * 57.0;
+        float n = i.x + i.y * 57.0f;
         return mix(
-            mix(hash(n + 0.0), hash(n + 1.0), f.x),
-            mix(hash(n + 57.0), hash(n + 58.0), f.x),
+            mix(hash(n + 0.0f), hash(n + 1.0f), f.x),
+            mix(hash(n + 57.0f), hash(n + 58.0f), f.x),
             f.y
         );
     }
     
     // Simplex noise (3D)
-    inline float3 mod289(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    inline float4 mod289(float4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    inline float4 permute(float4 x) { return mod289(((x * 34.0) + 1.0) * x); }
-    inline float4 taylorInvSqrt(float4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+    inline float3 mod289(float3 x) { return x - floor(x * (1.0f / 289.0f)) * 289.0f; }
+    inline float4 mod289(float4 x) { return x - floor(x * (1.0f / 289.0f)) * 289.0f; }
+    inline float4 permute(float4 x) { return mod289(((x * 34.0f) + 1.0f) * x); }
+    inline float4 taylorInvSqrt(float4 r) { return 1.79284291400159f - 0.85373472095314f * r; }
     
     inline float snoise(float3 v) {
-        const float2 C = float2(1.0/6.0, 1.0/3.0);
-        const float4 D = float4(0.0, 0.5, 1.0, 2.0);
+        const float2 C = float2(1.0f/6.0f, 1.0f/3.0f);
+        const float4 D = float4(0.0f, 0.5f, 1.0f, 2.0f);
         
         float3 i = floor(v + dot(v, C.yyy));
         float3 x0 = v - i + dot(i, C.xxx);
         
         float3 g = step(x0.yzx, x0.xyz);
-        float3 l = 1.0 - g;
+        float3 l = 1.0f - g;
         float3 i1 = min(g.xyz, l.zxy);
         float3 i2 = max(g.xyz, l.zxy);
         
@@ -68,28 +65,28 @@ namespace ShaderUtils {
         
         i = mod289(i);
         float4 p = permute(permute(permute(
-            i.z + float4(0.0, i1.z, i2.z, 1.0))
-            + i.y + float4(0.0, i1.y, i2.y, 1.0))
-            + i.x + float4(0.0, i1.x, i2.x, 1.0));
+            i.z + float4(0.0f, i1.z, i2.z, 1.0f))
+            + i.y + float4(0.0f, i1.y, i2.y, 1.0f))
+            + i.x + float4(0.0f, i1.x, i2.x, 1.0f));
         
-        float n_ = 0.142857142857;
+        float n_ = 0.142857142857f;
         float3 ns = n_ * D.wyz - D.xzx;
         
-        float4 j = p - 49.0 * floor(p * ns.z * ns.z);
+        float4 j = p - 49.0f * floor(p * ns.z * ns.z);
         
         float4 x_ = floor(j * ns.z);
-        float4 y_ = floor(j - 7.0 * x_);
+        float4 y_ = floor(j - 7.0f * x_);
         
         float4 x = x_ * ns.x + ns.yyyy;
         float4 y = y_ * ns.x + ns.yyyy;
-        float4 h = 1.0 - abs(x) - abs(y);
+        float4 h = 1.0f - abs(x) - abs(y);
         
         float4 b0 = float4(x.xy, y.xy);
         float4 b1 = float4(x.zw, y.zw);
         
-        float4 s0 = floor(b0) * 2.0 + 1.0;
-        float4 s1 = floor(b1) * 2.0 + 1.0;
-        float4 sh = -step(h, float4(0.0));
+        float4 s0 = floor(b0) * 2.0f + 1.0f;
+        float4 s1 = floor(b1) * 2.0f + 1.0f;
+        float4 sh = -step(h, float4(0.0f));
         
         float4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
         float4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
@@ -105,30 +102,30 @@ namespace ShaderUtils {
         p2 *= norm.z;
         p3 *= norm.w;
         
-        float4 m = max(0.6 - float4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        float4 m = max(0.6f - float4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0f);
         m = m * m;
-        return 42.0 * dot(m*m, float4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        return 42.0f * dot(m * m, float4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
     }
     
     // FBM (Fractal Brownian Motion)
     inline float fbm(float3 x, int octaves) {
-        float v = 0.0;
-        float a = 0.5;
-        float3 shift = float3(100.0);
+        float v = 0.0f;
+        float a = 0.5f;
+        float3 shift = float3(100.0f);
         
         for (int i = 0; i < octaves; ++i) {
             v += a * snoise(x);
-            x = x * 2.0 + shift;
-            a *= 0.5;
+            x = x * 2.0f + shift;
+            a *= 0.5f;
         }
         return v;
     }
     
     // Color utilities
     inline float3 hsv2rgb(float3 c) {
-        float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-        float3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        float4 K = float4(1.0f, 2.0f / 3.0f, 1.0f / 3.0f, 3.0f);
+        float3 p = abs(fract(c.xxx + K.xyz) * 6.0f - K.www);
+        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0f, 1.0f), c.y);
     }
     
     // SDF primitives
@@ -138,22 +135,22 @@ namespace ShaderUtils {
     
     inline float sdBox(float3 p, float3 b) {
         float3 d = abs(p) - b;
-        return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+        return min(max(d.x, max(d.y, d.z)), 0.0f) + length(max(d, 0.0f));
     }
     
-    // Rotation matrices
+    // Rotation matrices (Updated for speed using native_)
     inline float3 rotateX(float3 p, float a) {
-        float s = sin(a), c = cos(a);
+        float s = native_sin(a), c = native_cos(a);
         return float3(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
     }
     
     inline float3 rotateY(float3 p, float a) {
-        float s = sin(a), c = cos(a);
+        float s = native_sin(a), c = native_cos(a);
         return float3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
     }
     
     inline float3 rotateZ(float3 p, float a) {
-        float s = sin(a), c = cos(a);
+        float s = native_sin(a), c = native_cos(a);
         return float3(c * p.x - s * p.y, s * p.x + c * p.y, p.z);
     }
 }

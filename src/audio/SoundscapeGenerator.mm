@@ -1,4 +1,7 @@
 #import "SoundscapeGenerator.h"
+#import "../config/ConfigurationManager.h"
+#import "RayAudioEngine.h"
+#import "SpatialSoundscapeGenerator.h"
 #import <AVFoundation/AVFoundation.h>
 
 @interface SoundscapeGenerator ()
@@ -129,6 +132,13 @@
   [_engine connect:_sourceNode to:_eq format:format];
   [_engine connect:_eq to:_reverb format:format];
   [_engine connect:_reverb to:[_engine mainMixerNode] format:format];
+
+  // Initialize Spatial Audio Engine as secondary
+  [[RayAudioEngine sharedEngine] initializeWithSampleRate:format.sampleRate
+                                                    error:nil];
+  [[SpatialSoundscapeGenerator sharedGenerator]
+      initializeWithSampleRate:format.sampleRate
+                         error:nil];
 }
 
 - (BOOL)start {
@@ -159,6 +169,25 @@
 
   // Modulate Reverb based on complexity
   _reverb.wetDryMix = 20.0f + (metrics.visualComplexity * 60.0f);
+
+  // Phase 5: Ray-Traced Audio Sync
+  if ([SpatialSoundscapeGenerator sharedGenerator]) {
+    [SpatialSoundscapeGenerator sharedGenerator].visualComplexity =
+        metrics.visualComplexity;
+
+    // Auto-update room parameters from global config
+    auto &config = ShaderCandy::Config::ConfigurationManager::getInstance();
+    const auto &settings = config.getSettings();
+    if (settings.spatialAudio) {
+      [[SpatialSoundscapeGenerator sharedGenerator]
+          setReverbParameters:settings.roomSize
+                      damping:settings.reverbDamping
+                    intensity:metrics.intensity];
+      [[RayAudioEngine sharedEngine] start];
+    } else {
+      [[RayAudioEngine sharedEngine] stop];
+    }
+  }
 }
 
 - (void)transitionToSoundscape:(SoundscapeType)type

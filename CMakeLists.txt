@@ -3,6 +3,17 @@ project(ShaderCandy VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Optimization Flags
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+if(APPLE)
+    add_compile_options(-O3 -ffast-math -fstrict-aliasing)
+else()
+    add_compile_options(-O3 -ffast-math)
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Options
@@ -59,6 +70,12 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86|X86|amd64|AMD64")
     endif()
 endif()
 
+# CoreML and UniformTypeIdentifiers for Phase 5 features
+if(MACOS)
+    find_library(COREML_FRAMEWORK CoreML REQUIRED)
+    find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
+endif()
+
 # macOS Metal Backend
 if(MACOS AND BUILD_METAL)
     enable_language(OBJCXX)
@@ -82,7 +99,9 @@ if(MACOS AND BUILD_METAL)
         src/metal/HDRPipeline.mm
         src/metal/DynamicRangeOptimizer.mm
         src/metal/HDRMetadataGenerator.mm
-        src/platform/macos/MacOSMetalViewAdapter.mm
+        src/neural/NeuralStyleEngine.mm
+        src/neural/StyleTransferModel.mm
+        src/neural/StyleLibrary.mm
     )
 
     set(AUDIO_SOURCES
@@ -101,6 +120,8 @@ if(MACOS AND BUILD_METAL)
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
         ${QUARTZCORE_FRAMEWORK}
+        ${COREML_FRAMEWORK}
+        ${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}
     )
 
     add_library(shadercandy_audio STATIC ${AUDIO_SOURCES})
@@ -282,9 +303,6 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
           src/platform/macos/PresetViewController.mm
           src/platform/macos/PresetObject.mm
           src/platform/macos/PresetImportExportSheet.mm
-          src/neural/NeuralStyleEngine.mm
-          src/neural/StyleTransferModel.mm
-          src/neural/StyleLibrary.mm
           src/neural/StyleLibraryViewController.mm
       )
      

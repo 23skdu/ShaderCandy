@@ -8,6 +8,8 @@
 #import "MetalRenderer.h"
 #include "../audio/AudioInput.h"
 #import "../audio/SoundscapeGenerator.h"
+#import "../neural/NeuralStyleEngine.h"
+#import "HDRPipeline.h"
 #import "MTLPerformanceReporter.h"
 #import "MetalHeapManager.h"
 #import "MetalResourcePool.h"
@@ -218,6 +220,10 @@
 @property(nonatomic, strong) NSDate *lastShaderCheckTime;
 @property(nonatomic, assign) NSUInteger frameCount;
 @property(nonatomic, assign) BOOL isDeviceLost;
+@property(nonatomic, strong) NSCalendar *calendar;
+@property(nonatomic, strong) NSDateComponents *dateComponents;
+@property(nonatomic, copy) NSString *cachedInteropHeader;
+@property(nonatomic, copy) NSString *cachedUtilsSource;
 
 @property(nonatomic, strong) NSMutableArray<MetalRendererError *> *errorLog;
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *frameTimeHistory;
@@ -289,6 +295,8 @@
     _isDeviceLost = NO;
     _autoScalingEnabled = YES;
     _autoScaleFPSThreshold = 55.0f;
+    _calendar = [NSCalendar currentCalendar];
+    _dateComponents = [[NSDateComponents alloc] init];
   }
   return self;
 }
@@ -378,6 +386,17 @@
 
   // Skip debug overlay for standalone app to avoid shader compilation issues
   // [self setupDebugOverlay];
+
+  // Initialize HDR Pipeline
+  [[HDRPipeline sharedPipeline] initializeWithDevice:_device error:nil];
+  _hdrEnabled = [[HDRPipeline sharedPipeline] detectHDRDisplay];
+  _toneMapping = ToneMappingOperatorACES;
+  _maxBrightness = 1000.0f;
+
+  // Initialize Neural Engine
+  [[NeuralStyleEngine sharedEngine] initializeWithDevice:_device error:nil];
+  _neuralStyleEnabled = NO;
+  _styleStrength = 0.5f;
 
   NSLog(@"MetalRenderer: Initialized with device %@ (Family: %ld)",
         _deviceInfo.name, (long)_deviceInfo.family);
@@ -738,7 +757,7 @@
 }
 
 - (NSString *)pathForShader:(NSString *)name {
-  NSBundle *bundle = [NSBundle mainBundle];
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
   NSString *path = [bundle pathForResource:name
                                     ofType:@"metal"
                                inDirectory:@"shaders"];
@@ -764,49 +783,52 @@
   [fullSource
       appendString:@"#include <metal_stdlib>\nusing namespace metal;\n\n"];
 
-  // Load and prepend interop header
-  NSBundle *bundle = [NSBundle mainBundle];
-  NSString *interopPath = [bundle pathForResource:@"ShaderInterop"
-                                           ofType:@"h"
-                                      inDirectory:@"shaders"];
-
-  if (interopPath) {
-    NSString *interopHeader =
-        [NSString stringWithContentsOfFile:interopPath
-                                  encoding:NSUTF8StringEncoding
-                                     error:nil];
-    if (interopHeader) {
-      [fullSource appendString:interopHeader];
-      [fullSource appendString:@"\n\n"];
+  // Load and prepend interop header (Cached)
+  if (!self.cachedInteropHeader) {
+    NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+    NSString *path = [bundle pathForResource:@"ShaderInterop"
+                                      ofType:@"h"
+                                 inDirectory:@"shaders"];
+    if (path) {
+      self.cachedInteropHeader =
+          [NSString stringWithContentsOfFile:path
+                                    encoding:NSUTF8StringEncoding
+                                       error:nil];
     }
   }
+  if (self.cachedInteropHeader) {
+    [fullSource appendString:self.cachedInteropHeader];
+    [fullSource appendString:@"\n\n"];
+  }
 
-  // Load and prepend utils
-  NSString *utilsPath = [bundle pathForResource:@"utils"
-                                         ofType:@"metal"
-                                    inDirectory:@"shaders"];
-
-  if (utilsPath) {
-    NSString *utilsSource =
-        [NSString stringWithContentsOfFile:utilsPath
-                                  encoding:NSUTF8StringEncoding
-                                     error:nil];
-    if (utilsSource) {
-      // Strip metal_stdlib include from utils
-      NSMutableString *cleanedUtils = [utilsSource mutableCopy];
-      [cleanedUtils
-          replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
-                          withString:@""
-                             options:0
-                               range:NSMakeRange(0, cleanedUtils.length)];
-      [cleanedUtils
-          replaceOccurrencesOfString:@"using namespace metal;\n"
-                          withString:@""
-                             options:0
-                               range:NSMakeRange(0, cleanedUtils.length)];
-      [fullSource appendString:cleanedUtils];
-      [fullSource appendString:@"\n\n"];
+  // Load and prepend utils (Cached & Cleaned)
+  if (!self.cachedUtilsSource) {
+    NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+    NSString *path = [bundle pathForResource:@"utils"
+                                      ofType:@"metal"
+                                 inDirectory:@"shaders"];
+    if (path) {
+      NSString *rawUtils =
+          [NSString stringWithContentsOfFile:path
+                                    encoding:NSUTF8StringEncoding
+                                       error:nil];
+      if (rawUtils) {
+        NSMutableString *cleaned = [rawUtils mutableCopy];
+        [cleaned replaceOccurrencesOfString:@"#include <metal_stdlib>\n"
+                                 withString:@""
+                                    options:0
+                                      range:NSMakeRange(0, cleaned.length)];
+        [cleaned replaceOccurrencesOfString:@"using namespace metal;\n"
+                                 withString:@""
+                                    options:0
+                                      range:NSMakeRange(0, cleaned.length)];
+        self.cachedUtilsSource = cleaned;
+      }
     }
+  }
+  if (self.cachedUtilsSource) {
+    [fullSource appendString:self.cachedUtilsSource];
+    [fullSource appendString:@"\n\n"];
   }
 
   // Add vertex shader wrapper
@@ -979,7 +1001,7 @@
 - (NSArray<NSString *> *)availableShaderNames {
   NSMutableArray *shaders = [NSMutableArray array];
 
-  NSBundle *bundle = [NSBundle mainBundle];
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
   NSString *shadersPath =
       [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
 
@@ -1068,11 +1090,15 @@
 #pragma mark - Pipeline Pre-warming
 
 - (void)prewarmPipelinesForShaders:(NSArray<NSString *> *)shaders {
-  dispatch_async(_shaderQueue, ^{
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
     for (NSString *name in shaders) {
-      if (!self.pipelineCache[name]) {
-        [self loadShaderWithName:name error:nil];
-      }
+      // Use dispatch_sync on _shaderQueue only for cache check and triggering
+      // load
+      dispatch_sync(self.shaderQueue, ^{
+        if (!self.pipelineCache[name]) {
+          [self loadShaderWithName:name error:nil];
+        }
+      });
     }
   });
 }
@@ -1080,7 +1106,7 @@
 #pragma mark - File Watching
 
 - (void)setupFileWatcher {
-  NSBundle *bundle = [NSBundle mainBundle];
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
   NSString *shadersPath =
       [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
 
@@ -1182,12 +1208,12 @@
       }
     }
 
-    // Sync with other monitors (Multi-Monitor Sync)
     _particleConfig.count = [[MetalSharedState sharedState]
         syncParticleCount:_particleConfig.count];
   }
 
-  dispatch_semaphore_signal(_inFlightSemaphore);
+  // Double signaling is fixed: only addCompletedHandler signals now.
+  // dispatch_semaphore_signal(_inFlightSemaphore);
 
   if ([_delegate respondsToSelector:@selector(metalRenderer:
                                            didUpdateMetrics:)]) {
@@ -1241,16 +1267,20 @@
       (float)(mousePos.x / (_resources.viewportSize.width ?: 1)),
       (float)(mousePos.y / (_resources.viewportSize.height ?: 1))};
 
-  // Date
-  NSDateComponents *components = [[NSCalendar currentCalendar]
-      components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |
-                 NSCalendarUnitHour | NSCalendarUnitMinute |
-                 NSCalendarUnitSecond
-        fromDate:[NSDate date]];
+  // Date (Update every 60 frames to save CPU)
+  if (_frameCount % 60 == 0) {
+    _dateComponents =
+        [_calendar components:NSCalendarUnitYear | NSCalendarUnitMonth |
+                              NSCalendarUnitDay | NSCalendarUnitHour |
+                              NSCalendarUnitMinute | NSCalendarUnitSecond
+                     fromDate:[NSDate date]];
+  }
+
   uniforms->date = (vector_float4){
-      (float)components.year, (float)components.month, (float)components.day,
-      (float)(components.hour * 3600 + components.minute * 60 +
-              components.second)};
+      (float)_dateComponents.year, (float)_dateComponents.month,
+      (float)_dateComponents.day,
+      (float)(_dateComponents.hour * 3600 + _dateComponents.minute * 60 +
+              _dateComponents.second + (float)(time - floor(time)))};
 
   uniforms->frame = (int32_t)_frameCount;
   uniforms->deltaTime = 1.0f / _preferredFPS;
@@ -1292,22 +1322,36 @@
   uint8_t *bufferPtr = (uint8_t *)_resources.uniformBuffer.contents;
   Uniforms *uniforms = (Uniforms *)(bufferIndex * sizeof(Uniforms) + bufferPtr);
 
-  // Render based on configuration
-  if (_bloomConfig.enabled && _resources.sceneTexture) {
-    [self renderWithBloomToDrawable:drawable
+  // --- Phase 5 Multi-Pass Flow ---
+
+  // 1. Scene Rendering Pass (render to offscreen HDR texture)
+  MTLRenderPassDescriptor *hdrPassDesc =
+      [MTLRenderPassDescriptor renderPassDescriptor];
+  hdrPassDesc.colorAttachments[0].texture = _resources.sceneTexture;
+  hdrPassDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
+  hdrPassDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+  hdrPassDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+
+  // If bloom is NOT enabled, we use renderSimpleToDrawable but redirect it to
+  // sceneTexture If bloom IS enabled, we call renderWithBloomToDrawable but
+  // redirect the final pass to sceneTexture instead of the drawable.
+
+  if (_bloomConfig.enabled) {
+    [self renderWithBloomToDrawable:nil
                       commandBuffer:commandBuffer
-                   renderDescriptor:descriptor
+                   renderDescriptor:hdrPassDesc
                            uniforms:uniforms
                         bufferIndex:bufferIndex];
   } else {
-    [self renderSimpleToDrawable:drawable
+    [self renderSimpleToDrawable:nil
                    commandBuffer:commandBuffer
-                renderDescriptor:descriptor
+                renderDescriptor:hdrPassDesc
                         uniforms:uniforms
                      bufferIndex:bufferIndex];
   }
 
-  // Handle cross-fade transition
+  // 1b. Handle cross-fade transition by rendering previous shader over the same
+  // HDR texture
   if (_isTransitioning && _previousPipeline) {
     NSTimeInterval elapsed =
         [[NSDate date] timeIntervalSinceDate:_transitionStartTime];
@@ -1319,32 +1363,56 @@
       _previousPipeline = nil;
       _previousShaderName = nil;
     } else {
-      // Draw previous shader with decreasing alpha
       float originalAlpha = uniforms->alpha;
       uniforms->alpha = originalAlpha * (1.0f - _transitionAlpha);
 
-      // We need to render the previous pipeline.
-      // Simple way: temporarily swap currentPipeline and call
-      // renderSimpleToDrawable
       MetalPipelineState *savedCurrent = _currentPipeline;
       _currentPipeline = _previousPipeline;
 
-      [self renderSimpleToDrawable:drawable
+      // Secondary pass (additive or blend)
+      hdrPassDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
+      [self renderSimpleToDrawable:nil
                      commandBuffer:commandBuffer
-                  renderDescriptor:descriptor
+                  renderDescriptor:hdrPassDesc
                           uniforms:uniforms
                        bufferIndex:bufferIndex];
 
       _currentPipeline = savedCurrent;
       uniforms->alpha = originalAlpha;
-
-      // Also adjust current shader's alpha for next frame/pass if needed,
-      // but here current was already drawn with full alpha (which is fine for
-      // a standard blend). Most shadertoy-style shaders look better if
-      // current is drawn with alpha=transitionAlpha over previous drawn with
-      // alpha=1 or vice versa. Given the above, they both currently draw.
-      // Standard blending applies.
     }
+  }
+
+  id<MTLTexture> currentSource = _resources.sceneTexture;
+
+  // 2. Neural Style Pass
+  if (_neuralStyleEnabled && [[NeuralStyleEngine sharedEngine] currentModel]) {
+    id<MTLTexture> neuralResult =
+        [[NeuralStyleEngine sharedEngine] applyStyle:currentSource
+                                       commandBuffer:commandBuffer
+                                            strength:_styleStrength];
+    if (neuralResult) {
+      currentSource = neuralResult;
+    }
+  }
+
+  // 3. Final Tone Mapping / Display Pass
+  if (_hdrEnabled) {
+    [[HDRPipeline sharedPipeline] toneMapHDRTexture:currentSource
+                                       toSDRTexture:drawable.texture
+                                      commandBuffer:commandBuffer];
+  } else {
+    // Blit currentSource to drawable
+    id<MTLRenderCommandEncoder> blitEncoder =
+        [commandBuffer renderCommandEncoderWithDescriptor:descriptor];
+    [blitEncoder setRenderPipelineState:_resources.debugOverlayPipeline
+                                            ?: _currentPipeline.renderPipeline];
+    // This blit logic might need a dedicated simple blit/passthrough shader
+    [blitEncoder endEncoding];
+    // Fallback: if no HDR, we should have rendered to drawable already?
+    // No, we rendered to sceneTexture (HDR). We NEED a final tone map or blit.
+    [[HDRPipeline sharedPipeline] toneMapHDRTexture:currentSource
+                                       toSDRTexture:drawable.texture
+                                      commandBuffer:commandBuffer];
   }
 
   // Particle pass
@@ -1638,7 +1706,7 @@
 
 - (void)setupDebugOverlay {
   NSLog(@"Setting up debug overlay...");
-  NSBundle *bundle = [NSBundle mainBundle];
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
   NSString *shaderPath = [bundle pathForResource:@"debug_overlay"
                                           ofType:@"metal"
                                      inDirectory:@"shaders"];

@@ -17,8 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @optional
 - (void)windowController:(id)controller didSelectShader:(NSString *)shaderName;
-- (void)windowController:(id)controller didUpdateMetrics:(NSDictionary *)metrics;
-- (void)windowController:(id)controller didEncounterError:(MetalRendererError *)error;
+- (void)windowController:(id)controller
+        didUpdateMetrics:(NSDictionary *)metrics;
+- (void)windowController:(id)controller
+       didEncounterError:(MetalRendererError *)error;
 
 @end
 
@@ -27,7 +29,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Properties
 @property(nonatomic, strong, nullable) MTKView *metalView;
 @property(nonatomic, strong, nullable) MetalRenderer *renderer;
-@property(nonatomic, weak, nullable) id<StandaloneAppWindowControllerDelegate> delegate;
+@property(nonatomic, weak, nullable) id<StandaloneAppWindowControllerDelegate>
+    delegate;
 
 // UI Elements
 @property(nonatomic, strong, nullable) NSView *shaderListContainer;
@@ -45,7 +48,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, assign) BOOL showingMetrics;
 
 // Initialization
-- (instancetype _Nullable)initWithWindow:(NSWindow * _Nullable)window;
+- (instancetype)initWithWindow:(nullable NSWindow *)window;
 - (instancetype)initWithWindowNibName:(NSString *)nibName;
 
 // Shader Management

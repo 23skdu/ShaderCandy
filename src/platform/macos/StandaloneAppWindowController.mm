@@ -236,7 +236,7 @@
   return @[
     @"shaderSelector", @"previous", @"next", @"shadersList", @"metrics",
     @"settings", @"fullscreen", NSToolbarFlexibleSpaceItemIdentifier,
-    NSToolbarSeparatorItemIdentifier, NSToolbarSpaceItemIdentifier
+    NSToolbarSpaceItemIdentifier
   ];
 }
 
