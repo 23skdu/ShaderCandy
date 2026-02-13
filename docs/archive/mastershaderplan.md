@@ -2,7 +2,7 @@
 
 ## 📍 Project Status & Verified Completion (Updated: Feb 2026)
 
-This document is the consolidated master plan for ShaderCandy. Detailed implementation history can be found in [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md), [PHASE2_SUMMARY.md](./PHASE2_SUMMARY.md), and [PHASE3_SUMMARY.md](./PHASE3_SUMMARY.md).
+This document is the consolidated master plan for ShaderCandy. Detailed implementation history can be found in [ImplementationSummaryOld.md](./ImplementationSummaryOld.md), [Phase2Summary.md](./Phase2Summary.md), and [Phase3Summary.md](./Phase3Summary.md).
 
 ### ✅ Phase 1: Foundation (DONE)
 

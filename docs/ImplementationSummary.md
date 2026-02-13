@@ -264,9 +264,9 @@ All originally planned features have been implemented:
 9. ✅ **Advanced Features**: Neural effects (CoreML), HDR (10-bit), Ray-traced audio
 10. ✅ **Screenshot Capture**: Both standalone and screensaver modes
 
-### Remaining Work (See MASTER_STATUS_AND_ROADMAP.md)
+### Remaining Work (See MasterStatusAndRoadmap.md)
 
-For remaining incomplete items, see the consolidated roadmap in [MASTER_STATUS_AND_ROADMAP.md](./MASTER_STATUS_AND_ROADMAP.md).
+For remaining incomplete items, see the consolidated roadmap in [MasterStatusAndRoadmap.md](./MasterStatusAndRoadmap.md).
 
 ## Building the Project
 

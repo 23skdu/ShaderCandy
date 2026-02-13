@@ -322,6 +322,6 @@ Planned improvements for Linux:
 
 ## See Also
 
-- [MASTER_STATUS_AND_ROADMAP.md](../docs/MASTER_STATUS_AND_ROADMAP.md) - Overall project status
-- [LINUX_PORT_SUMMARY.md](../docs/archive/LINUX_PORT_SUMMARY.md) - Original Linux port details
-- [SHADER_TRANSLATION_STANDARDS.md](../docs/SHADER_TRANSLATION_STANDARDS.md) - Metal to GLSL translation guide
+- [MasterStatusAndRoadmap.md](../docs/MasterStatusAndRoadmap.md) - Overall project status
+- [LinuxPortSummary.md](../docs/archive/LinuxPortSummary.md) - Original Linux port details
+- [ShaderTranslationStandards.md](../docs/ShaderTranslationStandards.md) - Metal to GLSL translation guide
