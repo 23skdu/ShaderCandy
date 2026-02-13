@@ -42,6 +42,33 @@ set(CORE_SOURCES
     src/config/PresetManager.cpp
 )
 
+# Linux Audio support
+if(LINUX)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(ALSALIB REQUIRED alsa)
+    pkg_check_modules(FFTW3 REQUIRED fftw3)
+    
+    set(LINUX_AUDIO_SOURCES
+        src/audio/AudioInput_Linux.cpp
+    )
+    
+    add_library(shadercandy_audio_linux STATIC ${LINUX_AUDIO_SOURCES})
+    target_include_directories(shadercandy_audio_linux PUBLIC 
+        src/audio
+        ${ALSALIB_INCLUDE_DIRS}
+        ${FFTW3_INCLUDE_DIRS}
+    )
+    target_link_libraries(shadercandy_audio_linux PUBLIC
+        shadercandy_core
+        ${ALSALIB_LIBRARIES}
+        ${FFTW3_LIBRARIES}
+    )
+    target_compile_options(shadercandy_audio_linux PUBLIC
+        ${ALSALIB_CFLAGS_OTHER}
+        ${FFTW3_CFLAGS_OTHER}
+    )
+endif()
+
 set(CORE_HEADERS
     src/core/ShaderManager.h
     src/core/UniformBuffer.h
@@ -393,10 +420,20 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
         find_library(XMU_LIB Xmu)
         
         add_executable(shadercandy-screensaver ${LINUX_SCREENSAVER_SOURCES})
+        target_include_directories(shadercandy-screensaver PRIVATE
+            src/core
+            src/audio
+            ${ALSALIB_INCLUDE_DIRS}
+            ${FFTW3_INCLUDE_DIRS}
+        )
         target_link_libraries(shadercandy-screensaver PRIVATE
             shadercandy_core
+            shadercandy_audio_linux
             ${X11_LIBRARIES}
             GL
+            ${ALSALIB_LIBRARIES}
+            ${FFTW3_LIBRARIES}
+            pthread
         )
         
         if(XSS_LIB)
@@ -409,6 +446,63 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
         
         # Install
         install(TARGETS shadercandy-screensaver
+            RUNTIME DESTINATION bin
+        )
+        
+        # Linux Standalone Player
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(GLFW REQUIRED glfw3)
+        
+        add_executable(shadercandy-player src/platform/linux/standalone_player.cpp)
+        target_include_directories(shadercandy-player PRIVATE
+            src/core
+            src/audio
+            ${GLFW_INCLUDE_DIRS}
+            ${ALSALIB_INCLUDE_DIRS}
+            ${FFTW3_INCLUDE_DIRS}
+        )
+        target_link_libraries(shadercandy-player PRIVATE
+            shadercandy_core
+            shadercandy_audio_linux
+            ${GLFW_LIBRARIES}
+            ${GLFW_STATIC_LIBRARIES}
+            GL
+            ${ALSALIB_LIBRARIES}
+            ${FFTW3_LIBRARIES}
+            pthread
+        )
+        target_compile_options(shadercandy-player PRIVATE
+            ${GLFW_CFLAGS_OTHER}
+            ${ALSALIB_CFLAGS_OTHER}
+            ${FFTW3_CFLAGS_OTHER}
+        )
+        
+        install(TARGETS shadercandy-player
+            RUNTIME DESTINATION bin
+        )
+        
+        # Linux Wallpaper Mode
+        add_executable(shadercandy-wallpaper src/platform/linux/wallpaper.cpp)
+        target_include_directories(shadercandy-wallpaper PRIVATE
+            src/core
+            src/audio
+            ${X11_INCLUDE_DIR}
+            ${ALSALIB_INCLUDE_DIRS}
+            ${FFTW3_INCLUDE_DIRS}
+        )
+        target_link_libraries(shadercandy-wallpaper PRIVATE
+            shadercandy_core
+            shadercandy_audio_linux
+            ${X11_LIBRARIES}
+            ${X11_Xcomposite_LIB}
+            ${X11_Xrender_LIB}
+            GL
+            ${ALSALIB_LIBRARIES}
+            ${FFTW3_LIBRARIES}
+            pthread
+        )
+        
+        install(TARGETS shadercandy-wallpaper
             RUNTIME DESTINATION bin
         )
         

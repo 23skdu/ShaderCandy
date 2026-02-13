@@ -272,6 +272,84 @@ EOF
     echo ""
 }
 
+# Uninstall ShaderCandy
+uninstall_shadercandy() {
+    echo "=================================="
+    echo "ShaderCandy Uninstaller"
+    echo "=================================="
+    echo ""
+    
+    read -p "Are you sure you want to uninstall ShaderCandy? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Uninstall cancelled."
+        exit 0
+    fi
+    
+    echo "Removing ShaderCandy..."
+    echo ""
+    
+    # Remove binary
+    if [ -f "/usr/local/bin/shadercandy-screensaver" ]; then
+        echo "Removing binary..."
+        sudo rm -f /usr/local/bin/shadercandy-screensaver
+    fi
+    
+    # Remove shaders
+    if [ -d "/usr/local/share/shadercandy" ]; then
+        echo "Removing shaders..."
+        sudo rm -rf /usr/local/share/shadercandy
+    fi
+    
+    # Remove XScreenSaver configuration
+    XSCREENSAVER_CONF="$HOME/.xscreensaver"
+    if [ -f "$XSCREENSAVER_CONF" ] && grep -q "shadercandy" "$XSCREENSAVER_CONF"; then
+        echo "Removing XScreenSaver configuration..."
+        # Backup before modifying
+        cp "$XSCREENSAVER_CONF" "$XSCREENSAVER_CONF.backup.$(date +%Y%m%d%H%M%S)"
+        # Remove shadercandy lines from programs section
+        sed -i '/shadercandy/d' "$XSCREENSAVER_CONF"
+    fi
+    
+    # Remove systemd service
+    SYSTEMD_SERVICE="$HOME/.config/systemd/user/shadercandy.service"
+    if [ -f "$SYSTEMD_SERVICE" ]; then
+        echo "Removing systemd service..."
+        systemctl --user stop shadercandy.service 2>/dev/null || true
+        systemctl --user disable shadercandy.service 2>/dev/null || true
+        rm -f "$SYSTEMD_SERVICE"
+        systemctl --user daemon-reload
+    fi
+    
+    # Remove desktop entry
+    DESKTOP_ENTRY="$HOME/.local/share/applications/shadercandy.desktop"
+    if [ -f "$DESKTOP_ENTRY" ]; then
+        echo "Removing desktop entry..."
+        rm -f "$DESKTOP_ENTRY"
+    fi
+    
+    # Ask about build directory
+    BUILD_DIR="$PROJECT_ROOT/build"
+    if [ -d "$BUILD_DIR" ]; then
+        read -p "Remove build directory? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Removing build directory..."
+            rm -rf "$BUILD_DIR"
+        fi
+    fi
+    
+    echo ""
+    echo "=================================="
+    echo "Uninstall Complete!"
+    echo "=================================="
+    echo ""
+    echo "ShaderCandy has been removed from your system."
+    echo "Note: Dependencies installed by this script were not removed."
+    echo ""
+    exit 0
+}
+
 # Main installation process
 main() {
     # Parse arguments
@@ -288,12 +366,16 @@ main() {
                 SKIP_BUILD=true
                 shift
                 ;;
+            --uninstall)
+                uninstall_shadercandy
+                ;;
             --help|-h)
                 echo "Usage: $0 [OPTIONS]"
                 echo ""
                 echo "Options:"
                 echo "  --skip-deps     Skip dependency installation"
                 echo "  --skip-build    Skip building (install only)"
+                echo "  --uninstall     Remove ShaderCandy from system"
                 echo "  --help, -h      Show this help message"
                 exit 0
                 ;;
@@ -325,6 +407,9 @@ main() {
     echo "Usage:"
     echo "  Run directly: /usr/local/bin/shadercandy-screensaver"
     echo "  Test mode:    /usr/local/bin/shadercandy-screensaver -window-id <window_id>"
+    echo ""
+    echo "Uninstall:"
+    echo "  Run: $0 --uninstall"
     echo ""
     echo "XScreenSaver:"
     echo "  Restart with: xscreensaver-command -restart"

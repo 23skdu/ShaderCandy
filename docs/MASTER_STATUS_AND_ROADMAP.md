@@ -21,9 +21,9 @@ ShaderCandy has successfully transitioned from a technical foundation to a featu
 | **Shader Parity (42+)** | ✅ | ✅ | Production Ready |
 | **Hot-Reloading** | ✅ | ✅ | Production Ready |
 | **Screensaver Integration** | ✅ | ✅ | Production Ready |
-| **Standalone Player** | ✅ | 🚧 | macOS-Only (Planned for Linux) |
-| **Wallpaper Mode** | ✅ | ❌ | macOS-Only |
-| **Audio Reactivity** | ✅ | ❌ | Needs ALSA/PipeWire Port |
+| **Standalone Player** | ✅ | ✅ | Production Ready (GLFW-based) |
+| **Wallpaper Mode** | ✅ | ✅ | Production Ready (X11) |
+| **Audio Reactivity** | ✅ | ✅ | Production Ready (ALSA+FFTW3) |
 | **Neural Effects** | ✅ | ❌ | CoreML Dependent |
 | **HDR (10-bit/EDR)** | ✅ | ❌ | macOS-Only |
 | **Ray-Traced Audio** | ✅ | ❌ | macOS-Only |
@@ -35,7 +35,9 @@ ShaderCandy has successfully transitioned from a technical foundation to a featu
 
 ### 1. High Priority (Polish & Parity)
 
-- [ ] **Linux Audio Port**: Port `AVFoundation` logic to `FFTW` + `PipeWire/ALSA` for Linux audio reactivity parity.
+- [x] **Linux Audio Port**: Port `AVFoundation` logic to `FFTW` + `PipeWire/ALSA` for Linux audio reactivity parity. **COMPLETED**
+- [x] **Linux Standalone Player**: Create GLFW-based standalone player for Linux. **COMPLETED**
+- [x] **Linux Wallpaper Mode**: Implement X11-based wallpaper mode for Linux. **COMPLETED**
 - [ ] **Universal Preset API**: Cloud-based sharing (Simple AWS/Backend) for community presets.
 - [ ] **HDR Calibration UI**: Add visual calibration patterns (SMPTE/Color bars) to the preferences window for HDR/EDR tuning.
 - [ ] **Renderer Polish**: Continue refining frame synchronization and GPU memory handling for ultra-high resolution displays. (Ongoing)
@@ -65,6 +67,7 @@ All foundational phases including **Core Rendering**, **Platform Integration**, 
 - **[PROJECT_PLAN.md](./PROJECT_PLAN.md)**: Deep technical breakdown (Historical).
 - **[mastershaderplan.md](./mastershaderplan.md)**: Shader-specific development history.
 - **[LINUX_PORT_SUMMARY.md](./LINUX_PORT_SUMMARY.md)**: Details on the GLSL porting effort.
+- **[LINUX_FEATURES.md](./LINUX_FEATURES.md)**: Linux-specific features and usage guide. **NEW**
 - **[HDR_IMPLEMENTATION.md](./HDR_IMPLEMENTATION.md)**: Technical guide for high-bit-depth rendering.
 - **[NEURAL_EFFECTS_GUIDE.md](./NEURAL_EFFECTS_GUIDE.md)**: How to use CoreML style transfer.
 - **[WALLPAPER_MODE_GUIDE.md](./WALLPAPER_MODE_GUIDE.md)**: Desktop integration instructions.
