@@ -32,6 +32,7 @@ ShaderCandy has successfully transitioned from a technical foundation to a featu
 | **Shader Documentation** | ✅ | ✅ | Production Ready |
 | **Architecture Documentation** | ✅ | ✅ | Production Ready |
 | **Build System** | ✅ | ✅ | Production Ready |
+| **App Store Readiness** | ✅ | N/A | Ready for Submission |
 
 ---
 
@@ -51,7 +52,6 @@ ShaderCandy has successfully transitioned from a technical foundation to a featu
 ### 3. Distribution
 
 - [ ] **Linux Store Packaging**: Flatpak and Snap versions for better reach.
-- [ ] **App Store Readiness**: Final sandbox and entitlement audit for the macOS App Store.
 
 ---
 
