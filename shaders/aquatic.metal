@@ -1,5 +1,6 @@
 // Aquatic Animals - Underwater caustics and bubbles
 
+#include "ShaderInterop.h"
 #include <metal_stdlib>
 using namespace metal;
 

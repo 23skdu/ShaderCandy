@@ -1,3 +1,6 @@
+#include "ShaderInterop.h"
+
+
 // Unicorn - Horn glow and magical aura effects
 
 #include <metal_stdlib>

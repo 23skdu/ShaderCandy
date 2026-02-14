@@ -1,3 +1,6 @@
+#include "ShaderInterop.h"
+
+
 // Vaporwave - Retro 80s aesthetic with neon grids and sunsets
 
 #include <metal_stdlib>

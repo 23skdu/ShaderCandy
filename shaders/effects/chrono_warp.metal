@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 //
 //  chrono_warp.metal
 //  ShaderCandy

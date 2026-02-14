@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 // Flying Toasters 3D
 // Raymarching implementation of the classic screensaver
 

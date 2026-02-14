@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 // Reaction-Diffusion (Gray-Scott model)
 // fragment_sim: Updates chemical concentrations
 // fragment_main: Maps concentrations to visual output
