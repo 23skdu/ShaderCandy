@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 //
 //  event_horizon.metal
 //  ShaderCandy

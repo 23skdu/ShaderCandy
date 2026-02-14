@@ -1,3 +1,6 @@
+#include "ShaderInterop.h"
+
+
 #ifndef SHADER_BASE_METAL_H
 #define SHADER_BASE_METAL_H
 

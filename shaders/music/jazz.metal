@@ -1,3 +1,6 @@
+#include "ShaderInterop.h"
+
+
 // Jazz - Smooth flowing curves with warm brass tones and blue-purple palette
 
 #include <metal_stdlib>

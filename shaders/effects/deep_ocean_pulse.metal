@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 //
 //  deep_ocean_pulse.metal
 //  ShaderCandy
