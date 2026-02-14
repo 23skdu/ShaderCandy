@@ -1,0 +1,199 @@
+
+========================================
+ShaderCandy Test Framework
+========================================
+
+Running: Math & SIMD Tests
+--------------------------
+Running: Core Functionality Tests
+---------------------------------
+Running: Logic & Uniform Tests
+------------------------------
+Uniforms size: 1184 bytes
+Running: Shader Compilation Tests
+---------------------------------
+Running: Renderer Feature Tests
+-------------------------------
+Running: Logic & Uniform Tests
+------------------------------
+Uniforms size: 1184 bytes
+Running: Math & SIMD Tests
+--------------------------
+Running: Core Functionality Tests
+---------------------------------
+Running: Shader Compilation Tests
+---------------------------------
+Running: Metal Compilation Tests
+--------------------------------
+Searching for shaders in: shaders
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/hiphop.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/reggae.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/electronic.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/8bit.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/vaporwave.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/punk.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/jazz.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/soul.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/heavymetal.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/music/classical.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/unicorn.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/orcs.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/frog.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/dragon.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/ripples.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/tunnel.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/gradient_waves.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/elves.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/thieves.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/checkerboard.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/owl.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/flying_toasters.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/system/debug_overlay.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/knights.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/capman.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/audio/audio_ray_tracing.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/plasma.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/spiral.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/event_horizon.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/prism_core.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/neural_nexus.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/reaction_diffusion.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbulb_3d.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/kaleidoscopic_tunnel.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/liquid_aura.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/voronoi_cells.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/particles.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/mind_palace.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/fractal_zoom.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/retro_robot.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/julia_3d.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/cosmic_kaleido.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/neon_pulse.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/vortex_dream.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/liquid_gradient.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/deep_ocean_pulse.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/chrono_warp.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/audio_spectrum.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/nebula.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/astra_fractal.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/julia_set.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/biolume_forest.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/quantum_crystalline.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/mandelbrot_set.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/fallout.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/bloom.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/hearts.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/starship_hud.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/starfield_warp.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/effects/area_51.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/neural/neural_style_blend.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/base/default.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/dwarves.metal
+  Found shader: /Users/rsd/REPOS/ShaderCandy/shaders/aquatic.metal
+
+========================================
+Test Results
+========================================
+
+[PASS] testVectorOperations                               Vector operations correct
+[PASS] testSIMDMultiplication                             SIMD multiplication correct
+[PASS] testSIMDSum                                        SIMD sum correct
+[PASS] testSIMDLerp                                       SIMD lerp correct
+[PASS] testColorConversion                                Color conversion correct
+[PASS] testUniformBuffer                                  UniformBuffer works correctly
+[PASS] testPerformanceMonitor                             PerformanceMonitor works correctly
+[PASS] testUniformAlignment                               Uniforms alignment and size valid
+[PASS] testPresetLogic                                    Preset logic simulation passed
+[PASS] testBranchlessMath                                 Branchless math simulation passed
+[PASS] testGLSLVertexShader                               Vertex shader structure valid
+[PASS] testGLSLFragmentShader                             Fragment shader structure valid
+[PASS] testShaderUniforms                                 All required uniforms present
+[PASS] testShaderSyntax                                   glslangValidator not available, skipping syntax check
+[PASS] testDynamicResolution                              Dynamic resolution calculation correct
+[PASS] testResolutionScaling                              Resolution scaling to max texture dimension works
+[PASS] testThermalStateTransitions                        Thermal state transitions correct
+[PASS] testMemoryBudgetCalculation                        Memory budget calculation correct
+[PASS] testAutoScalingThresholds                          Auto-scaling thresholds work correctly
+[PASS] testFramePacingTiming                              Frame pacing timing correct
+[PASS] testUniformAlignment                               Uniforms alignment and size valid
+[PASS] testPresetLogic                                    Preset logic simulation passed
+[PASS] testBranchlessMath                                 Branchless math simulation passed
+[PASS] testVectorOperations                               Vector operations correct
+[PASS] testSIMDMultiplication                             SIMD multiplication correct
+[PASS] testSIMDSum                                        SIMD sum correct
+[PASS] testSIMDLerp                                       SIMD lerp correct
+[PASS] testColorConversion                                Color conversion correct
+[PASS] testUniformBuffer                                  UniformBuffer works correctly
+[PASS] testPerformanceMonitor                             PerformanceMonitor works correctly
+[PASS] testGLSLVertexShader                               Vertex shader structure valid
+[PASS] testGLSLFragmentShader                             Fragment shader structure valid
+[PASS] testShaderUniforms                                 All required uniforms present
+[PASS] testShaderSyntax                                   glslangValidator not available, skipping syntax check
+[PASS] hiphop.metal                                       Compiled successfully
+[PASS] reggae.metal                                       Compiled successfully
+[PASS] electronic.metal                                   Compiled successfully
+[PASS] 8bit.metal                                         Compiled successfully
+[PASS] vaporwave.metal                                    Compiled successfully
+[PASS] punk.metal                                         Compiled successfully
+[PASS] jazz.metal                                         Compiled successfully
+[PASS] soul.metal                                         Compiled successfully
+[PASS] heavymetal.metal                                   Compiled successfully
+[PASS] classical.metal                                    Compiled successfully
+[PASS] unicorn.metal                                      Compiled successfully
+[PASS] orcs.metal                                         Compiled successfully
+[PASS] frog.metal                                         Compiled successfully
+[PASS] dragon.metal                                       Compiled successfully
+[PASS] ripples.metal                                      Compiled successfully
+[PASS] tunnel.metal                                       Compiled successfully
+[PASS] gradient_waves.metal                               Compiled successfully
+[PASS] elves.metal                                        Compiled successfully
+[PASS] thieves.metal                                      Compiled successfully
+[PASS] checkerboard.metal                                 Compiled successfully
+[PASS] owl.metal                                          Compiled successfully
+[PASS] flying_toasters.metal                              Compiled successfully
+[PASS] debug_overlay.metal                                Compiled successfully
+[PASS] knights.metal                                      Compiled successfully
+[PASS] capman.metal                                       Compiled successfully
+[PASS] audio_ray_tracing.metal                            Compiled successfully (Compute)
+[PASS] plasma.metal                                       Compiled successfully
+[PASS] spiral.metal                                       Compiled successfully
+[PASS] event_horizon.metal                                Compiled successfully
+[PASS] prism_core.metal                                   Compiled successfully
+[PASS] neural_nexus.metal                                 Compiled successfully
+[PASS] reaction_diffusion.metal                           Compiled successfully
+[PASS] mandelbulb_3d.metal                                Compiled successfully
+[PASS] kaleidoscopic_tunnel.metal                         Compiled successfully
+[PASS] liquid_aura.metal                                  Compiled successfully
+[PASS] voronoi_cells.metal                                Compiled successfully
+[PASS] particles.metal                                    Compiled successfully
+[PASS] mind_palace.metal                                  Compiled successfully
+[PASS] fractal_zoom.metal                                 Compiled successfully
+[PASS] retro_robot.metal                                  Compiled successfully
+[PASS] julia_3d.metal                                     Compiled successfully
+[PASS] cosmic_kaleido.metal                               Compiled successfully
+[PASS] neon_pulse.metal                                   Compiled successfully
+[PASS] vortex_dream.metal                                 Compiled successfully
+[PASS] liquid_gradient.metal                              Compiled successfully
+[PASS] deep_ocean_pulse.metal                             Compiled successfully
+[PASS] chrono_warp.metal                                  Compiled successfully
+[PASS] audio_spectrum.metal                               Compiled successfully
+[PASS] nebula.metal                                       Compiled successfully
+[PASS] astra_fractal.metal                                Compiled successfully
+[PASS] julia_set.metal                                    Compiled successfully
+[PASS] biolume_forest.metal                               Compiled successfully
+[PASS] quantum_crystalline.metal                          Compiled successfully
+[PASS] mandelbrot_set.metal                               Compiled successfully
+[PASS] fallout.metal                                      Compiled successfully
+[PASS] bloom.metal                                        Compiled successfully
+[PASS] hearts.metal                                       Compiled successfully
+[PASS] starship_hud.metal                                 Compiled successfully
+[PASS] starfield_warp.metal                               Compiled successfully
+[PASS] area_51.metal                                      Compiled successfully
+[PASS] neural_style_blend.metal                           Compiled successfully (Compute)
+[PASS] default.metal                                      Compiled successfully
+[PASS] dwarves.metal                                      Compiled successfully
+[PASS] aquatic.metal                                      Compiled successfully
+
+========================================
+Summary: 98 passed, 0 failed
+========================================

@@ -160,6 +160,7 @@ sudo pacman -S wayland mesa libglvnd
 ```
 
 Optional wlroots for enhanced compositor features:
+
 ```bash
 # Debian/Ubuntu
 sudo apt-get install libwlroots-dev
@@ -215,22 +216,26 @@ Note: The Wayland screensaver requires an active Wayland session (not X11).
 ### Prerequisites
 
 All features require:
+
 ```bash
 sudo apt-get install build-essential cmake pkg-config
 sudo apt-get install libx11-dev libgl1-mesa-dev libxcomposite-dev libxrender-dev
 ```
 
 Audio features additionally require:
+
 ```bash
 sudo apt-get install libasound2-dev libfftw3-dev
 ```
 
 Standalone player additionally requires:
+
 ```bash
 sudo apt-get install libglfw3-dev
 ```
 
 Wayland screensaver additionally requires:
+
 ```bash
 sudo apt-get install libwayland-dev libegl-dev libgles2-dev
 ```
@@ -322,6 +327,6 @@ Planned improvements for Linux:
 
 ## See Also
 
-- [MasterStatusAndRoadmap.md](../docs/MasterStatusAndRoadmap.md) - Overall project status
+- [ShaderCandyMasterPlan.md](../docs/ShaderCandyMasterPlan.md) - Overall project status
 - [LinuxPortSummary.md](../docs/archive/LinuxPortSummary.md) - Original Linux port details
 - [ShaderTranslationStandards.md](../docs/ShaderTranslationStandards.md) - Metal to GLSL translation guide
