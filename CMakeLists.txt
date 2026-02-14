@@ -44,30 +44,38 @@ set(CORE_SOURCES
 )
 
 # Linux Audio support
-if(LINUX)
+option(BUILD_AUDIO "Build audio support (requires ALSA and FFTW3)" ON)
+set(BUILD_AUDIO_ACTUAL OFF)
+if(LINUX AND BUILD_AUDIO)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(ALSALIB REQUIRED alsa)
-    pkg_check_modules(FFTW3 REQUIRED fftw3)
+    pkg_check_modules(ALSALIB alsa)
+    pkg_check_modules(FFTW3 fftw3)
     
-    set(LINUX_AUDIO_SOURCES
-        src/audio/AudioInput_Linux.cpp
-    )
-    
-    add_library(shadercandy_audio_linux STATIC ${LINUX_AUDIO_SOURCES})
-    target_include_directories(shadercandy_audio_linux PUBLIC 
-        src/audio
-        ${ALSALIB_INCLUDE_DIRS}
-        ${FFTW3_INCLUDE_DIRS}
-    )
-    target_link_libraries(shadercandy_audio_linux PUBLIC
-        shadercandy_core
-        ${ALSALIB_LIBRARIES}
-        ${FFTW3_LIBRARIES}
-    )
-    target_compile_options(shadercandy_audio_linux PUBLIC
-        ${ALSALIB_CFLAGS_OTHER}
-        ${FFTW3_CFLAGS_OTHER}
-    )
+    if(ALSALIB_FOUND AND FFTW3_FOUND)
+        set(BUILD_AUDIO_ACTUAL ON)
+        set(LINUX_AUDIO_SOURCES
+            src/audio/AudioInput_Linux.cpp
+        )
+        
+        add_library(shadercandy_audio_linux STATIC ${LINUX_AUDIO_SOURCES})
+        target_include_directories(shadercandy_audio_linux PUBLIC 
+            src/audio
+            ${ALSALIB_INCLUDE_DIRS}
+            ${FFTW3_INCLUDE_DIRS}
+        )
+        target_link_libraries(shadercandy_audio_linux PUBLIC
+            shadercandy_core
+            ${ALSALIB_LIBRARIES}
+            ${FFTW3_LIBRARIES}
+        )
+        target_compile_options(shadercandy_audio_linux PUBLIC
+            ${ALSALIB_CFLAGS_OTHER}
+            ${FFTW3_CFLAGS_OTHER}
+        )
+        message(STATUS "  Audio support: ON")
+    else()
+        message(WARNING "Audio dependencies (ALSA and/or FFTW3) not found. Building without audio support.")
+    endif()
 endif()
 
 set(CORE_HEADERS
@@ -444,18 +452,27 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
         target_include_directories(shadercandy-screensaver PRIVATE
             src/core
             src/audio
-            ${ALSALIB_INCLUDE_DIRS}
-            ${FFTW3_INCLUDE_DIRS}
+            ${X11_INCLUDE_DIR}
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_include_directories(shadercandy-screensaver PRIVATE
+                ${ALSALIB_INCLUDE_DIRS}
+                ${FFTW3_INCLUDE_DIRS}
+            )
+        endif()
         target_link_libraries(shadercandy-screensaver PRIVATE
             shadercandy_core
-            shadercandy_audio_linux
             ${X11_LIBRARIES}
             GL
-            ${ALSALIB_LIBRARIES}
-            ${FFTW3_LIBRARIES}
             pthread
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_link_libraries(shadercandy-screensaver PRIVATE
+                shadercandy_audio_linux
+                ${ALSALIB_LIBRARIES}
+                ${FFTW3_LIBRARIES}
+            )
+        endif()
         
         if(XSS_LIB)
             target_link_libraries(shadercandy-screensaver PRIVATE ${XSS_LIB})
@@ -479,24 +496,36 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
             src/core
             src/audio
             ${GLFW_INCLUDE_DIRS}
-            ${ALSALIB_INCLUDE_DIRS}
-            ${FFTW3_INCLUDE_DIRS}
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_include_directories(shadercandy-player PRIVATE
+                ${ALSALIB_INCLUDE_DIRS}
+                ${FFTW3_INCLUDE_DIRS}
+            )
+        endif()
         target_link_libraries(shadercandy-player PRIVATE
             shadercandy_core
-            shadercandy_audio_linux
             ${GLFW_LIBRARIES}
             ${GLFW_STATIC_LIBRARIES}
             GL
-            ${ALSALIB_LIBRARIES}
-            ${FFTW3_LIBRARIES}
             pthread
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_link_libraries(shadercandy-player PRIVATE
+                shadercandy_audio_linux
+                ${ALSALIB_LIBRARIES}
+                ${FFTW3_LIBRARIES}
+            )
+        endif()
         target_compile_options(shadercandy-player PRIVATE
             ${GLFW_CFLAGS_OTHER}
-            ${ALSALIB_CFLAGS_OTHER}
-            ${FFTW3_CFLAGS_OTHER}
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_compile_options(shadercandy-player PRIVATE
+                ${ALSALIB_CFLAGS_OTHER}
+                ${FFTW3_CFLAGS_OTHER}
+            )
+        endif()
         
         install(TARGETS shadercandy-player
             RUNTIME DESTINATION bin
@@ -508,20 +537,28 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
             src/core
             src/audio
             ${X11_INCLUDE_DIR}
-            ${ALSALIB_INCLUDE_DIRS}
-            ${FFTW3_INCLUDE_DIRS}
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_include_directories(shadercandy-wallpaper PRIVATE
+                ${ALSALIB_INCLUDE_DIRS}
+                ${FFTW3_INCLUDE_DIRS}
+            )
+        endif()
         target_link_libraries(shadercandy-wallpaper PRIVATE
             shadercandy_core
-            shadercandy_audio_linux
             ${X11_LIBRARIES}
             ${X11_Xcomposite_LIB}
             ${X11_Xrender_LIB}
             GL
-            ${ALSALIB_LIBRARIES}
-            ${FFTW3_LIBRARIES}
             pthread
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_link_libraries(shadercandy-wallpaper PRIVATE
+                shadercandy_audio_linux
+                ${ALSALIB_LIBRARIES}
+                ${FFTW3_LIBRARIES}
+            )
+        endif()
         
         install(TARGETS shadercandy-wallpaper
             RUNTIME DESTINATION bin
@@ -566,19 +603,27 @@ if(LINUX AND BUILD_SCREENSAVER_WAYLAND)
             ${WAYLAND_CLIENT_INCLUDE_DIRS}
             ${EGL_INCLUDE_DIRS}
             ${GLESV2_INCLUDE_DIRS}
-            ${ALSALIB_INCLUDE_DIRS}
-            ${FFTW3_INCLUDE_DIRS}
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_include_directories(shadercandy-wayland PRIVATE
+                ${ALSALIB_INCLUDE_DIRS}
+                ${FFTW3_INCLUDE_DIRS}
+            )
+        endif()
         target_link_libraries(shadercandy-wayland PRIVATE
             shadercandy_core
-            shadercandy_audio_linux
             ${WAYLAND_CLIENT_LIBRARIES}
             ${EGL_LIBRARIES}
             ${GLESV2_LIBRARIES}
-            ${ALSALIB_LIBRARIES}
-            ${FFTW3_LIBRARIES}
             pthread
         )
+        if(BUILD_AUDIO_ACTUAL)
+            target_link_libraries(shadercandy-wayland PRIVATE
+                shadercandy_audio_linux
+                ${ALSALIB_LIBRARIES}
+                ${FFTW3_LIBRARIES}
+            )
+        endif()
         
         if(WLROOTS_FOUND)
             target_link_libraries(shadercandy-wayland PRIVATE ${WLROOTS_LIBRARIES})
