@@ -4,10 +4,10 @@ ShaderCandy is a cross-platform screensaver application that renders real-time p
 
 ## Key Features
 
-*   **Cross-Platform Native Rendering**: Uses Metal on macOS and OpenGL on Linux for direct hardware access.
-*   **SIMD Optimizations**: Implements SIMD-accelerated math operations for CPU-side calculations (ARM NEON on Apple Silicon, AVX2 on x86_64).
-*   **Modular Shader Architecture**: Provides a shared library of GLSL and Metal shader functions (noise, SDFs, math utilities) to simplify effect creation.
-*   **Hot Reloading**: Automatically reloads and recompiles shaders when source files are modified.
+* **Cross-Platform Native Rendering**: Uses Metal on macOS and OpenGL on Linux for direct hardware access.
+* **SIMD Optimizations**: Implements SIMD-accelerated math operations for CPU-side calculations (ARM NEON on Apple Silicon, AVX2 on x86_64).
+* **Modular Shader Architecture**: Provides a shared library of GLSL and Metal shader functions (noise, SDFs, math utilities) to simplify effect creation.
+* **Hot Reloading**: Automatically reloads and recompiles shaders when source files are modified.
 
 ## Architecture
 
@@ -32,24 +32,24 @@ ShaderCandy/
 
 ### Rendering Pipeline
 
-*   **macOS**: Implements the `ScreenSaverView` interface. Uses a `MTKView` backed by valid Metal device. Renders a full-screen quad using a custom render pipeline state.
-*   **Linux**: Creates an X11 window or targets the root window for screensaver mode. Initializes an OpenGL 3.3+ context.
+* **macOS**: Implements the `ScreenSaverView` interface. Uses a `MTKView` backed by valid Metal device. Renders a full-screen quad using a custom render pipeline state.
+* **Linux**: Creates an X11 window or targets the root window for screensaver mode. Initializes an OpenGL 3.3+ context.
 
 ### Mathematics
 
 The application implements several mathematical concepts for procedural generation:
 
-*   **Noise Functions**: Value Noise, Perlin Noise, Simplex Noise, and Fractal Brownian Motion (FBM).
-*   **Signed Distance Functions (SDFs)**: Primitives (Sphere, Box, Torus) and boolean operations (Union, Intersection, Subtraction) for ray marching.
-*   **Fractals**: 3D fractal rendering including the Mandelbulb.
-*   **Reaction-Diffusion**: Gray-Scott model simulation.
+* **Noise Functions**: Value Noise, Perlin Noise, Simplex Noise, and Fractal Brownian Motion (FBM).
+* **Signed Distance Functions (SDFs)**: Primitives (Sphere, Box, Torus) and boolean operations (Union, Intersection, Subtraction) for ray marching.
+* **Fractals**: 3D fractal rendering including the Mandelbulb.
+* **Reaction-Diffusion**: Gray-Scott model simulation.
 
 ## Building and Installation
 
 ### Prerequisites
 
-*   **macOS**: Xcode Command Line Tools, CMake 3.20+
-*   **Linux**: GCC/Clang, CMake 3.20+, X11 development headers (`libx11-dev`, `libxss-dev`)
+* **macOS**: Xcode Command Line Tools, CMake 3.20+
+* **Linux**: GCC/Clang, CMake 3.20+, X11 development headers (`libx11-dev`, `libxss-dev`)
 
 ### macOS Build
 
@@ -108,9 +108,9 @@ Rough performance metrics on reference hardware (4K resolution):
 
 ## Documentation
 
-*   `docs/mastershaderplan.md`: Development tracking and roadmap.
-*   `docs/IMPLEMENTATION_SUMMARY.md`: Phase 1 implementation details.
-*   `docs/PHASE2_SUMMARY.md`: Phase 2 details.
+* `docs/ShaderCandyMasterPlan.md`: Consolidated project architecture and roadmap.
+* `docs/LinuxFeatures.md`: Detailed Linux-specific implementation guide.
+* `docs/HdrImplementation.md`: High-bit-depth rendering documentation.
 
 ## License
 

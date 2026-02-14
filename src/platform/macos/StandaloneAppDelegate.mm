@@ -79,8 +79,12 @@
   // Load the initial shader
   [self loadInitialShader];
 
-  // Start the render loop
-  [self startRenderLoop];
+  // Listen for parameter changes from UI
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(handleParameterChange:)
+             name:@"ParameterDidChange"
+           object:nil];
 
   _isRunning = YES;
 
@@ -392,7 +396,18 @@
   if (success) {
     _currentShader = shaderName;
     [_windowController onShaderSelected:shaderName];
-    NSLog(@"Switched to shader: %@", shaderName);
+
+    // Apply granular controls for this specific shader
+    std::string sName = [shaderName UTF8String];
+    auto &config = ShaderCandy::Config::ConfigurationManager::getInstance();
+
+    _speed = config.getFloatParameter(sName, "speed");
+    _intensity = config.getFloatParameter(sName, "intensity");
+    _renderer.bloomConfig.enabled = config.getBoolParameter(sName, "bloom");
+
+    NSLog(@"Switched to shader: %@ (Speed: %.2f, Intensity: %.2f, Bloom: %@)",
+          shaderName, _speed, _intensity,
+          _renderer.bloomConfig.enabled ? @"YES" : @"NO");
   } else {
     NSLog(@"Failed to switch to shader '%@': %@", shaderName,
           error.localizedDescription);

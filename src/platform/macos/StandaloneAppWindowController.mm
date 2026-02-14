@@ -10,6 +10,7 @@
 #import "../../metal/MetalRenderer.h"
 #import "../../metal/MetalSharedState.h"
 #import "PreferencesWindowController.h"
+#import "ShaderControlsViewController.h"
 #import "ShadersListViewController.h"
 
 @interface StandaloneAppWindowController () <MetalRendererDelegate,
@@ -26,6 +27,7 @@
 
 // Child view controllers
 @property(nonatomic, strong) ShadersListViewController *shadersListVC;
+@property(nonatomic, strong) ShaderControlsViewController *controlsVC;
 
 // Metrics
 @property(nonatomic, assign) double currentFPS;
@@ -38,7 +40,13 @@
 
 @end
 
-@implementation StandaloneAppWindowController
+@implementation StandaloneAppWindowController {
+  NSView *_shaderListContainer;
+  BOOL _showingShaderList;
+
+  NSView *_controlsContainer;
+  BOOL _showingControls;
+}
 
 #pragma mark - Initialization
 
@@ -49,6 +57,7 @@
     _currentShaderIndex = 0;
     _showingShaderList = NO;
     _showingMetrics = NO;
+    _showingControls = NO;
     _startTime = [NSDate date];
     _shaderStartTime = 0;
 
@@ -65,6 +74,7 @@
     _currentShaderIndex = 0;
     _showingShaderList = NO;
     _showingMetrics = NO;
+    _showingControls = NO;
     _startTime = [NSDate date];
     _shaderStartTime = 0;
   }
@@ -78,6 +88,7 @@
     [self setupWindow];
     [self setupToolbar];
     [self setupShaderList];
+    [self setupControls];
     [self setupMetricsDisplay];
   }
 }
@@ -214,7 +225,13 @@
     item.image = [NSImage imageWithSystemSymbolName:@"gearshape"
                            accessibilityDescription:@"Settings"];
     item.action = @selector(showSettings);
-
+  } else if ([itemIdentifier isEqualToString:@"shaderControls"]) {
+    item.label = @"Controls";
+    item.paletteLabel = @"Shader Controls";
+    item.toolTip = @"Show granular shader controls";
+    item.image = [NSImage imageWithSystemSymbolName:@"slider.horizontal.3"
+                           accessibilityDescription:@"Controls"];
+    item.action = @selector(toggleControls);
   } else {
     return nil;
   }
@@ -226,21 +243,96 @@
     (NSToolbar *)toolbar {
   return @[
     @"shaderSelector", NSToolbarFlexibleSpaceItemIdentifier, @"previous",
-    @"next", NSToolbarFlexibleSpaceItemIdentifier, @"shadersList", @"metrics",
-    @"settings", @"fullscreen"
+    @"next", NSToolbarFlexibleSpaceItemIdentifier, @"shadersList",
+    @"shaderControls", @"metrics", @"settings", @"fullscreen"
   ];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:
     (NSToolbar *)toolbar {
   return @[
-    @"shaderSelector", @"previous", @"next", @"shadersList", @"metrics",
-    @"settings", @"fullscreen", NSToolbarFlexibleSpaceItemIdentifier,
-    NSToolbarSpaceItemIdentifier
+    @"shaderSelector", @"previous", @"next", @"shadersList", @"shaderControls",
+    @"metrics", @"settings", @"fullscreen",
+    NSToolbarFlexibleSpaceItemIdentifier, NSToolbarSpaceItemIdentifier
   ];
 }
 
-#pragma mark - Shader List Setup
+- (void)setupControls {
+  _controlsVC = [[ShaderControlsViewController alloc] init];
+  _controlsVC.onParameterChanged = ^(NSString *name, float value) {
+    if ([name isEqualToString:@"speed"]) {
+      // Notify delegate/app delegate
+      [[NSNotificationCenter defaultCenter]
+          postNotificationName:@"ParameterDidChange"
+                        object:nil
+                      userInfo:@{@"name" : @"speed", @"value" : @(value)}];
+    } else if ([name isEqualToString:@"intensity"]) {
+      [[NSNotificationCenter defaultCenter]
+          postNotificationName:@"ParameterDidChange"
+                        object:nil
+                      userInfo:@{@"name" : @"intensity", @"value" : @(value)}];
+    } else if ([name isEqualToString:@"bloom"]) {
+      [[NSNotificationCenter defaultCenter]
+          postNotificationName:@"ParameterDidChange"
+                        object:nil
+                      userInfo:@{@"name" : @"bloom", @"value" : @(value)}];
+    }
+  };
+}
+
+- (void)toggleControls {
+  [self showControls:!_showingControls];
+}
+
+- (void)showControls:(BOOL)show {
+  _showingControls = show;
+  NSView *contentView = self.window.contentView;
+
+  if (show) {
+    if (!_controlsContainer) {
+      CGFloat width = 200;
+      NSRect frame = NSMakeRect(contentView.bounds.size.width - width, 0, width,
+                                contentView.bounds.size.height);
+      _controlsContainer = [[NSView alloc] initWithFrame:frame];
+      _controlsContainer.autoresizingMask =
+          NSViewHeightSizable | NSViewMinXMargin;
+
+      NSView *controlsView = _controlsVC.view;
+      controlsView.frame = _controlsContainer.bounds;
+      controlsView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+      [_controlsContainer addSubview:controlsView];
+    }
+
+    [contentView addSubview:_controlsContainer];
+
+    // Animate in
+    NSRect frame = _controlsContainer.frame;
+    frame.origin.x = contentView.bounds.size.width;
+    _controlsContainer.frame = frame;
+
+    [NSAnimationContext
+        runAnimationGroup:^(NSAnimationContext *context) {
+          context.duration = 0.3;
+          _controlsContainer.animator.frame =
+              NSMakeRect(contentView.bounds.size.width - 200, 0, 200,
+                         contentView.bounds.size.height);
+        }
+        completionHandler:nil];
+  } else {
+    if (_controlsContainer) {
+      [NSAnimationContext
+          runAnimationGroup:^(NSAnimationContext *context) {
+            context.duration = 0.3;
+            _controlsContainer.animator.frame =
+                NSMakeRect(contentView.bounds.size.width, 0, 200,
+                           contentView.bounds.size.height);
+          }
+          completionHandler:^{
+            [_controlsContainer removeFromSuperview];
+          }];
+    }
+  }
+}
 
 - (void)setupShaderList {
   // Create shaders list view controller
@@ -357,6 +449,13 @@
 
   _currentShader = shaderName;
   _currentShaderIndex = [_availableShaders indexOfObject:shaderName];
+
+  // Update controls if visible
+  if (_controlsVC) {
+    // These will be updated by the AppDelegate soon, but we can set defaults
+    [_controlsVC updateWithSpeed:1.0f intensity:1.0f bloom:NO];
+  }
+
   _shaderStartTime = 0; // Reset timing
 
   // Update UI
