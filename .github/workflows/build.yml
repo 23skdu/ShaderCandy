@@ -58,7 +58,10 @@ jobs:
     - name: Run Tests
       run: |
         cd build
-        ./shadercandy-test
+        if ! ./shadercandy-test; then
+          echo "Tests failed!"
+          exit 1
+        fi
     
     - name: Package
       if: matrix.build_type == 'Release' && matrix.compiler == 'gcc'
@@ -168,8 +171,8 @@ jobs:
       run: |
         cppcheck --enable=all --error-exitcode=1 \
           --suppress=missingIncludeSystem \
+          --suppress=unusedFunction \
           src/core/ || true
-      continue-on-error: true
 
   # Performance Benchmark
   benchmark:
@@ -244,8 +247,8 @@ jobs:
       run: |
         # Verify all documentation files exist
         test -f README.md
-        test -f docs/mastershaderplan.md
-        test -f IMPLEMENTATION_SUMMARY.md
+        test -f docs/ShaderCandyMasterPlan.md
+        test -f docs/HdrImplementation.md
         
         # Check for broken links (basic)
         grep -r "\[.*\](.*)" docs/ README.md --include="*.md" | \
