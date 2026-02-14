@@ -1,10 +1,9 @@
-// ShaderCandy Linux Wallpaper Mode
-// Renders shaders as the desktop wallpaper using X11 root window
-
 #define GL_GLEXT_PROTOTYPES
-
 #include "GLSLWrapper.h"
 #include "LinuxIPC.h"
+#include "LinuxStubs.h"
+
+#ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glx.h>
@@ -13,6 +12,8 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xrender.h>
+#endif
+
 #include <chrono>
 #include <csignal>
 #include <cstring>
@@ -20,13 +21,11 @@
 #include <string>
 #include <sys/stat.h>
 #include <thread>
-#include <vector>
+
+#include "../../audio/AudioInput.h"
+using namespace ShaderCandy::Audio;
 
 using namespace ShaderCandy::Platform::Linux;
-
-// Audio support
-#include "AudioInput.h"
-using namespace ShaderCandy::Audio;
 
 volatile sig_atomic_t running = 1;
 

@@ -1,15 +1,14 @@
-// Enhanced Linux OpenGL Screensaver for ShaderCandy
-// Supports multiple shaders, transitions, audio reactivity, and full uniform
-// compatibility
-#define GL_GLEXT_PROTOTYPES
-
 #include "GLSLWrapper.h"
+#include "LinuxStubs.h"
+#ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <csignal>
@@ -21,12 +20,11 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <vector>
 
 using namespace ShaderCandy::Platform::Linux;
 
 // Audio support
-#include "AudioInput.h"
+#include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
 
 // Extended Uniforms matching common.glsl and ShaderInterop.h
@@ -337,7 +335,7 @@ private:
 
   float mouseX = 0.0f;
   float mouseY = 0.0f;
-  float mouseBtns = 0.0f;
+  int mouseBtns = 0;
 
   // Transition handling
   float transitionProgress = 0.0f;

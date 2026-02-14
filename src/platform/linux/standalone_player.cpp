@@ -1,12 +1,12 @@
-// ShaderCandy Linux Standalone Player
-// A windowed application for browsing and viewing shaders
-
-#define GL_GLEXT_PROTOTYPES
-
 #include "GLSLWrapper.h"
+#include "LinuxStubs.h"
+
+#ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GLFW/glfw3.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -16,13 +16,10 @@
 #include <string>
 #include <sys/stat.h>
 
-using namespace ShaderCandy::Platform::Linux;
-#include <thread>
-#include <vector>
-
-// Audio support
-#include "AudioInput.h"
+#include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
+
+using namespace ShaderCandy::Platform::Linux;
 
 // Uniform structure matching ShaderInterop.h
 struct Uniforms {
@@ -99,7 +96,7 @@ public:
 
   float mouseX = 0.0f;
   float mouseY = 0.0f;
-  float mouseBtns = 0.0f;
+  int mouseBtns = 0;
 
   // Audio
   AudioInput *audioInput = nullptr;
