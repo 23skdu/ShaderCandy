@@ -5,6 +5,9 @@
 //  Infinite spiraling vortex of glowing particles and light
 //
 
+#include "ShaderInterop.h"
+
+using namespace metal;
 using namespace ShaderUtils;
 
 fragment float4 fragment_main(VertexOut in [[stage_in]],
