@@ -9,8 +9,8 @@
 using namespace metal;
 
 kernel void blendNeuralStyle(
-    texture2d<float, access::read> original [[texture(0)]],
-    texture2d<float, access::read> styled [[texture(1)]],
+    texture2d<float, access::sample> original [[texture(0)]],
+    texture2d<float, access::sample> styled [[texture(1)]],
     texture2d<float, access::write> output [[texture(2)]],
     constant float &strength [[buffer(0)]],
     uint2 gid [[thread_position_in_grid]]
@@ -29,7 +29,7 @@ kernel void blendNeuralStyle(
 
 // Fast style transfer preprocessing
 kernel void preprocessForStyleTransfer(
-    texture2d<float, access::read> input [[texture(0)]],
+    texture2d<float, access::sample> input [[texture(0)]],
     texture2d<float, access::write> output [[texture(1)]],
     constant float2 &inputSize [[buffer(0)]],
     constant float2 &outputSize [[buffer(1)]],
@@ -52,7 +52,7 @@ kernel void preprocessForStyleTransfer(
 
 // Post-processing after style transfer
 kernel void postprocessStyleTransfer(
-    texture2d<float, access::read> input [[texture(0)]],
+    texture2d<float, access::sample> input [[texture(0)]],
     texture2d<float, access::write> output [[texture(1)]],
     constant float &saturation [[buffer(0)]],
     constant float &contrast [[buffer(1)]],

@@ -7,10 +7,7 @@ float sdRoundBox(float3 p, float3 b, float r) {
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;
 }
 
-float sdBox(float3 p, float3 b) {
-    float3 q = abs(p) - b;
-    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
+// function sdBox removed (using utils.metal version)
 
 // Rotation matrix
 float3x3 rotateY(float a) {

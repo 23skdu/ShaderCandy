@@ -19,7 +19,8 @@
 @property(nonatomic, strong) NSString *currentShader;
 @property(nonatomic, assign) BOOL isRunning;
 
-// Screenshot functionality
-- (void)saveScreenshot;
+@end
 
+@interface StandaloneAppDelegate (Screenshot)
+- (void)saveScreenshot;
 @end

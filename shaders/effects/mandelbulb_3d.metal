@@ -1,12 +1,19 @@
 // Mandelbulb 3D Fractal
-// Raymarching implementation
+// Raymarching implementation with Pulsating Power and Colors
+
+#include "ShaderInterop.h"
+#include "utils.metal"
+
+using namespace metal;
 
 // Mandelbulb distance estimator
-float map(float3 p, thread float& trap) {
+float map(float3 p, thread float& trap, float time) {
     float3 z = p;
     float dr = 1.0;
     float r = 0.0;
-    float Power = 8.0;
+    
+    // Pulsate Power between 2 and 10
+    float Power = 6.0 + 4.0 * sin(time * 0.5);
     
     for (int i = 0; i < 8; i++) {
         r = length(z);
@@ -31,13 +38,13 @@ float map(float3 p, thread float& trap) {
     return 0.5 * log(r) * r / dr;
 }
 
-float3 getNormal(float3 p) {
+float3 getNormal(float3 p, float time) {
     float dummy = 0.0;
     float2 e = float2(0.001, 0.0);
     return normalize(float3(
-        map(p + e.xyy, dummy) - map(p - e.xyy, dummy),
-        map(p + e.yxy, dummy) - map(p - e.yxy, dummy),
-        map(p + e.yyx, dummy) - map(p - e.yyx, dummy)
+        map(p + e.xyy, dummy, time) - map(p - e.xyy, dummy, time),
+        map(p + e.yxy, dummy, time) - map(p - e.yxy, dummy, time),
+        map(p + e.yyx, dummy, time) - map(p - e.yyx, dummy, time)
     ));
 }
 
@@ -65,21 +72,21 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     
     for (int i = 0; i < 128; i++) {
         p = ro + rd * t_dist;
-        d = map(p, trap);
+        d = map(p, trap, uniforms.time);
         if (d < 0.001 || t_dist > 10.0) break;
         t_dist += d;
     }
     
     float3 color = float3(0.0);
     if (t_dist < 10.0) {
-        float3 norm = getNormal(p);
+        float3 norm = getNormal(p, uniforms.time);
         float3 lightPos = float3(5.0, 5.0, 5.0);
         float3 lightDir = normalize(lightPos - p);
         float diff = max(0.0, dot(norm, lightDir));
         
-        // Coloring based on orbit trap
-        float3 trapColor = 0.5 + 0.5 * sin(float3(trap * 3.0, trap * 3.0 + 2.0, trap * 3.0 + 4.0));
-        color = trapColor * (diff + 0.1);
+        // Coloring based on orbit trap and time
+        float3 baseCol = hsv2rgb(float3(fract(trap * 0.2 + uniforms.time * 0.1), 0.8, 1.0));
+        color = baseCol * (diff + 0.1);
         
         // Fog
         color = mix(color, float3(0.0), 1.0 - exp(-0.1 * t_dist));

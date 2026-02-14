@@ -1,4 +1,4 @@
-#include "../base/common.metal"
+// #include "common.metal" (Removed for runtime compatibility)
 
 // Threadgroup memory for optimized local interactions
 #define GROUP_SIZE 512
@@ -87,7 +87,7 @@ vertex ParticleOut vertex_particles(device Particle *particles [[buffer(0)]],
 }
 
 // Render Pass (Fragment - Branchless)
-fragment float4 fragment_particles(ParticleOut in [[stage_in]],
+fragment float4 fragment_main(ParticleOut in [[stage_in]],
                                   float2 pointCoord [[point_coord]]) {
     // Soft round point
     float d = length(pointCoord - 0.5);

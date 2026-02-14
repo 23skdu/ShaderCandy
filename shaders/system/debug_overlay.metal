@@ -1,14 +1,14 @@
 #include <metal_stdlib>
-#include "../../src/core/ShaderInterop.h"
+// #include "ShaderInterop.h" (Auto-included)
 
 using namespace metal;
 
-struct VertexOut {
+/* struct VertexOut {
     float4 position [[position]];
     float2 texCoord;
-};
+}; */
 
-fragment float4 debug_overlay_fragment(VertexOut in [[stage_in]],
+fragment float4 fragment_main(VertexOut in [[stage_in]],
                                        constant Uniforms &uniforms [[buffer(0)]]) {
     float2 uv = in.texCoord;
     

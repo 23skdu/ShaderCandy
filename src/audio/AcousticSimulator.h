@@ -19,16 +19,16 @@
 @property(nonatomic, assign) BOOL enableDoppler;
 @property(nonatomic, assign) BOOL binauralEnabled;
 
-+ (instancetype)sharedSimulator;
++ (instancetype _Nonnull)sharedSimulator;
 
-- (BOOL)initializeWithDevice:(id<MTLDevice>)device error:(NSError **)error;
+- (BOOL)initializeWithDevice:(id<MTLDevice> _Nonnull)device error:(NSError * _Nullable * _Null_unspecified)error;
 - (void)shutdown;
 
-- (void)setSceneGeometry:(id<MTLTexture>)geometryTexture;
+- (void)setSceneGeometry:(id<MTLTexture> _Nullable)geometryTexture;
 - (void)setAudioSource:(simd_float3)position frequency:(float)hz;
 - (void)setListenerPosition:(simd_float3)position;
 
-- (id<MTLTexture>)renderAcousticField;
+- (id<MTLTexture> _Nullable)renderAcousticField;
 - (float)getEnergyAtPosition:(simd_float3)position;
 - (float)getImpulseResponseAtPosition:(simd_float3)position time:(float)time;
 

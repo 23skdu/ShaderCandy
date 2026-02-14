@@ -3,7 +3,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct Uniforms {
+/* struct Uniforms {
     float time;
     float2 resolution;
     float2 mouse;
@@ -12,20 +12,17 @@ struct Uniforms {
     float bass;
     float mid;
     float treble;
-};
+}; */
 
-float random(float2 st) {
-    return fract(sin(dot(st.xy, float2(12.9898, 78.233))) * 43758.5453123);
-}
 
 // Pixelate coordinates
 float2 pixelate(float2 uv, float pixels) {
     return floor(uv * pixels) / pixels;
 }
 
-fragment float4 eightbit_fragment(VertexOut in [[stage_in]],
+fragment float4 fragment_main(VertexOut in [[stage_in]],
                                  constant Uniforms& u [[buffer(0)]]) {
-    float2 uv = in.uv;
+    float2 uv = in.texCoord;
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     
@@ -115,7 +112,7 @@ fragment float4 eightbit_fragment(VertexOut in [[stage_in]],
     col *= bassScale;
     
     // Treble - sparkle effect
-    float sparkle = random(pixelUV + floor(t * 10.0) * 0.1);
+    float sparkle = custom_random(pixelUV + floor(t * 10.0) * 0.1);
     sparkle = step(0.97, sparkle) * u.treble;
     col += float3(1.0, 1.0, 0.8) * sparkle;
     

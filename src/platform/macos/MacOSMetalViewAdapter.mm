@@ -79,6 +79,120 @@
   self.wantsLayer = YES;
   NSLog(@"MacOSMetalViewAdapter: Initializing with frame %@",
         NSStringFromRect(self.bounds));
+
+  // Pre-discover shaders early so they're available for configureSheet
+  // We need to do this without Metal device to populate the menu
+  [self discoverShadersEarly];
+}
+
+// Discover shaders early without requiring Metal device
+- (void)discoverShadersEarly {
+  NSMutableArray *shaders = [NSMutableArray array];
+  NSFileManager *fm = [NSFileManager defaultManager];
+  
+  // Try multiple paths to find shaders
+  NSArray *pathsToTry = @[];
+  
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSString *resourcePath = [bundle resourcePath];
+  NSString *bundlePath = [bundle bundlePath];
+  
+  // Build list of paths to try
+  NSMutableArray *candidates = [NSMutableArray array];
+  
+  // Standard resource path
+  [candidates addObject:[resourcePath stringByAppendingPathComponent:@"shaders"]];
+  // Bundle Contents/Resources path
+  [candidates addObject:[bundlePath stringByAppendingPathComponent:@"Contents/Resources/shaders"]];
+  // Direct in Resources
+  [candidates addObject:[resourcePath stringByAppendingPathComponent:@"Resources/shaders"]];
+  // Parent bundle's shaders
+  [candidates addObject:[[bundlePath stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"shaders"]];
+  
+  NSString *shadersPath = nil;
+  for (NSString *candidate in candidates) {
+    BOOL isDir = NO;
+    if ([fm fileExistsAtPath:candidate isDirectory:&isDir] && isDir) {
+      shadersPath = candidate;
+      NSLog(@"MacOSMetalViewAdapter: Found shaders at: %@", shadersPath);
+      break;
+    }
+  }
+  
+  if (!shadersPath) {
+    NSLog(@"MacOSMetalViewAdapter: Shaders directory not found in any location, using defaults");
+    _availableShaders = @[
+      @"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb",
+      @"mandelbrot", @"julia_set", @"reaction_diffusion", @"starfield_warp",
+      @"cosmic_kaleido", @"vortex_dream", @"quantum_crystalline"
+    ];
+    return;
+  }
+
+  // Scan for .metal files
+  NSDirectoryEnumerator *enumerator =
+      [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
+          includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
+                             options:NSDirectoryEnumerationSkipsHiddenFiles
+                        errorHandler:nil];
+
+  for (NSURL *fileURL in enumerator) {
+    NSString *fileName;
+    [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
+
+    NSNumber *isDirectory;
+    [fileURL getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:nil];
+
+    if (![isDirectory boolValue] && [fileName hasSuffix:@".metal"]) {
+      NSString *name = [fileName stringByDeletingPathExtension];
+      // Skip utility shaders
+      if (![name isEqualToString:@"common"] &&
+          ![name isEqualToString:@"utils"] &&
+          ![name isEqualToString:@"ShaderInterop"] &&
+          ![name isEqualToString:@"bloom"] &&
+          ![name isEqualToString:@"particles"] &&
+          ![name isEqualToString:@"debug_overlay"]) {
+        [shaders addObject:name];
+      }
+    }
+  }
+
+  // Also look in subdirectories (effects, music, etc.)
+  NSArray *subDirs = @[@"effects", @"music", @"neural", @"audio", @"system"];
+  for (NSString *subDir in subDirs) {
+    NSString *subPath = [shadersPath stringByAppendingPathComponent:subDir];
+    if ([fm fileExistsAtPath:subPath]) {
+      NSDirectoryEnumerator *subEnum =
+          [fm enumeratorAtURL:[NSURL fileURLWithPath:subPath]
+              includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
+                                 options:NSDirectoryEnumerationSkipsHiddenFiles
+                            errorHandler:nil];
+      for (NSURL *fileURL in subEnum) {
+        NSString *fileName;
+        [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
+        if ([fileName hasSuffix:@".metal"]) {
+          NSString *name = [fileName stringByDeletingPathExtension];
+          if (![shaders containsObject:name]) {
+            [shaders addObject:name];
+          }
+        }
+      }
+    }
+  }
+
+  [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+
+  // Always ensure we have at least one shader
+  if (shaders.count == 0) {
+    shaders = [@[
+      @"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb",
+      @"mandelbrot", @"julia_set", @"reaction_diffusion", @"starfield_warp"
+    ] mutableCopy];
+  }
+
+  _availableShaders = [shaders copy];
+  NSLog(@"MacOSMetalViewAdapter: Early discovered %lu shaders: %@",
+        (unsigned long)_availableShaders.count, _availableShaders);
 }
 
 - (void)setFrame:(NSRect)frame {
@@ -113,11 +227,14 @@
   if (self.mtkView)
     return;
 
-  // We allow small frames for isPreview, but not zero.
+  // For zero bounds, always defer
   if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
-    NSLog(@"MacOSMetalViewAdapter: Frame too small (%@), deferring Metal setup",
-          NSStringFromRect(self.bounds));
-    return;
+    // For preview mode with tiny but non-zero bounds, try anyway
+    if (!self.isPreview || NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
+      NSLog(@"MacOSMetalViewAdapter: Frame too small (%@), deferring Metal setup",
+            NSStringFromRect(self.bounds));
+      return;
+    }
   }
 
   NSLog(@"MacOSMetalViewAdapter: Setting up Metal for %@ view...",
@@ -158,8 +275,15 @@
   [_renderer setBloomEnabled:_enableBloom];
   [_renderer setViewportSize:self.mtkView.drawableSize];
 
-  // Discover shaders
-  _availableShaders = [_renderer availableShaderNames];
+  // Discover shaders - prefer renderer discovery but use early discovery as fallback
+  NSArray *rendererShaders = [_renderer availableShaderNames];
+  if (rendererShaders.count > 0) {
+    _availableShaders = rendererShaders;
+  } else if (_availableShaders.count == 0) {
+    // If neither discovery worked, use defaults
+    _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb"];
+  }
+  NSLog(@"MacOSMetalViewAdapter: Final shader list: %@", _availableShaders);
 
   // Load default/saved shader
   if (_availableShaders.count > 0) {
@@ -184,10 +308,33 @@
     return;
 
   NSError *error = nil;
-  [_renderer setActiveShader:_currentShaderName error:&error];
-  if (error) {
+  BOOL success = [_renderer setActiveShader:_currentShaderName error:&error];
+  
+  if (!success && error) {
     NSLog(@"MacOSMetalViewAdapter: Failed to load shader '%@': %@",
           _currentShaderName, error);
+    
+    // Try other shaders as fallback
+    for (NSString *shaderName in _availableShaders) {
+      if ([shaderName isEqualToString:_currentShaderName])
+        continue;
+      
+      NSError *fallbackError = nil;
+      if ([_renderer setActiveShader:shaderName error:&fallbackError]) {
+        NSLog(@"MacOSMetalViewAdapter: Successfully loaded fallback shader '%@'", shaderName);
+        _currentShaderName = shaderName;
+        return;
+      }
+    }
+    
+    // Last resort: try loading "default" directly
+    NSError *defaultError = nil;
+    if ([_renderer setActiveShader:@"default" error:&defaultError]) {
+      _currentShaderName = @"default";
+      return;
+    }
+    
+    NSLog(@"MacOSMetalViewAdapter: ALL shaders failed to load");
   }
 }
 
@@ -285,12 +432,14 @@
 - (void)keyDown:(NSEvent *)event {
   NSString *chars = [event charactersIgnoringModifiers];
   if ([chars isEqualToString:@"d"] || [chars isEqualToString:@"D"]) {
-    _renderer.showDebugOverlay = !_renderer.showDebugOverlay;
-    // Save state
-    ScreenSaverDefaults *defaults = [ScreenSaverDefaults
-        defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-    [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
-    [defaults synchronize];
+    if (_renderer) {
+      _renderer.showDebugOverlay = !_renderer.showDebugOverlay;
+      // Save state
+      ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+          defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+      [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
+      [defaults synchronize];
+    }
   } else if ([chars isEqualToString:@"s"] || [chars isEqualToString:@"S"]) {
     // Screenshot shortcut for screensaver
     [self saveScreenshot];
@@ -460,9 +609,9 @@ destinationBytesPerImage:bytesPerImage];
 }
 
 - (NSWindow *)configureSheet {
-  if (self.configPanel) {
-    return self.configPanel;
-  }
+  // Always create fresh panel to ensure shaders list is current
+  // (previous panels might have been created before shader discovery)
+  self.configPanel = nil;
 
   NSPanel *window = [[NSPanel alloc]
       initWithContentRect:NSMakeRect(0, 0, 320, 420)
@@ -475,6 +624,9 @@ destinationBytesPerImage:bytesPerImage];
   NSView *contentView =
       [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 420)];
   [window setContentView:contentView];
+  
+  // Debug log
+  NSLog(@"MacOSMetalViewAdapter: configureSheet called, shaders: %@", _availableShaders);
 
   int y = 380;
 
@@ -576,8 +728,14 @@ destinationBytesPerImage:bytesPerImage];
       [[NSButton alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
   [metricsCheck setButtonType:NSButtonTypeSwitch];
   [metricsCheck setTitle:@"Show Performance Metrics"];
-  [metricsCheck setState:_renderer.showDebugOverlay ? NSControlStateValueOn
-                                                    : NSControlStateValueOff];
+  // Use defaults if renderer not yet initialized
+  ScreenSaverDefaults *defaults = [ScreenSaverDefaults
+      defaultsForModuleWithName:@"com.shadercandy.screensaver"];
+  BOOL showMetrics = [defaults boolForKey:@"showMetrics"];
+  if (_renderer && _renderer.showDebugOverlay) {
+    showMetrics = _renderer.showDebugOverlay;
+  }
+  [metricsCheck setState:showMetrics ? NSControlStateValueOn : NSControlStateValueOff];
   [metricsCheck setTarget:self];
   [metricsCheck setAction:@selector(metricsChanged:)];
   [contentView addSubview:metricsCheck];
@@ -589,9 +747,11 @@ destinationBytesPerImage:bytesPerImage];
       [[NSButton alloc] initWithFrame:NSMakeRect(100, y, 200, 20)];
   [autoScaleCheck setButtonType:NSButtonTypeSwitch];
   [autoScaleCheck setTitle:@"Performance Auto-Scaling"];
-  [autoScaleCheck setState:_renderer.autoScalingEnabled
-                               ? NSControlStateValueOn
-                               : NSControlStateValueOff];
+  BOOL autoScaling = [defaults boolForKey:@"autoScaling"];
+  if (_renderer && _renderer.autoScalingEnabled) {
+    autoScaling = _renderer.autoScalingEnabled;
+  }
+  [autoScaleCheck setState:autoScaling ? NSControlStateValueOn : NSControlStateValueOff];
   [autoScaleCheck setTarget:self];
   [autoScaleCheck setAction:@selector(autoScaleChanged:)];
   [contentView addSubview:autoScaleCheck];
@@ -662,19 +822,25 @@ destinationBytesPerImage:bytesPerImage];
 }
 
 - (void)metricsChanged:(id)sender {
-  _renderer.showDebugOverlay =
-      [(NSButton *)sender state] == NSControlStateValueOn;
+  BOOL value = [(NSButton *)sender state] == NSControlStateValueOn;
+  // Update renderer if available, otherwise just save to defaults
+  if (_renderer) {
+    _renderer.showDebugOverlay = value;
+  }
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
+  [defaults setBool:value forKey:@"showMetrics"];
 }
 
 - (void)autoScaleChanged:(id)sender {
-  _renderer.autoScalingEnabled =
-      [(NSButton *)sender state] == NSControlStateValueOn;
+  BOOL value = [(NSButton *)sender state] == NSControlStateValueOn;
+  // Update renderer if available, otherwise just save to defaults
+  if (_renderer) {
+    _renderer.autoScalingEnabled = value;
+  }
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
-  [defaults setBool:_renderer.autoScalingEnabled forKey:@"autoScaling"];
+  [defaults setBool:value forKey:@"autoScaling"];
 }
 
 - (void)soundscapeChanged:(id)sender {
@@ -687,12 +853,21 @@ destinationBytesPerImage:bytesPerImage];
 }
 
 - (void)closeConfig:(id)sender {
+  // Save settings
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
   [defaults synchronize];
 
+  // Dismiss the config panel
+  // For screensaver config sheets, the system handles dismissal automatically
+  // after this method returns. Just release our reference.
   if (self.configPanel) {
-    [self.configPanel orderOut:nil];
+    // Try to close as sheet first
+    NSWindow *sheetParent = self.configPanel.sheetParent;
+    if (sheetParent) {
+      [sheetParent endSheet:self.configPanel returnCode:NSModalResponseOK];
+    }
+    [self.configPanel close];
     self.configPanel = nil;
   }
 }

@@ -43,7 +43,7 @@ check_prerequisites() {
 
 # Build project
 build_project() {
-    echo "Building ShaderCandy..."
+    echo "Building ShaderCandy and Player..."
     
     cd "$PROJECT_ROOT"
     
@@ -57,18 +57,30 @@ build_project() {
         -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
         -DBUILD_METAL=ON \
         -DBUILD_OPENGL=OFF \
-        -DBUILD_SCREENSAVER_MACOS=ON
+        -DBUILD_SCREENSAVER_MACOS=ON \
+        -DBUILD_STANDALONE_APP=ON
     
-    # Build
-    echo "Compiling..."
+    # Build Screensaver
+    echo "Compiling Screensaver..."
     xcodebuild -project ShaderCandy.xcodeproj \
                -scheme ShaderCandy \
+               -configuration Release \
+               -derivedDataPath ./DerivedData
+
+    # Build Player
+    echo "Compiling Player..."
+    xcodebuild -project ShaderCandy.xcodeproj \
+               -scheme ShaderCandyPlayer \
                -configuration Release \
                -derivedDataPath ./DerivedData
     
     echo "Build completed!"
     echo ""
 }
+
+# Explicitly set compiler to system clang to avoid CMake detection issues
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
 
 # Alternative build using make
 build_with_make() {
@@ -83,7 +95,8 @@ build_with_make() {
         -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
         -DBUILD_METAL=ON \
         -DBUILD_OPENGL=OFF \
-        -DBUILD_SCREENSAVER_MACOS=ON
+        -DBUILD_SCREENSAVER_MACOS=ON \
+        -DBUILD_STANDALONE_APP=ON
     
     make -j$(sysctl -n hw.ncpu)
     
@@ -151,58 +164,49 @@ install_screensaver() {
     fi
 }
 
-# Create standalone app bundle
+# Create standalone app bundle (Installing the one we built)
 create_app_bundle() {
-    read -p "Create standalone app bundle? (y/N) " -n 1 -r
+    read -p "Install standalone player app? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        APP_DIR="$PROJECT_ROOT/build/ShaderCandy.app"
+        # Find built app bundle
+        APP_BUNDLE=""
         
-        mkdir -p "$APP_DIR/Contents/MacOS"
-        mkdir -p "$APP_DIR/Contents/Resources"
-        
-        # Create Info.plist
-        cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>ShaderCandy</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.shadercandy.app</string>
-    <key>CFBundleName</key>
-    <string>ShaderCandy</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>11.0</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-</dict>
-</plist>
-EOF
-        
-        # Create launcher script
-        cat > "$APP_DIR/Contents/MacOS/ShaderCandy" << 'EOF'
-#!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$DIR/../Resources"
-exec "$DIR/shadercandy-bin"
-EOF
-        chmod +x "$APP_DIR/Contents/MacOS/ShaderCandy"
-        
-        echo "App bundle created at: $APP_DIR"
-        echo ""
+        # Check CMake build directory
+        if [ -d "$PROJECT_ROOT/build/ShaderCandyPlayer.app" ]; then
+            APP_BUNDLE="$PROJECT_ROOT/build/ShaderCandyPlayer.app"
+        # Check Make build directory
+        elif [ -d "$PROJECT_ROOT/build-make/ShaderCandyPlayer.app" ]; then
+            APP_BUNDLE="$PROJECT_ROOT/build-make/ShaderCandyPlayer.app"
+        # Check Xcode DerivedData
+        elif [ -d "$PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandyPlayer.app" ]; then
+            APP_BUNDLE="$PROJECT_ROOT/build/DerivedData/Build/Products/Release/ShaderCandyPlayer.app"
+        # Check Xcode build directory
+        elif [ -d "$PROJECT_ROOT/build/Build/Products/Release/ShaderCandyPlayer.app" ]; then
+            APP_BUNDLE="$PROJECT_ROOT/build/Build/Products/Release/ShaderCandyPlayer.app"
+        else
+            echo "Error: Could not find built Player app bundle"
+            echo "Please check build logs."
+            return
+        fi
+
+        echo "Found player app at: $APP_BUNDLE"
         
         # Copy to Applications
         read -p "Copy to /Applications? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            cp -R "$APP_DIR" "/Applications/"
-            echo "App installed to /Applications!"
+            # Remove existing
+            if [ -d "/Applications/ShaderCandy Player.app" ]; then
+                rm -rf "/Applications/ShaderCandy Player.app"
+            fi
+            
+            cp -R "$APP_BUNDLE" "/Applications/"
+            echo "App installed to /Applications/ShaderCandy Player.app"
+            echo ""
+        else
+            echo "App bundle is located at: $APP_BUNDLE"
+            echo "You can run it from there."
             echo ""
         fi
     fi
@@ -274,10 +278,22 @@ uninstall_screensaver() {
     fi
     
     # Remove App Bundle from Applications
-    APP_BUNDLE="/Applications/ShaderCandy.app"
-    if [ -d "$APP_BUNDLE" ]; then
-        echo "Removing Application..."
-        rm -rf "$APP_BUNDLE"
+    # Remove both ShaderCandy.app and ShaderCandy Player.app just in case
+    for app_name in "ShaderCandy.app" "ShaderCandy Player.app"; do
+        APP_BUNDLE="/Applications/$app_name"
+        if [ -d "$APP_BUNDLE" ]; then
+            echo "Removing Application: $app_name..."
+            rm -rf "$APP_BUNDLE"
+        fi
+    done
+
+    # Remove build artifacts
+    echo "Cleaning up build artifacts..."
+    if [ -d "$PROJECT_ROOT/build" ]; then
+        rm -rf "$PROJECT_ROOT/build"
+    fi
+    if [ -d "$PROJECT_ROOT/build-make" ]; then
+        rm -rf "$PROJECT_ROOT/build-make"
     fi
     
     echo "Uninstallation complete!"

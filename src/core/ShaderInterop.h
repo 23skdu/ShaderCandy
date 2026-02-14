@@ -1,17 +1,10 @@
 #ifndef SHADER_INTEROP_H
 #define SHADER_INTEROP_H
 
+// Metal shaders include metal_stdlib before this file
+// For non-Metal C++ code, we need these includes
 #ifndef __METAL_VERSION__
 #include <cstdint>
-#endif
-
-#ifdef __METAL_VERSION__
-#include <metal_stdlib>
-using namespace metal;
-#define ATTR(n) [[attribute(n)]]
-#define POSITION [[position]]
-#else
-// Platform-specific SIMD types
 #if defined(__APPLE__)
 #include <simd/simd.h>
 typedef simd_float2 vector_float2;
@@ -35,6 +28,18 @@ typedef struct {
   float w;
 } vector_float4;
 #endif
+#endif
+
+// When used in Metal, use the metal attributes
+#ifdef __METAL_VERSION__
+#include <metal_stdlib>
+using namespace metal;
+typedef float2 vector_float2;
+typedef float3 vector_float3;
+typedef float4 vector_float4;
+#define ATTR(n) [[attribute(n)]]
+#define POSITION [[position]]
+#else
 #define ATTR(n)
 #define POSITION
 #endif
