@@ -1,7 +1,7 @@
 #include "../core/ShaderInterop.h"
 
 // Threshold kernel - isolates bright spots
-fragment float4 bloom_threshold(VertexOut in [[stage_in]],
+fragment float4 fragment_main(VertexOut in [[stage_in]],
                                texture2d<float> sceneTexture [[texture(0)]],
                                sampler s [[sampler(0)]]) {
     float4 color = sceneTexture.sample(s, in.texCoord);

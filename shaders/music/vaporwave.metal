@@ -3,7 +3,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct Uniforms {
+/* struct Uniforms {
     float time;
     float2 resolution;
     float2 mouse;
@@ -12,7 +12,7 @@ struct Uniforms {
     float bass;
     float mid;
     float treble;
-};
+}; */
 
 float sdCircle(float2 p, float r) {
     return length(p) - r;
@@ -23,9 +23,9 @@ float gridLine(float2 p, float spacing) {
     return min(g.x, g.y);
 }
 
-fragment float4 vaporwave_fragment(VertexOut in [[stage_in]],
+fragment float4 fragment_main(VertexOut in [[stage_in]],
                                   constant Uniforms& u [[buffer(0)]]) {
-    float2 uv = in.uv;
+    float2 uv = in.texCoord;
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     

@@ -16,14 +16,14 @@
 #import "MetalSharedState.h"
 #import "ShaderCompiler.h"
 #import <MetalKit/MetalKit.h>
-#import <objc/runtime.h>
 #import <mach/mach.h>
 #import <mach/vm_statistics.h>
 #include <memory>
+#import <objc/runtime.h>
 
 // One-shot hook used by the macOS screenshot utility.
 typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
-                                      id<MTLTexture> sourceTexture);
+                                       id<MTLTexture> sourceTexture);
 
 #pragma mark - Error Implementation
 
@@ -302,22 +302,22 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     _autoScaleFPSThreshold = 55.0f;
     _calendar = [NSCalendar currentCalendar];
     _dateComponents = [[NSDateComponents alloc] init];
-    
+
     // Frame synchronization defaults
     _adaptiveSyncEnabled = YES;
     _framePacingEnabled = YES;
     _targetFrameTime = 1.0 / 60.0;
-    
+
     // Dynamic resolution defaults
     _dynamicResolutionEnabled = NO;
     _resolutionScale = 1.0f;
     _maxTextureDimension = 8192.0f;
-    
+
     // Memory management defaults (will be adjusted based on device)
     _maxMemoryBudgetBytes = 256 * 1024 * 1024; // 256MB default
     _currentMemoryUsageBytes = 0;
     _aggressiveMemoryPurge = NO;
-    
+
     // Performance state
     _isThermalThrottling = NO;
     _thermalLevel = 0.0f;
@@ -347,9 +347,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   }
 
   _deviceInfo = [[MetalDeviceInfo alloc] initWithDevice:_device];
-  
-  // Configure memory budget and texture limits based on device capabilities
-  [self configureDeviceCapabilities];
 
   // Create command queue
   _commandQueue = [_device newCommandQueue];
@@ -368,6 +365,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   _resourcePool = [[MetalResourcePool alloc] initWithDevice:_device];
   _performanceReporter =
       [[MTLPerformanceReporter alloc] initWithDevice:_device];
+
+  // Configure memory budget and texture limits based on device capabilities
+  [self configureDeviceCapabilities];
 
   // Initialize heap manager with error handling
   _heapManager = [[MetalHeapManager alloc]
@@ -456,61 +456,69 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 #pragma mark - Device Capabilities
 
 - (void)configureDeviceCapabilities {
-  if (!_device) return;
-  
+  if (!_device)
+    return;
+
   NSUInteger recommendedWorkingSet = _device.recommendedMaxWorkingSetSize;
-  
+
   // Set memory budget to 50% of recommended working set to leave headroom
   _maxMemoryBudgetBytes = recommendedWorkingSet / 2;
-  
+
   // Adjust texture limits based on device
   if ([_device supportsFamily:MTLGPUFamilyApple3]) {
-    _maxTextureDimension = 16384.0f;  // Apple Silicon can handle 16K textures
+    _maxTextureDimension = 16384.0f; // Apple Silicon can handle 16K textures
   } else if ([_device supportsFamily:MTLGPUFamilyApple2]) {
-    _maxTextureDimension = 8192.0f;   // Older Apple Silicon supports 8K
+    _maxTextureDimension = 8192.0f; // Older Apple Silicon supports 8K
   } else if ([_device supportsFamily:MTLGPUFamilyMac2]) {
-    _maxTextureDimension = 16384.0f;  // Modern Mac GPUs
+    _maxTextureDimension = 16384.0f; // Modern Mac GPUs
   } else {
-    _maxTextureDimension = 8192.0f;   // Fallback
+    _maxTextureDimension = 8192.0f; // Fallback
   }
-  
+
   // Enable dynamic resolution for high-res displays by default
-  CGSize screenSize = [NSScreen mainScreen].frame.size;
-  if (screenSize.width >= 3840 || screenSize.height >= 2160) {
-    _dynamicResolutionEnabled = YES;
-    _resolutionScale = 0.75f; // Start at 75% for 4K+
-    NSLog(@"MetalRenderer: 4K+ display detected, enabling dynamic resolution");
+  NSScreen *mainScreen = [NSScreen mainScreen];
+  if (mainScreen) {
+    CGSize screenSize = mainScreen.frame.size;
+    if (screenSize.width >= 3840 || screenSize.height >= 2160) {
+      _dynamicResolutionEnabled = YES;
+      _resolutionScale = 0.75f; // Start at 75% for 4K+
+      NSLog(
+          @"MetalRenderer: 4K+ display detected, enabling dynamic resolution");
+    }
   }
-  
+
   // Configure resource pool with adjusted limits
   _resourcePool.maxMemoryUsageBytes = _maxMemoryBudgetBytes;
-  
-  NSLog(@"MetalRenderer: Configured for device %@ - Memory budget: %luMB, Max texture: %.0f",
-        _device.name, (unsigned long)(_maxMemoryBudgetBytes / 1024 / 1024), _maxTextureDimension);
+
+  NSLog(@"MetalRenderer: Configured for device %@ - Memory budget: %luMB, Max "
+        @"texture: %.0f",
+        _device.name, (unsigned long)(_maxMemoryBudgetBytes / 1024 / 1024),
+        _maxTextureDimension);
 }
 
 - (void)updateThermalState {
 #if TARGET_OS_MAC
-  NSProcessInfoThermalState thermalState = [[NSProcessInfo processInfo] thermalState];
+  NSProcessInfoThermalState thermalState =
+      [[NSProcessInfo processInfo] thermalState];
   switch (thermalState) {
-    case NSProcessInfoThermalStateNominal:
-      _thermalLevel = 0.0f;
-      _isThermalThrottling = NO;
-      break;
-    case NSProcessInfoThermalStateFair:
-      _thermalLevel = 0.33f;
-      _isThermalThrottling = NO;
-      break;
-    case NSProcessInfoThermalStateSerious:
-      _thermalLevel = 0.66f;
-      _isThermalThrottling = YES;
-      break;
-    case NSProcessInfoThermalStateCritical:
-      _thermalLevel = 1.0f;
-      _isThermalThrottling = YES;
-      break;
+  case NSProcessInfoThermalStateNominal:
+    _thermalLevel = 0.0f;
+    _isThermalThrottling = NO;
+    break;
+  case NSProcessInfoThermalStateFair:
+    _thermalLevel = 0.33f;
+    _isThermalThrottling = NO;
+    break;
+  case NSProcessInfoThermalStateSerious:
+    _thermalLevel = 0.66f;
+    _isThermalThrottling = YES;
+    break;
+  case NSProcessInfoThermalStateCritical:
+    _thermalLevel = 1.0f;
+    _isThermalThrottling = YES;
+    break;
   }
-  
+
   // Apply thermal throttling - reduce quality and target FPS
   if (_isThermalThrottling) {
     if (_preferredFPS > 30.0f) {
@@ -715,13 +723,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   if (size.width <= 0 || size.height <= 0) {
     size = CGSizeMake(1920, 1080);
   }
-  
+
   // Apply dynamic resolution scaling for ultra-high resolution displays
   CGSize renderSize = size;
   if (_dynamicResolutionEnabled && _resolutionScale < 1.0f) {
     renderSize.width = size.width * _resolutionScale;
     renderSize.height = size.height * _resolutionScale;
-    
+
     // Clamp to max texture dimension
     if (renderSize.width > _maxTextureDimension) {
       renderSize.width = _maxTextureDimension;
@@ -786,8 +794,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
   _resources.samplerState = [_device newSamplerStateWithDescriptor:samplerDesc];
 
-  NSLog(@"MetalRenderer: Created textures for viewport %.0f x %.0f -> render %.0f x %.0f (scale: %.2f)",
-        size.width, size.height, renderSize.width, renderSize.height, _resolutionScale);
+  NSLog(@"MetalRenderer: Created textures for viewport %.0f x %.0f -> render "
+        @"%.0f x %.0f (scale: %.2f)",
+        size.width, size.height, renderSize.width, renderSize.height,
+        _resolutionScale);
 }
 
 - (void)setViewportSize:(CGSize)size {
@@ -891,9 +901,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   if ([self.delegate respondsToSelector:@selector(metalRenderer:
                                             didReloadShadersWithName:)]) {
-    __weak typeof(self) weakSelf = self;
+    __block MetalRenderer *blockSelf = self;
     dispatch_async(dispatch_get_main_queue(), ^{
-      [weakSelf.delegate metalRenderer:weakSelf didReloadShadersWithName:name];
+      [blockSelf.delegate metalRenderer:blockSelf
+               didReloadShadersWithName:name];
     });
   }
 
@@ -901,20 +912,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 }
 
 - (NSString *)pathForShader:(NSString *)name {
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *path = [bundle pathForResource:name
-                                    ofType:@"metal"
-                               inDirectory:@"shaders"];
-  if (path)
-    return path;
-
-  for (NSString *sub in
-       @[ @"shaders/base", @"shaders/effects", @"shaders/audio" ]) {
-    path = [bundle pathForResource:name ofType:@"metal" inDirectory:sub];
-    if (path)
-      return path;
-  }
-  return nil;
+  return [self findResourcePath:name ofType:@"metal" subDir:@"shaders"];
 }
 
 - (NSDate *)modificationDateForPath:(NSString *)path {
@@ -923,6 +921,51 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSDictionary *attrs =
       [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
   return [attrs fileModificationDate];
+}
+
+- (NSString *)findResourcePath:(NSString *)name
+                        ofType:(NSString *)type
+                        subDir:(NSString *)subDir {
+  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSString *path = [bundle pathForResource:name ofType:type inDirectory:subDir];
+  if (path)
+    return path;
+
+  // Fallback to manual search
+  NSFileManager *fm = [NSFileManager defaultManager];
+  NSArray *searchPaths = @[
+    [[bundle resourcePath] stringByAppendingPathComponent:subDir ?: @""],
+    [bundle.bundlePath stringByAppendingPathComponent:subDir ?: @""],
+    [[fm currentDirectoryPath] stringByAppendingPathComponent:subDir ?: @""],
+    [[fm currentDirectoryPath] stringByAppendingPathComponent:@"src/core"],
+    [[fm currentDirectoryPath] stringByAppendingPathComponent:@"src/metal"],
+    [fm currentDirectoryPath]
+  ];
+
+  for (NSString *basePath in searchPaths) {
+    NSString *check = [[basePath stringByAppendingPathComponent:name]
+        stringByAppendingPathExtension:type];
+    if ([fm fileExistsAtPath:check]) {
+      NSLog(@"MetalRenderer: Found resource %@.%@ at %@", name, type, check);
+      return check;
+    }
+
+    // Check subdirectories
+    for (NSString *sub in
+         @[ @"base", @"effects", @"audio", @"music", @"neural" ]) {
+      check = [[basePath stringByAppendingPathComponent:sub]
+          stringByAppendingPathComponent:
+              [name stringByAppendingPathExtension:type]];
+      if ([fm fileExistsAtPath:check]) {
+        NSLog(@"MetalRenderer: Found resource %@.%@ in subDir %@ at %@", name,
+              type, sub, check);
+        return check;
+      }
+    }
+  }
+  NSLog(@"MetalRenderer Error: Could not find resource %@.%@ in subDir %@",
+        name, type, subDir);
+  return nil;
 }
 
 - (NSString *)prepareShaderSource:(NSString *)source
@@ -935,14 +978,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Load and prepend interop header (Cached)
   if (!self.cachedInteropHeader) {
-    NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-    NSString *path = [bundle pathForResource:@"ShaderInterop"
-                                      ofType:@"h"
-                                 inDirectory:@"shaders"];
-    if (!path)
-      path = [bundle pathForResource:@"ShaderInterop"
-                              ofType:@"h"
-                         inDirectory:@"shaders/base"];
+    NSString *path = [self findResourcePath:@"ShaderInterop"
+                                     ofType:@"h"
+                                     subDir:@"shaders"];
     if (path) {
       self.cachedInteropHeader =
           [NSString stringWithContentsOfFile:path
@@ -957,14 +995,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Load and prepend utils (Cached & Cleaned)
   if (!self.cachedUtilsSource) {
-    NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-    NSString *path = [bundle pathForResource:@"utils"
-                                      ofType:@"metal"
-                                 inDirectory:@"shaders"];
-    if (!path)
-      path = [bundle pathForResource:@"utils"
-                              ofType:@"metal"
-                         inDirectory:@"shaders/base"];
+    NSString *path = [self findResourcePath:@"utils"
+                                     ofType:@"metal"
+                                     subDir:@"shaders"];
     if (path) {
       NSString *rawUtils =
           [NSString stringWithContentsOfFile:path
@@ -999,7 +1032,35 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                    @"}\n\n"];
 
   // Add the main shader source
-  [fullSource appendString:source];
+  NSMutableString *cleanedSource = [source mutableCopy];
+
+  // Robustly remove ShaderInterop.h include (ignoring whitespace and quote
+  // style, and potential path prefixes)
+  NSRegularExpression *regex = [NSRegularExpression
+      regularExpressionWithPattern:
+          @"#\\s*include\\s+[\"<](?:.*/)?ShaderInterop\\.h[\">]"
+                           options:NSRegularExpressionCaseInsensitive
+                             error:nil];
+  [regex replaceMatchesInString:cleanedSource
+                        options:0
+                          range:NSMakeRange(0, cleanedSource.length)
+                   withTemplate:@""];
+
+  // As well as utils.metal, just in case
+  regex = [NSRegularExpression
+      regularExpressionWithPattern:
+          @"#\\s*include\\s+[\"<](?:.*/)?utils\\.metal[\">]"
+                           options:NSRegularExpressionCaseInsensitive
+                             error:nil];
+  [regex replaceMatchesInString:cleanedSource
+                        options:0
+                          range:NSMakeRange(0, cleanedSource.length)
+                   withTemplate:@""];
+
+  [fullSource appendString:cleanedSource];
+
+  // Clean up any double newlines or trailing whitespace if needed
+  // ...
 
   return fullSource;
 }
@@ -1014,6 +1075,18 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                        fileName:[NSString
                                     stringWithFormat:@"%@_failed.metal", name]];
 
+  // Write error to file to bypass <private> log redaction
+  NSString *homePath = NSHomeDirectory();
+  NSString *errorPath =
+      [homePath stringByAppendingPathComponent:@"shader_error.txt"];
+  NSString *errorString =
+      [NSString stringWithFormat:@"Shader: %@\nError: %@", name,
+                                 error.localizedDescription];
+  [errorString writeToFile:errorPath
+                atomically:YES
+                  encoding:NSUTF8StringEncoding
+                     error:nil];
+
   MetalRendererError *rendererError = [MetalRendererError
       shaderErrorWithMessage:
           [NSString stringWithFormat:@"Shader compilation failed: %@",
@@ -1025,10 +1098,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   if ([_delegate respondsToSelector:@selector(metalRenderer:
                                           didEncounterError:)]) {
-    __weak typeof(self) weakSelf = self;
+    __block MetalRenderer *blockSelf = self;
     dispatch_async(dispatch_get_main_queue(), ^{
-      [weakSelf.delegate metalRenderer:weakSelf
-                     didEncounterError:rendererError];
+      [blockSelf.delegate metalRenderer:blockSelf
+                      didEncounterError:rendererError];
     });
   }
 }
@@ -1156,46 +1229,60 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
 - (NSArray<NSString *> *)availableShaderNames {
   NSMutableArray *shaders = [NSMutableArray array];
+  NSMutableSet *foundNames = [NSMutableSet set];
 
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *shadersPath =
-      [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"];
-
-  NSLog(@"Looking for shaders in: %@", shadersPath);
-
   NSFileManager *fm = [NSFileManager defaultManager];
-  BOOL isDir = NO;
-  if (![fm fileExistsAtPath:shadersPath isDirectory:&isDir] || !isDir) {
-    NSLog(@"Shaders directory not found at: %@", shadersPath);
-    return @[];
+
+  // List of paths to search for shaders
+  NSArray *searchPaths = @[
+    [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"],
+    [bundle resourcePath],
+    [[bundle bundlePath] stringByAppendingPathComponent:@"shaders"],
+    [[fm currentDirectoryPath] stringByAppendingPathComponent:@"shaders"]
+  ];
+
+  NSLog(@"Searching for shaders in multiple locations...");
+
+  for (NSString *path in searchPaths) {
+    if (!path)
+      continue;
+
+    // Simple directory listing
+    NSError *error = nil;
+    NSArray *files = [fm contentsOfDirectoryAtPath:path error:&error];
+    if (files) {
+      for (NSString *fileName in files) {
+        if ([fileName hasSuffix:@".metal"]) {
+          [foundNames addObject:[fileName stringByDeletingPathExtension]];
+        }
+      }
+    }
+
+    // Also check subdirectories one level deep
+    for (NSString *sub in
+         @[ @"base", @"effects", @"audio", @"music", @"neural" ]) {
+      NSString *subPath = [path stringByAppendingPathComponent:sub];
+      files = [fm contentsOfDirectoryAtPath:subPath error:nil];
+      if (files) {
+        for (NSString *fileName in files) {
+          if ([fileName hasSuffix:@".metal"]) {
+            [foundNames addObject:[fileName stringByDeletingPathExtension]];
+          }
+        }
+      }
+    }
   }
 
-  NSDirectoryEnumerator *enumerator =
-      [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
-          includingPropertiesForKeys:@[ NSURLNameKey, NSURLIsDirectoryKey ]
-                             options:NSDirectoryEnumerationSkipsHiddenFiles
-                        errorHandler:nil];
-
-  for (NSURL *fileURL in enumerator) {
-    NSString *fileName;
-    [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
-
-    NSNumber *isDirectory;
-    [fileURL getResourceValue:&isDirectory
-                       forKey:NSURLIsDirectoryKey
-                        error:nil];
-
-    if (![isDirectory boolValue] && [fileName hasSuffix:@".metal"]) {
-      NSString *name = [fileName stringByDeletingPathExtension];
-      // Skip utility shaders
-      if (![name isEqualToString:@"common"] &&
-          ![name isEqualToString:@"utils"] &&
-          ![name isEqualToString:@"ShaderInterop"] &&
-          ![name isEqualToString:@"bloom"] &&
-          ![name isEqualToString:@"particles"] &&
-          ![name isEqualToString:@"debug_overlay"]) {
-        [shaders addObject:name];
-      }
+  // Filter excluded names
+  for (NSString *name in foundNames) {
+    if (![name isEqualToString:@"common"] && ![name isEqualToString:@"utils"] &&
+        ![name isEqualToString:@"ShaderInterop"] &&
+        ![name isEqualToString:@"bloom"] &&
+        ![name isEqualToString:@"particles"] &&
+        ![name isEqualToString:@"debug_overlay"] &&
+        ![name hasSuffix:@"_failed"]) {
+      [shaders addObject:name];
     }
   }
 
@@ -1341,7 +1428,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   _frameCount++;
   _metrics.gpuTimeMs = stats.gpuTimeMs;
   _metrics.cpuTimeMs = stats.cpuTimeMs;
-  
+
   // Update thermal state periodically
   if (_frameCount % 60 == 0) {
     [self updateThermalState];
@@ -1355,33 +1442,41 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   // Enhanced performance auto-scaling with dynamic resolution
   if (_autoScalingEnabled && _frameCount > 60) { // Wait for warm up
     float fps = _metrics.currentFPS;
-    
+
     // Stage 0: Dynamic Resolution (highest impact)
     if (_dynamicResolutionEnabled && fps < _autoScaleFPSThreshold * 0.8) {
       // Reduce resolution scale
       _resolutionScale = MAX(0.5f, _resolutionScale - 0.05f);
       [self createTexturesForSize:_resources.viewportSize];
-      NSLog(@"MetalRenderer: Auto-scale reducing resolution to %.0f%%", _resolutionScale * 100);
-    } else if (_dynamicResolutionEnabled && fps > _preferredFPS - 5.0f && 
+      NSLog(@"MetalRenderer: Auto-scale reducing resolution to %.0f%%",
+            _resolutionScale * 100);
+    } else if (_dynamicResolutionEnabled && fps > _preferredFPS - 5.0f &&
                _resolutionScale < 1.0f) {
       // Increase resolution scale
       _resolutionScale = MIN(1.0f, _resolutionScale + 0.02f);
       [self createTexturesForSize:_resources.viewportSize];
-      NSLog(@"MetalRenderer: Auto-scale increasing resolution to %.0f%%", _resolutionScale * 100);
+      NSLog(@"MetalRenderer: Auto-scale increasing resolution to %.0f%%",
+            _resolutionScale * 100);
     }
-    
+
     // Stage 1: Particle reduction
     if (fps < _autoScaleFPSThreshold) {
       if (_particleConfig.count > 1000) {
-        _particleConfig.count = MAX(1000, (NSInteger)(_particleConfig.count * 0.9));
-      } else if (_bloomConfig.enabled && _bloomConfig.quality > MetalBloomQualityLow) {
-        _bloomConfig.quality = (MetalBloomQuality)((int)_bloomConfig.quality - 1);
+        _particleConfig.count =
+            MAX(1000, (NSInteger)(_particleConfig.count * 0.9));
+      } else if (_bloomConfig.enabled &&
+                 _bloomConfig.quality > MetalBloomQualityLow) {
+        _bloomConfig.quality =
+            (MetalBloomQuality)((int)_bloomConfig.quality - 1);
       }
     } else if (fps > (_preferredFPS - 2.0f)) {
       if (_particleConfig.count < 100000) {
-        _particleConfig.count = MIN(100000, (NSInteger)(_particleConfig.count * 1.05));
-      } else if (_bloomConfig.enabled && _bloomConfig.quality < MetalBloomQualityUltra) {
-        _bloomConfig.quality = (MetalBloomQuality)((int)_bloomConfig.quality + 1);
+        _particleConfig.count =
+            MIN(100000, (NSInteger)(_particleConfig.count * 1.05));
+      } else if (_bloomConfig.enabled &&
+                 _bloomConfig.quality < MetalBloomQualityUltra) {
+        _bloomConfig.quality =
+            (MetalBloomQuality)((int)_bloomConfig.quality + 1);
       }
     }
 
@@ -1642,6 +1737,110 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   [self endFrame];
 }
 
+- (void)renderToTexture:(id<MTLTexture>)texture {
+  if (!_currentPipeline || !_currentPipeline.renderPipeline || !_commandQueue ||
+      !texture)
+    return;
+
+  [self beginFrame];
+
+  id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
+
+  // Semaphore management
+  __block dispatch_semaphore_t semaphore = _inFlightSemaphore;
+  [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
+    dispatch_semaphore_signal(semaphore);
+  }];
+
+  // Get uniforms
+  if (!_resources.uniformBuffer || !_resources.uniformBuffer.contents) {
+    NSLog(@"MetalRenderer Error: Uniform buffer not ready for renderToTexture");
+    [self endFrame];
+    return;
+  }
+
+  NSUInteger bufferIndex = _frameCount % 3;
+  uint8_t *bufferPtr = (uint8_t *)_resources.uniformBuffer.contents;
+  Uniforms *uniforms = (Uniforms *)(bufferIndex * sizeof(Uniforms) + bufferPtr);
+
+  // Create render descriptor for the target texture
+  MTLRenderPassDescriptor *descriptor =
+      [MTLRenderPassDescriptor renderPassDescriptor];
+  descriptor.colorAttachments[0].texture = texture;
+  descriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+  descriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+  descriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+
+  // Shared Logic with renderToDrawable (simplified)
+  // 1. Simulation Pass
+  if (_currentPipeline.simulationPipeline) {
+    [self performSimulationPassWithCommandBuffer:commandBuffer
+                                        uniforms:uniforms
+                                     bufferIndex:bufferIndex];
+  }
+
+  // 2. Main Render Pass
+  // Check if we need bloom/HDR flow or simple flow
+  BOOL needsOffscreen = _bloomConfig.enabled || _hdrEnabled ||
+                        _neuralStyleEnabled || _isTransitioning;
+
+  if (needsOffscreen) {
+    // Logic for advanced pipeline (Bloom/HDR)
+    // Render to internal scene texture first
+    MTLRenderPassDescriptor *sceneDesc =
+        [MTLRenderPassDescriptor renderPassDescriptor];
+    sceneDesc.colorAttachments[0].texture = _resources.sceneTexture;
+    sceneDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
+    sceneDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+    sceneDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+
+    if (_bloomConfig.enabled) {
+      [self renderWithBloomToDrawable:nil
+                        commandBuffer:commandBuffer
+                     renderDescriptor:sceneDesc
+                             uniforms:uniforms
+                          bufferIndex:bufferIndex];
+    } else {
+      [self renderSimpleToDrawable:nil
+                     commandBuffer:commandBuffer
+                  renderDescriptor:sceneDesc
+                          uniforms:uniforms
+                       bufferIndex:bufferIndex];
+    }
+
+    // Final Tone Map / Copy to Output Texture
+    id<MTLTexture> currentSource = _resources.sceneTexture;
+    // (Skipping neural/transition complexity for simplicity in screenshot tool
+    // for now, can add later)
+
+    // Tone map to the output texture
+    [[HDRPipeline sharedPipeline] toneMapHDRTexture:currentSource
+                                       toSDRTexture:texture
+                                      commandBuffer:commandBuffer];
+
+  } else {
+    // Direct render to output texture
+    [self renderSimpleToDrawable:nil // No drawable logic needed inside
+                   commandBuffer:commandBuffer
+                renderDescriptor:descriptor
+                        uniforms:uniforms
+                     bufferIndex:bufferIndex];
+  }
+
+  // 3. Particles
+  if (_particleConfig.enabled && _currentPipeline.computePipeline) {
+    [self renderParticlesWithCommandBuffer:commandBuffer
+                                  uniforms:uniforms
+                               bufferIndex:bufferIndex];
+  }
+
+  // No debug overlay for screenshots usually
+
+  [_performanceReporter endFrameWithCommandBuffer:commandBuffer];
+  [commandBuffer commit];
+  [self endFrame];
+}
+
 - (void)renderSimpleToDrawable:(id<CAMetalDrawable>)drawable
                  commandBuffer:(id<MTLCommandBuffer>)commandBuffer
               renderDescriptor:(MTLRenderPassDescriptor *)descriptor
@@ -1766,10 +1965,14 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   bloomDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
   bloomDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
 
+  id<MTLRenderPipelineState> bloomThresh =
+      [self bloomPipeline:@"bloom_threshold"];
+  if (!bloomThresh)
+    return;
+
   id<MTLRenderCommandEncoder> threshEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
-  [threshEncoder
-      setRenderPipelineState:[self bloomPipeline:@"bloom_threshold"]];
+  [threshEncoder setRenderPipelineState:bloomThresh];
   [threshEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
   [threshEncoder setFragmentTexture:_resources.sceneTexture atIndex:0];
   [threshEncoder setFragmentSamplerState:_resources.samplerState atIndex:0];
@@ -1782,9 +1985,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Horizontal blur
   bloomDesc.colorAttachments[0].texture = _resources.bloomTextureB;
+  id<MTLRenderPipelineState> bloomBlurH = [self bloomPipeline:@"bloom_blur_h"];
+  if (!bloomBlurH)
+    return;
+
   id<MTLRenderCommandEncoder> blurHEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
-  [blurHEncoder setRenderPipelineState:[self bloomPipeline:@"bloom_blur_h"]];
+  [blurHEncoder setRenderPipelineState:bloomBlurH];
   [blurHEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
   [blurHEncoder setFragmentTexture:_resources.bloomTextureA atIndex:0];
   [blurHEncoder setFragmentSamplerState:_resources.samplerState atIndex:0];
@@ -1797,9 +2004,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Vertical blur
   bloomDesc.colorAttachments[0].texture = _resources.bloomTextureA;
+  id<MTLRenderPipelineState> bloomBlurV = [self bloomPipeline:@"bloom_blur_v"];
+  if (!bloomBlurV)
+    return;
+
   id<MTLRenderCommandEncoder> blurVEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
-  [blurVEncoder setRenderPipelineState:[self bloomPipeline:@"bloom_blur_v"]];
+  [blurVEncoder setRenderPipelineState:bloomBlurV];
   [blurVEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
   [blurVEncoder setFragmentTexture:_resources.bloomTextureB atIndex:0];
   [blurVEncoder setFragmentSamplerState:_resources.samplerState atIndex:0];
@@ -1811,9 +2022,14 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   [blurVEncoder endEncoding];
 
   // Combine pass
+  id<MTLRenderPipelineState> bloomCombine =
+      [self bloomPipeline:@"bloom_combine"];
+  if (!bloomCombine)
+    return;
+
   id<MTLRenderCommandEncoder> finalEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:finalDesc];
-  [finalEncoder setRenderPipelineState:[self bloomPipeline:@"bloom_combine"]];
+  [finalEncoder setRenderPipelineState:bloomCombine];
   [finalEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
   [finalEncoder setFragmentTexture:_resources.sceneTexture atIndex:0];
   [finalEncoder setFragmentTexture:_resources.bloomTextureA atIndex:1];
@@ -1846,26 +2062,31 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   if (cached)
     return cached;
 
-  NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSString *path = [bundle pathForResource:@"bloom"
-                                    ofType:@"metal"
-                               inDirectory:@"shaders"];
-  if (!path)
+  NSString *path = [self findResourcePath:@"bloom"
+                                   ofType:@"metal"
+                                   subDir:@"shaders"];
+  if (!path) {
+    NSLog(@"MetalRenderer Error: Failed to find bloom.metal");
     return nil;
+  }
 
   NSString *source = [NSString stringWithContentsOfFile:path
                                                encoding:NSUTF8StringEncoding
                                                   error:nil];
-  if (!source)
+  if (!source) {
+    NSLog(@"MetalRenderer Error: Failed to read bloom.metal at %@", path);
     return nil;
+  }
 
   NSString *fullSource = [self prepareShaderSource:source forShader:@"bloom"];
   NSError *error = nil;
   id<MTLLibrary> library = [_device newLibraryWithSource:fullSource
                                                  options:nil
                                                    error:&error];
-  if (error || !library)
+  if (error || !library) {
+    NSLog(@"MetalRenderer Error: Failed to compile bloom.metal: %@", error);
     return nil;
+  }
 
   id<MTLFunction> vertexFunc = [library newFunctionWithName:@"vertex_main"];
   id<MTLFunction> fragmentFunc = [library newFunctionWithName:functionName];

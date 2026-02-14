@@ -19,9 +19,9 @@
 @property(nonatomic, assign) float globalGain;
 @property(nonatomic, assign) int maxRays;
 
-+ (instancetype)sharedEngine;
++ (instancetype _Nonnull)sharedEngine;
 
-- (BOOL)initializeWithSampleRate:(double)sampleRate error:(NSError **)error;
+- (BOOL)initializeWithSampleRate:(double)sampleRate error:(NSError * _Nullable * _Null_unspecified)error;
 - (void)shutdown;
 
 - (void)start;
@@ -32,10 +32,10 @@
 - (void)setAudioSource:(NSInteger)sourceID gain:(float)gain;
 - (void)removeAudioSource:(NSInteger)sourceID;
 
-- (void)processAudioBuffer:(float *)buffer frameCount:(NSUInteger)frameCount;
-- (void)processStereoBuffer:(float *)leftBuffer right:(float *)rightBuffer frameCount:(NSUInteger)frameCount;
+- (void)processAudioBuffer:(float * _Nonnull)buffer frameCount:(NSUInteger)frameCount;
+- (void)processStereoBuffer:(float * _Nonnull)leftBuffer right:(float * _Nonnull)rightBuffer frameCount:(NSUInteger)frameCount;
 
-- (void)setSceneGeometry:(id<MTLTexture>)geometryTexture;
+- (void)setSceneGeometry:(id<MTLTexture> _Nullable)geometryTexture;
 - (void)updateRayTracing;
 
 @end

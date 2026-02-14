@@ -169,8 +169,10 @@ if(MACOS AND BUILD_METAL)
     endif()
 
     # Compile all Metal shaders to individual metallib files
-    if(METAL_COMPILER AND XCRUN_EXECUTABLE)
-        file(GLOB METAL_SOURCE_SHADERS "shaders/**/*.metal")
+    option(ENABLE_OFFLINE_SHADER_COMPILATION "Compile shaders at build time" OFF)
+    
+    if(ENABLE_OFFLINE_SHADER_COMPILATION AND METAL_COMPILER AND XCRUN_EXECUTABLE)
+        file(GLOB_RECURSE METAL_SOURCE_SHADERS "shaders/**/*.metal")
         
         foreach(shader_source ${METAL_SOURCE_SHADERS})
             get_filename_component(shader_name ${shader_source} NAME_WE)
@@ -250,13 +252,17 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
     # Bundle resources - shaders and textures
-    file(GLOB BUNDLE_RESOURCES
-        shaders/**/*.metal
-        shaders/**/*.glsl
-        shaders/**/*.frag
+    # Bundle resources - shaders and textures
+    file(GLOB_RECURSE SHADER_RESOURCES
+        shaders/*.metal
+        shaders/*.glsl
+        shaders/*.frag
+    )
+    file(GLOB OTHER_RESOURCES
         textures/*.png
         src/core/ShaderInterop.h
     )
+    set(BUNDLE_RESOURCES ${SHADER_RESOURCES} ${OTHER_RESOURCES})
     
     # Add compiled metallibs if they exist/will be built
     if(TARGET metal_shaders)
@@ -622,20 +628,7 @@ if(BUILD_TESTS)
     endif()
 endif()
 
-# Copy shaders to build directory
-# Copy shaders to build directory for testing
-file(GLOB_RECURSE SHADER_FILES
-    RELATIVE ${CMAKE_SOURCE_DIR}/shaders
-    shaders/*.glsl
-    shaders/*.frag
-    shaders/*.metal
-)
 
-foreach(shader ${SHADER_FILES})
-    get_filename_component(shader_dir ${shader} DIRECTORY)
-    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders/${shader_dir})
-    configure_file(shaders/${shader} ${CMAKE_BINARY_DIR}/shaders/${shader} COPYONLY)
-endforeach()
 
 # Install scripts
 install(FILES
@@ -646,6 +639,43 @@ install(FILES
                 GROUP_READ GROUP_EXECUTE
                 WORLD_READ WORLD_EXECUTE
 )
+
+# Screenshot Generator Tool (macOS)
+if(MACOS AND BUILD_METAL)
+    add_executable(shadercandy-screenshot src/tools/ShaderScreenshotGenerator.mm)
+    
+    target_include_directories(shadercandy-screenshot PRIVATE
+        src/core
+        src/metal
+        ${CMAKE_SOURCE_DIR}
+    )
+    
+    target_link_libraries(shadercandy-screenshot PRIVATE
+        shadercandy_core
+        shadercandy_metal
+        shadercandy_audio
+        ${METAL_FRAMEWORK}
+        ${QUARTZCORE_FRAMEWORK}
+        ${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}
+        ${COCOA_FRAMEWORK}
+        "-framework Foundation"
+        "-framework ImageIO"
+        "-framework CoreGraphics"
+        "-framework AppKit"
+    )
+    
+    # Ensure shaders are available next to the binary (or handle bundle logic)
+    # For a command line tool, it might look in bundle resources or current dir.
+    # We should copy shaders to the build output directory for robustness.
+    add_custom_command(TARGET shadercandy-screenshot POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/shaders
+        $<TARGET_FILE_DIR:shadercandy-screenshot>/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/src/core/ShaderInterop.h
+        $<TARGET_FILE_DIR:shadercandy-screenshot>/shaders/ShaderInterop.h
+    )
+endif()
 
 # Print configuration
 message(STATUS "")

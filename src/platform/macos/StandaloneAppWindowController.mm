@@ -431,6 +431,10 @@
   if (!self.preferencesController) {
     self.preferencesController = [[PreferencesWindowController alloc] init];
   }
+
+  // Pass available shaders so the dropdown is populated
+  [self.preferencesController setAvailableShaders:self.availableShaders];
+
   [self.preferencesController showWindow:self];
   [NSApp activateIgnoringOtherApps:YES];
   [self.preferencesController.window makeKeyAndOrderFront:self];
