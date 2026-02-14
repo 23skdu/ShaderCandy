@@ -46,6 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, assign) NSInteger currentShaderIndex;
 @property(nonatomic, assign) BOOL showingShaderList;
 @property(nonatomic, assign) BOOL showingMetrics;
+@property(nonatomic, assign) BOOL showingControls;
 
 // Initialization
 - (instancetype)initWithWindow:(nullable NSWindow *)window;

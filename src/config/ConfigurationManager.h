@@ -124,6 +124,24 @@ public:
   void resetParameter(const std::string &shader, const std::string &param);
   void resetAllParameters(const std::string &shader);
 
+  // Parameter values (Typed helpers)
+  float getFloatParameter(const std::string &shader,
+                          const std::string &param) const {
+    return std::get<float>(getParameter(shader, param));
+  }
+  bool getBoolParameter(const std::string &shader,
+                        const std::string &param) const {
+    return std::get<bool>(getParameter(shader, param));
+  }
+  int getIntParameter(const std::string &shader,
+                      const std::string &param) const {
+    return std::get<int>(getParameter(shader, param));
+  }
+  std::string getStringParameter(const std::string &shader,
+                                 const std::string &param) const {
+    return std::get<std::string>(getParameter(shader, param));
+  }
+
   // Persistence
   bool loadFromFile(const std::string &path);
   bool saveToFile(const std::string &path) const;

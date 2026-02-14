@@ -334,8 +334,9 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
            src/platform/macos/StandaloneAppWindowController.mm
            src/platform/macos/screenshot_utility.mm
            src/platform/macos/PreferencesWindowController.mm
-           src/platform/macos/ShadersListViewController.mm
-           src/platform/macos/PresetViewController.mm
+            src/platform/macos/ShadersListViewController.mm
+            src/platform/macos/ShaderControlsViewController.mm
+            src/platform/macos/PresetViewController.mm
            src/platform/macos/PresetObject.mm
            src/platform/macos/PresetImportExportSheet.mm
            src/neural/StyleLibraryViewController.mm
@@ -603,9 +604,11 @@ if(BUILD_TESTS)
     endif()
     
     add_executable(shadercandy-test ${TEST_SOURCES})
-    target_link_libraries(shadercandy-test PRIVATE
-        shadercandy_core
-    )
+    target_link_libraries(shadercandy-test PRIVATE shadercandy_core)
+    
+    add_executable(linux-logic-test tests/LinuxLogicTests.cpp)
+    target_link_libraries(linux-logic-test shadercandy_core)
+    target_include_directories(linux-logic-test PRIVATE src/platform/linux)
     
     if(MACOS AND BUILD_METAL)
         target_link_libraries(shadercandy-test PRIVATE 

@@ -193,6 +193,30 @@
   [_multisamplePopup addItemsWithTitles:@[ @"Off", @"2x", @"4x" ]];
   [_multisamplePopup selectItemAtIndex:0];
   [content addSubview:_multisamplePopup];
+
+  // HDR Calibration
+  NSTextField *calibrationLabel =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(20, 55, 120, 20)];
+  calibrationLabel.stringValue = @"HDR Calibration:";
+  calibrationLabel.editable = NO;
+  calibrationLabel.bordered = NO;
+  calibrationLabel.backgroundColor = [NSColor clearColor];
+  [content addSubview:calibrationLabel];
+
+  NSButton *calibrationButton =
+      [[NSButton alloc] initWithFrame:NSMakeRect(150, 53, 180, 24)];
+  calibrationButton.title = @"Show Color Bars";
+  calibrationButton.bezelStyle = NSBezelStyleRounded;
+  calibrationButton.target = self;
+  calibrationButton.action = @selector(showCalibrationPattern:);
+  [content addSubview:calibrationButton];
+}
+
+- (void)showCalibrationPattern:(id)sender {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"ShaderDidChange"
+                    object:self
+                  userInfo:@{@"shader" : @"calibration"}];
 }
 
 - (void)setupAudioTab {
