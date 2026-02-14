@@ -5,7 +5,7 @@
 using namespace metal;
 
 // Uniform buffer shared across all shaders
-struct Uniforms {
+/* struct Uniforms {
     float time;
     float2 resolution;
     float2 mouse;
@@ -13,7 +13,7 @@ struct Uniforms {
     int frame;
     float deltaTime;
     float2 padding;
-};
+}; */
 
 // Standard vertex input for fullscreen quad
 struct VertexIn {
@@ -21,11 +21,11 @@ struct VertexIn {
     float2 texCoord [[attribute(1)]];
 };
 
-struct VertexOut {
+/* struct VertexOut {
     float4 position [[position]];
     float2 texCoord;
     float2 screenPos;
-};
+}; */
 
 // Utility functions
 namespace ShaderUtils {
@@ -222,6 +222,9 @@ fragment float4 fragment_main(
     texture2d<float> prevFrame [[texture(0)]],
     sampler frameSampler [[sampler(0)]]
 ) {
+    // Injected default values for missing uniforms
+    float u_padding = 1.0;
+
     float2 uv = in.texCoord;
     float2 centered = uv * 2.0 - 1.0;
     centered.x *= uniforms.resolution.x / uniforms.resolution.y;

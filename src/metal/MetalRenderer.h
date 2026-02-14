@@ -294,6 +294,12 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 - (void)renderToDrawable:(id<CAMetalDrawable>)drawable
     renderPassDescriptor:(MTLRenderPassDescriptor *)descriptor;
 
+/**
+ * Renders the current frame to the specified texture without presenting.
+ * Useful for screenshots and offline rendering.
+ */
+- (void)renderToTexture:(id<MTLTexture>)texture;
+
 #pragma mark - Viewport
 
 - (void)setViewportSize:(CGSize)size;

@@ -3,7 +3,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct Uniforms {
+/* struct Uniforms {
     float time;
     float2 resolution;
     float2 mouse;
@@ -12,37 +12,24 @@ struct Uniforms {
     float bass;
     float mid;
     float treble;
-};
+}; */
 
-float random(float2 st) {
-    return fract(sin(dot(st.xy, float2(12.9898, 78.233))) * 43758.5453123);
-}
 
-float noise(float2 st) {
-    float2 i = floor(st);
-    float2 f = fract(st);
-    float a = random(i);
-    float b = random(i + float2(1.0, 0.0));
-    float c = random(i + float2(0.0, 1.0));
-    float d = random(i + float2(1.0, 1.0));
-    float2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-}
 
-float fbm(float2 st) {
+float custom_fbm(float2 st) {
     float value = 0.0;
     float amplitude = 0.5;
     for (int i = 0; i < 4; i++) {
-        value += amplitude * noise(st);
+        value += amplitude * custom_noise(st);
         st *= 2.0;
         amplitude *= 0.5;
     }
     return value;
 }
 
-fragment float4 soul_fragment(VertexOut in [[stage_in]],
+fragment float4 fragment_main(VertexOut in [[stage_in]],
                               constant Uniforms& u [[buffer(0)]]) {
-    float2 uv = in.uv;
+    float2 uv = in.texCoord;
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     
@@ -54,7 +41,7 @@ fragment float4 soul_fragment(VertexOut in [[stage_in]],
     col = mix(col, float3(0.3, 0.15, 0.2), uv.x * 0.5);
     
     // Velvet-like texture
-    float velvet = fbm(p * 3.0 + t * 0.2);
+    float velvet = custom_fbm(p * 3.0 + t * 0.2);
     col += float3(0.1, 0.05, 0.1) * velvet;
     
     // Smooth flowing ribbons (like silk)
@@ -113,7 +100,7 @@ fragment float4 soul_fragment(VertexOut in [[stage_in]],
     col += float3(0.8, 0.4, 0.3) * wave * 0.3;
     
     // Treble shimmer (delicate)
-    float shimmer = noise(p * 20.0 + t * 3.0);
+    float shimmer = custom_noise(p * 20.0 + t * 3.0);
     shimmer = pow(shimmer, 4.0) * u.treble;
     col += float3(1.0, 0.9, 0.8) * shimmer * 0.3;
     

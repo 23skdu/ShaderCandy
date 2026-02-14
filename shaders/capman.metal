@@ -1,109 +1,98 @@
-// CapMan - Pacman-inspired shader (Metal port)
-
+// CapMan 3D - Raymarched Pacman
 #include "ShaderInterop.h"
+#include "utils.metal"
 
-float random(float2 st) {
-    return fract(sin(dot(st.xy, float2(12.9898, 78.233))) * 43758.453);
-}
+using namespace metal;
 
-float2 pacman(float2 uv, float t) {
-    // Pacman mouth animation
-    float mouth = 0.3 + 0.2 * sin(t * 3.0);
-    float angle = atan2(uv.y, uv.x);
-    
-    // Create pacman shape - wedge open to the right
-    float pacman_mask = step(length(uv), 0.3);
-    pacman_mask *= step(mouth, abs(angle));
-    
-    return float2(pacman_mask, mouth);
-}
+struct Ray {
+    float3 origin;
+    float3 direction;
+};
 
-float2 ghost(float2 uv, float3 color, float t) {
-    // Ghost body shape
-    float body = 0.0;
-    
-    // Main body (top circle)
-    body = step(length(uv - float2(0.0, 0.0)), 0.25);
-    // Cut off bottom
-    body *= step(-0.1, uv.y);
-    // Add rectangular bottom
-    body = max(body, step(abs(uv.x), 0.25) * step(uv.y, 0.0) * step(-0.25, uv.y));
-    
-    // Ghost bottom bumps (waves)
-    float wave = 0.05 * sin(uv.x * 20.0 + t * 5.0);
-    body *= step(-0.25 + wave, uv.y);
-    
-    // Eyes
-    float2 leftEye = float2(-0.08, 0.05);
-    float2 rightEye = float2(0.08, 0.05);
-    float eyes = step(length(uv - leftEye), 0.05) + step(length(uv - rightEye), 0.05);
-    float pupils = step(length(uv - leftEye - float2(0.02, 0.0)), 0.02) + 
-                    step(length(uv - rightEye - float2(0.02, 0.0)), 0.02);
-    
-    return float2(body, eyes - pupils);
-}
 
-float pellet(float2 uv, float t) {
-    float isPowerPellet = step(0.9, random(floor(uv * 10.0))); // Random power pellets
-    float radius = mix(0.02, 0.06, isPowerPellet);
-    if (isPowerPellet > 0.5) {
-        radius *= 0.8 + 0.2 * sin(t * 10.0); // Pulse power pellets
+float map(float3 p, float time, constant Uniforms &uniforms) {
+    float d = 1e10;
+    
+    // Maze floor/walls (simplified 3D grid)
+    float2 grid = floor(p.xz * 1.5);
+    float h = hash(grid) > 0.7 ? 0.8 : 0.05;
+    d = min(d, p.y + h);
+    
+    // Pacman
+    float3 pp = p - float3(uniforms.playerPos.x, 0.3, uniforms.playerPos.y);
+    float mouth = 0.5 + 0.5 * sin(time * 10.0);
+    float pdist = sdSphere(pp, 0.3);
+    // Cut mouth
+    float a = atan2(pp.y, pp.x);
+    if (abs(a) < mouth * 0.5 && pp.x > 0.0) pdist = max(pdist, -pp.x);
+    
+    d = min(d, pdist);
+    
+    // Ghosts
+    for (int i = 0; i < 4; i++) {
+        float3 gp = p - float3(uniforms.ghostPos[i].x, 0.3 + 0.1 * sin(time * 5.0 + i), uniforms.ghostPos[i].y);
+        float gdist = sdSphere(gp, 0.25);
+        d = min(d, gdist);
     }
-    return step(length(uv), radius);
+    
+    return d;
+}
+
+float3 getNormal(float3 p, float time, constant Uniforms &uniforms) {
+    float2 e = float2(0.001, 0.0);
+    return normalize(float3(
+        map(p + e.xyy, time, uniforms) - map(p - e.xyy, time, uniforms),
+        map(p + e.yxy, time, uniforms) - map(p - e.yxy, time, uniforms),
+        map(p + e.yyx, time, uniforms) - map(p - e.yyx, time, uniforms)
+    ));
 }
 
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
-    float2 uv = in.texCoord;
-    float2 coord = uv * 2.0 - 1.0;
-    coord.x *= uniforms.resolution.x / uniforms.resolution.y;
+    float2 uv = in.texCoord * 2.0 - 1.0;
+    uv.x *= uniforms.resolution.x / uniforms.resolution.y;
     
-    float3 color = float3(0.0);
-    float gameTime = uniforms.gameTime;
+    float3 ro = float3(0.0, 4.0, -4.0);
+    float3 rd = normalize(float3(uv, 1.5));
     
-    // Game grid
-    float gridSize = 0.2;
-    float2 grid = floor(coord / gridSize) * gridSize + gridSize * 0.5;
-    
-    // Draw pellets
-    float pelletMask = pellet(coord - grid, gameTime);
-    color += float3(1.0, 1.0, 0.2) * pelletMask;
-    
-    // Draw player (Pacman)
-    // Add movement if playerPos is animated
-    float2 pacmanResult = pacman(coord - uniforms.playerPos, gameTime);
-    color = mix(color, float3(1.0, 1.0, 0.0), pacmanResult.x);
-    
-    // Draw ghosts
-    float3 ghostColors[4];
-    ghostColors[0] = float3(1.0, 0.0, 0.0); // Blinky
-    ghostColors[1] = float3(0.0, 1.0, 1.0); // Inky
-    ghostColors[2] = float3(1.0, 0.647, 0.0); // Clyde
-    ghostColors[3] = float3(1.0, 0.7, 0.8); // Pinky
-    
-    for (int i = 0; i < 4; i++) {
-        float2 ghostResult = ghost(coord - uniforms.ghostPos[i], ghostColors[i], gameTime);
-        color = mix(color, ghostColors[i], ghostResult.x);
-        color = mix(color, float3(1.0), clamp(ghostResult.y, 0.0, 1.0)); // White of eyes
+    // Rotate camera
+    float ang = uniforms.time * 0.1;
+    ro.xz = float2(ro.x * cos(ang) - ro.z * sin(ang), ro.x * sin(ang) + ro.z * cos(ang));
+    rd.xz = float2(rd.x * cos(ang) - rd.z * sin(ang), rd.x * sin(ang) + rd.z * cos(ang));
+    rd = lookAt(ro, float3(0,0,0)) * rd;
+
+    float t = 0.0;
+    for (int i = 0; i < 64; i++) {
+        float d = map(ro + rd * t, uniforms.time, uniforms);
+        if (d < 0.001 || t > 20.0) break;
+        t += d;
     }
     
-    // Maze walls
-    float wallMask = 0.0;
-    float2 wallCoord = abs(fract(coord / gridSize + 0.5) - 0.5) / (gridSize * 0.5);
-    wallMask = max(wallCoord.x, wallCoord.y);
-    wallMask = smoothstep(0.48, 0.5, wallMask);
-    
-    // Dark blue walls
-    color = mix(color, float3(0.0, 0.0, 0.4), wallMask * 0.5);
-    
-    // Score display
-    if (coord.y > 0.9) {
-        float scoreBar = step(coord.y, 0.95);
-        float scoreProgress = fract(uniforms.score * 0.001);
-        float scoreMask = step(coord.x, scoreProgress * 2.0 - 1.0);
-        color = mix(color, float3(1.0, 1.0, 0.0), scoreMask * scoreBar);
+    float3 color = float3(0.05, 0.05, 0.1);
+    if (t < 20.0) {
+        float3 p = ro + rd * t;
+        float3 n = getNormal(p, uniforms.time, uniforms);
+        float3 light = normalize(float3(1.0, 2.0, -1.0));
+        float diff = max(dot(n, light), 0.0);
+        
+        // Coloring logic
+        float3 baseColor = float3(0.1, 0.1, 0.5); // Walls
+        
+        // Pacman color
+        float3 pp = p - float3(uniforms.playerPos.x, 0.3, uniforms.playerPos.y);
+        if (length(pp) < 0.35) baseColor = float3(1.0, 1.0, 0.0);
+        
+        // Ghost colors
+        for (int i = 0; i < 4; i++) {
+            float3 gp = p - float3(uniforms.ghostPos[i].x, 0.3 + 0.1 * sin(uniforms.time * 5.0 + i), uniforms.ghostPos[i].y);
+            if (length(gp) < 0.3) {
+                float3 gCol[4] = {float3(1,0,0), float3(0,1,1), float3(1,0.5,0), float3(1,0.7,0.8)};
+                baseColor = gCol[i];
+            }
+        }
+        
+        color = baseColor * (diff + 0.2);
     }
     
-    color *= uniforms.intensity;
-    return float4(color, uniforms.alpha);
+    return float4(color * uniforms.intensity, uniforms.alpha);
 }

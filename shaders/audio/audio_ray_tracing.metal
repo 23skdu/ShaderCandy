@@ -78,8 +78,8 @@ kernel void generateAudioRays(
 kernel void traceAudioRays(
     device AudioRay *rays [[buffer(0)]],
     device const AcousticMaterial *materials [[buffer(1)]],
-    texture2d<float, access::read> sceneMap [[texture(0)]],
-    texture2d<float, access::write> acousticField [[texture(1)]],
+    texture2d<float, access::sample> sceneMap [[texture(0)]],
+    texture2d<float, access::read_write> acousticField [[texture(1)]],
     constant float3 &listenerPosition [[buffer(2)]],
     constant float &roomSize [[buffer(3)]],
     constant int &maxReflections [[buffer(4)]],
@@ -145,7 +145,7 @@ kernel void applyImpulseResponse(
     constant int &bufferSize [[buffer(3)]],
     constant int &irLength [[buffer(4)]],
     uint gid [[thread_position_in_grid]]
-{
+) {
     if (gid >= (uint)bufferSize) return;
 
     float sum = 0.0;
