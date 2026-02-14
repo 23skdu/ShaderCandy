@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 // Gradient waves - smooth flowing color gradients
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {

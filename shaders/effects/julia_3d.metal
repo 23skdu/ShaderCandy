@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 // 3D Quaternion Julia Set
 // Raymarching implementation
 

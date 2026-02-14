@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 // Mandelbrot Set 2D
 // Deep zoom and smooth coloring
 

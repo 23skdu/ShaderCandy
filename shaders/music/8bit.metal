@@ -1,3 +1,6 @@
+#include "ShaderInterop.h"
+
+
 // 8Bit - Retro pixel art aesthetic like classic video games
 
 #include <metal_stdlib>

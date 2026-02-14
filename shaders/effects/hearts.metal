@@ -1,3 +1,6 @@
+#include "ShaderInterop.h"
+
+
 //
 //  hearts.metal
 //  ShaderCandy

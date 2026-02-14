@@ -1,3 +1,8 @@
+#include "ShaderInterop.h"
+
+using namespace metal;
+using namespace ShaderUtils;
+
 // #include "common.metal" (Removed for runtime compatibility)
 
 // Threadgroup memory for optimized local interactions
