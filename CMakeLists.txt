@@ -222,18 +222,30 @@ if(BUILD_OPENGL)
         
         add_library(shadercandy_gl STATIC ${OPENGL_SOURCES})
         target_include_directories(shadercandy_gl PUBLIC src/gl)
-        target_link_libraries(shadercandy_gl PUBLIC
-            shadercandy_core
-            OpenGL::GL
-        )
         
-        if(LINUX)
+        if(MACOS)
+            find_library(OPENGL_LIBRARY OpenGL REQUIRED)
+            target_link_libraries(shadercandy_gl PUBLIC
+                shadercandy_core
+                ${OPENGL_LIBRARY}
+            )
+        elseif(LINUX)
+            find_package(OpenGL REQUIRED)
+            target_link_libraries(shadercandy_gl PUBLIC
+                shadercandy_core
+                OpenGL::GL
+            )
             find_package(X11 REQUIRED)
             find_library(XSS_LIB Xss REQUIRED)
             target_link_libraries(shadercandy_gl PUBLIC
                 ${X11_LIBRARIES}
                 ${X11_Xmu_LIB}
                 ${XSS_LIB}
+            )
+        else()
+            target_link_libraries(shadercandy_gl PUBLIC
+                shadercandy_core
+                OpenGL::GL
             )
         endif()
     else()
