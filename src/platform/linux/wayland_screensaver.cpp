@@ -1,30 +1,24 @@
 // Linux Wayland Screensaver for ShaderCandy
 // Supports sway, GNOME, KDE Plasma, and other wlroots-based compositors
 
+#ifdef __linux__
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <wayland-client.h>
 #include <wayland-egl.h>
-
+#endif
 #include "GLSLWrapper.h"
-#include <algorithm>
+#include "LinuxStubs.h"
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
-#include <fstream>
-#include <functional>
 #include <iostream>
-#include <mutex>
-#include <sstream>
-#include <string>
-#include <sys/stat.h>
 #include <thread>
-#include <vector>
 
 using namespace ShaderCandy::Platform::Linux;
 
@@ -44,7 +38,7 @@ using namespace ShaderCandy::Platform::Linux;
 #endif
 
 // Audio support
-#include "AudioInput.h"
+#include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
 
 // Uniforms matching ShaderInterop.h
