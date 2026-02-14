@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 namespace ShaderCandy {
 namespace Config {
@@ -115,19 +116,6 @@ void ConfigurationManager::resetParameter(const std::string &shader,
 
 void ConfigurationManager::resetAllParameters(const std::string &shader) {
   parameterValues_.erase(shader);
-}
-
-bool ConfigurationManager::loadFromFile(const std::string &path) {
-  // Simple JSON-like loading (placeholder implementation)
-  std::ifstream file(path);
-  if (!file.is_open()) {
-    loadDefaults();
-    return false;
-  }
-
-  // TODO: Parse JSON configuration
-  file.close();
-  return true;
 }
 
 bool ConfigurationManager::saveToFile(const std::string &path) const {
