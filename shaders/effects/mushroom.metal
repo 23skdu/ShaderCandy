@@ -127,7 +127,9 @@ float4 renderMushroomScene(float3 p, float t) {
     float particles = particleMushroom(p, t);
     
     // Combine background and particles
-    float d = min(bg, particles);
+    // Use the distance field for glow effect
+    float dist = min(bg, particles);
+    float glow = exp(-dist * 2.0);
     
     // Create color based on distance from scene elements
     float4 color = float4(0.0, 0.0, 0.0, 1.0); // Default black
@@ -141,8 +143,8 @@ float4 renderMushroomScene(float3 p, float t) {
             0.5 + 0.5 * sin(hue * 6.28 + 4.188)
         );
         
-        // Make it more neon
-        float3 neon = rainbow * 2.0;
+        // Make it more neon with glow
+        float3 neon = rainbow * (2.0 + glow);
         neon = min(neon, 1.0);
         
         // Add glow effect
@@ -156,8 +158,8 @@ float4 renderMushroomScene(float3 p, float t) {
             0.5 + 0.5 * sin(hue * 6.28 + 4.188)
         );
         
-        // Make it more subtle for background
-        float3 bg_neon = bg_color * 0.5;
+        // Make it more subtle for background with glow
+        float3 bg_neon = bg_color * (0.5 + glow * 0.3);
         bg_neon = min(bg_neon, 1.0);
         
         color = float4(bg_neon, 1.0);
@@ -166,18 +168,16 @@ float4 renderMushroomScene(float3 p, float t) {
     return color;
 }
 
-extern "C" {
-    fragment float4 fragment_shader(const VertexOut vertex_in [[stage_in]],
-                                    constant Uniforms &uniforms [[buffer(0)]]) {
-        // Convert to world space
-        float3 p = vertex_in.position;
-        
-        // Add some time offset
-        float t = uniforms.time;
-        
-        // Render the scene
-        float4 color = renderMushroomScene(p, t);
-        
-        return color;
-    }
+fragment float4 fragment_main(VertexOut in [[stage_in]],
+                              constant Uniforms &u [[buffer(0)]]) {
+    // Convert to world space
+    float3 p = in.position.xyz;
+    
+    // Add some time offset
+    float t = u.time;
+    
+    // Render the scene
+    float4 color = renderMushroomScene(p, t);
+    
+    return color;
 }

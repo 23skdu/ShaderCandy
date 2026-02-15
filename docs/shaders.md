@@ -2,7 +2,7 @@
 
 This document provides a complete catalog of all available shaders in ShaderCandy, organized by category.
 
-**Total Shaders:** 68 unique effects
+**Total Shaders:** 64 unique effects
 **Platforms:** macOS (Metal), Linux (OpenGL/GLSL)
 
 ---
@@ -173,6 +173,23 @@ Warm flowing gradients with smooth, emotive transitions.
 - Retro sun
 - Palm tree silhouettes
 - Scanline effects
+
+---
+
+### Mushroom
+**File:** `effects/mushroom.metal`
+
+3D rotating neon rainbow colored mushrooms as particles on a fractal neon background. Features organic mushroom shapes with caps and stalks, rotating on the X-axis at different heights and sizes.
+
+![Mushroom](../screenshots/mushroom.png)
+
+**Features:**
+- SDF-based mushroom caps and stalks
+- 40 rotating mushroom particles at varied heights
+- Fractal neon background using multi-layer noise
+- Rainbow color shifting effect over time
+- X-axis rotation for each mushroom particle
+- Glow effect based on distance field
 
 ---
 
