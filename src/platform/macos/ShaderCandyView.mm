@@ -125,9 +125,14 @@
   _availableShaders = [_renderer availableShaderNames];
 
   if ([_currentShaderName isEqualToString:@"Cycle All"]) {
-    _isCycling = YES;
-    _currentShaderName = _availableShaders.firstObject;
-    _lastCycleTime = [NSDate date];
+    if (_availableShaders.count > 0) {
+      _isCycling = YES;
+      _currentShaderName = _availableShaders.firstObject;
+      _lastCycleTime = [NSDate date];
+    } else {
+      _isCycling = NO;
+      NSLog(@"ShaderCandyView: No shaders available for cycling");
+    }
   }
 
   [self loadShaders];
@@ -152,6 +157,9 @@
 }
 
 - (void)cycleToNextShader {
+  if (_availableShaders.count == 0)
+    return;
+
   NSUInteger index = [_availableShaders indexOfObject:_currentShaderName];
   index = (index == NSNotFound) ? 0 : (index + 1) % _availableShaders.count;
   _currentShaderName = _availableShaders[index];
