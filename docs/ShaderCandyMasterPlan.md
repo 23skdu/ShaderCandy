@@ -1,4 +1,6 @@
-# ShaderCandy: Master Plan & Status
+# ShaderCandy: Master Plan & Roadmap
+
+**Last Updated:** February 14, 2026
 
 ## 📍 Executive Summary
 
@@ -39,47 +41,57 @@ ShaderCandy is a high-performance, cross-platform shader engine and screensaver 
 | **Standalone Player** | ✅ | ✅ | Production Ready |
 | **Wallpaper Mode** | ✅ | ✅ | Production Ready |
 | **Audio Reactivity** | ✅ | ✅ | Production Ready |
-| **Neural Effects (CoreML)** | ✅ | ❌ | macOS-Only |
-| **HDR (10-bit/EDR)** | ✅ | ❌ | macOS-Only |
-| **Ray-Traced Audio** | ✅ | ❌ | macOS-Only |
+| **JSON Configuration** | ✅ | ✅ | Production Ready |
 | **Screenshot Capture** | ✅ | ✅ | Production Ready |
+| **HDR (10-bit/EDR)** | ✅ | ❌ | macOS-Only |
+| **Neural Effects (CoreML)** | ✅ | ❌ | macOS-Only |
+| **Ray-Traced Audio** | ✅ | ❌ | macOS-Only |
 
 ---
 
-## ✅ Completed Milestones
+## ✅ Recently Completed
 
-- **Phase 1-3**: Core Rendering, Standalone App, Neural Effects, and HDR foundation.
-- **Phase 4**: Linux Port (Screensaver, Standalone, Audio).
-- **Phase 5**: Advanced assets and documentation.
-- **Recent Update (Feb 2026)**:
-  - **3D Shader Overhaul**: Completely recreated `frog`, `owl`, `thieves`, and `fallout` as 3D raymarched scenes.
-  - **Shared Utility Consolidation**: Centralized `lookAt`, `stepped_noise`, and SDF primitives in `utils.metal`.
-  - **Verification**: All 98 shaders verified to compile and render correctly.
+- **Linux OpenGL Backend**: Full implementation with HDR tone mapping (ACES, Reinhard, Filmic, Hable)
+- **JSON Configuration**: Complete serialization/deserialization with file-based persistence
+- **CI/CD Integration**: Test result validation and documentation checks
+- **3D Shader Overhaul**: Completely recreated `frog`, `owl`, `thieves`, and `fallout` as 3D raymarched scenes
+- **Shared Utility Consolidation**: Centralized `lookAt`, `stepped_noise`, and SDF primitives in `utils.metal`
+- **Shader Compilation Fix**: Added nil checks for render pipeline state to prevent EXC_BAD_ACCESS crashes
 
 ---
 
-## 🗺️ Remaining Tasks (To Complete)
+## 🗺️ Remaining Tasks (Roadmap)
 
-### 1. High Priority
+### High Priority
 
-- [ ] **Universal Preset API**: Implementation of a cloud-based backend for community preset sharing and discovery.
-- [ ] **HDR Calibration UI**: Integration of SMPTE/Color bar calibration patterns into the preferences window.
-- [ ] **XCTest Stabilization**: Fully resolve minor Objective-C ARC warnings and ensure test suite integration in CI/CD.
+- [ ] **Universal Preset API**: Cloud-based backend for community preset sharing, discovery, and rating
+- [ ] **HDR Calibration UI**: Integration of SMPTE/Color bar calibration patterns into the preferences window
+- [ ] **XCTest Stabilization**: Fully resolve Objective-C ARC warnings and ensure test suite integration in CI/CD
 
-### 2. Platform Parity
+### Platform Parity
 
-- [ ] **GLSL HDR Engine**: Port ACES and Reinhard tone mapping logic to the Linux OpenGL pipeline.
-- [ ] **Vulkan Backend**: Research and initial implementation of a Vulkan renderer for Linux to support modern HDR features.
+- [ ] **GLSL HDR Engine**: Port ACES and Reinhard tone mapping logic to the Linux OpenGL pipeline
+- [ ] **Vulkan Backend**: Research and implement a Vulkan renderer for Linux to support modern HDR features (VK_KHR_swapchain, VK_EXT_swapchain_colorspace)
 
-### 3. Advanced Features
+### Advanced Features
 
-- [ ] **Custom Neural Training**: Allow users to import their own `.mlmodel` files for customized neural style transfers.
-- [ ] **Granular Controls**: Extend the configuration UI to allow per-shader settings for speed, intensity, and bloom thresholds.
+- [ ] **Custom Neural Training**: Allow users to import their own `.mlmodel` files for customized neural style transfers with validation
+- [ ] **Granular Controls UI**: Extend the configuration UI to allow per-shader settings (speed, intensity, bloom threshold, color palette) with dynamic controls
 
-### 4. Distribution
+### Distribution
 
-- [ ] **Linux Store Packaging**: Finalize Flatpak and Snap package configurations.
-- [ ] **App Store Finalization**: Final audit of sandboxing and entitlement requirements for the macOS App Store.
+- [ ] **Linux Store Packaging**: Finalize Flatpak and Snap package configurations
+- [ ] **App Store Finalization**: Final audit of sandboxing and entitlement requirements for the macOS App Store
+
+### Performance & Quality
+
+- [ ] **Performance Benchmark Suite**: Automated testing of all shaders at multiple resolutions with regression detection
+- [ ] **Wayland Screensaver Integration**: Complete Wayland implementation and test with sway, GNOME, KDE Plasma
+
+### Documentation
+
+- [ ] **API Documentation**: Add Doxygen configuration for C++ API documentation generation
+- [ ] **Architecture Diagrams**: Visual documentation of key systems (Rendering, Audio, Neural)
 
 ---
 
@@ -91,20 +103,19 @@ Real-time monitoring of the `shaders/` directory. Edits to `.metal` or `.glsl` f
 
 ### Testing & Verification
 
-- **Shader Validation**: Automated compilation of all library shaders via `shadercandy-test`.
-- **Screenshot Automation**: `shadercandy-screenshot` generates high-resolution previews for visual regression checking.
-- **C++ Suite**: Math and SIMD unit tests via a custom internal framework.
+- **Shader Validation**: Automated compilation of all library shaders via `shadercandy-test`
+- **Screenshot Automation**: `shadercandy-screenshot` generates high-resolution previews for visual regression checking
+- **C++ Suite**: Math and SIMD unit tests via a custom internal framework
 
 ---
 
 ## 📂 Documentation Manifest
 
-All architectural and status information is now contained in this document.
-
-- **[ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md)**: (This document)
-- **[HdrImplementation.md](./HdrImplementation.md)**: Technical guide for high-bit-depth rendering.
-- **[NeuralEffectsGuide.md](./NeuralEffectsGuide.md)**: CoreML style transfer documentation.
-- **[LinuxFeatures.md](./LinuxFeatures.md)**: Linux-specific usage and integration.
+- **[ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md)**: (This document) Master plan and roadmap
+- **[HdrImplementation.md](./HdrImplementation.md)**: Technical guide for high-bit-depth rendering
+- **[NeuralEffectsGuide.md](./NeuralEffectsGuide.md)**: CoreML style transfer documentation
+- **[LinuxFeatures.md](./LinuxFeatures.md)**: Linux-specific usage and integration
 
 ---
-*Last Updated: February 14, 2026*
+
+*This document consolidates the previous ShaderCandyMasterPlan.md and nextsteps.md, with completed items removed.*
