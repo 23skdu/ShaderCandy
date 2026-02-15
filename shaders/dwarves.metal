@@ -224,7 +224,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
             baseColor = float3(1.0, 0.15, 0.0) * flicker;
         }
         
-        color = baseColor * (diff1 * lightCol1 * atten1 * 3.0 + diff2 * lightCol2 * aten2);
+        color = baseColor * (diff1 * lightCol1 * atten1 * 3.0 + diff2 * lightCol2 * atten2);
         color += baseColor * 0.05; // Ambient
         
         // Add glowing embers in air

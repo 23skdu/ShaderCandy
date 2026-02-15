@@ -6,6 +6,19 @@ using namespace metal;
 
 using namespace ShaderUtils;
 
+// Helper for ellipsoid
+float sdEllipsoid(float3 p, float3 r) {
+    float k0 = length(p/r);
+    float k1 = length(p/(r*r));
+    return k0*(k0-1.0)/k1;
+}
+
+// Helper for cone
+float sdCone(float3 p, float2 c) {
+    float q = length(p.xz);
+    return dot(c, float2(q, p.y));
+}
+
 // Owl SDF with detailed features
 float owlSDF(float3 p, float time, float headRotationY) {
     float d = 1e10;
@@ -93,19 +106,6 @@ float owlSDF(float3 p, float time, float headRotationY) {
     d = min(d, talonR);
     
     return d;
-}
-
-// Helper for ellipsoid
-float sdEllipsoid(float3 p, float3 r) {
-    float k0 = length(p/r);
-    float k1 = length(p/(r*r));
-    return k0*(k0-1.0)/k1;
-}
-
-// Helper for cone
-float sdCone(float3 p, float2 c) {
-    float q = length(p.xz);
-    return dot(c, float2(q, p.y));
 }
 
 float map(float3 p, float time) {
