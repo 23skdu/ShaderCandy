@@ -4,7 +4,7 @@
 
 using namespace metal;
 
-float noise(float2 p) {
+float hashNoise(float2 p) {
     return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
 }
 
@@ -12,10 +12,10 @@ float smoothNoise(float2 p) {
     float2 i = floor(p);
     float2 f = fract(p);
     
-    float a = noise(i);
-    float b = noise(i + float2(1.0, 0.0));
-    float c = noise(i + float2(0.0, 1.0));
-    float d = noise(i + float2(1.0, 1.0));
+    float a = hashNoise(i);
+    float b = hashNoise(i + float2(1.0, 0.0));
+    float c = hashNoise(i + float2(0.0, 1.0));
+    float d = hashNoise(i + float2(1.0, 1.0));
     
     float2 u = f * f * (3.0 - 2.0 * f);
     
