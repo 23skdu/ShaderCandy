@@ -1,5 +1,6 @@
 #include "GLSLWrapper.h"
 #include "LinuxStubs.h"
+#include "GLLoader.h"
 #ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -20,12 +21,41 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <vector>
 
 using namespace ShaderCandy::Platform::Linux;
 
 // Audio support
+#ifdef HAS_AUDIO
 #include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
+#else
+// Stubs when audio is not available
+namespace ShaderCandy {
+namespace Audio {
+struct AudioData {
+    float volume = 0.0f;
+    float bass = 0.0f;
+    float mid = 0.0f;
+    float treble = 0.0f;
+    float beat = 0.0f;
+    std::vector<float> spectrum;
+};
+class AudioInput {
+public:
+    AudioInput() {}
+    ~AudioInput() {}
+    bool initialize(int = 0, int = 0) { return false; }
+    bool autoSelectDevice() { return false; }
+    bool start() { return false; }
+    void stop() {}
+    bool isRunning() const { return false; }
+    AudioData getCurrentData() const { return AudioData(); }
+};
+}
+}
+using namespace ShaderCandy::Audio;
+#endif
 
 // Extended Uniforms matching common.glsl and ShaderInterop.h
 struct Uniforms {
@@ -152,7 +182,6 @@ public:
       return "";
     }
 
-    // Get directory of this shader file
     std::string dir = path;
     size_t lastSlash = dir.find_last_of("/\\");
     if (lastSlash != std::string::npos) {
@@ -163,17 +192,15 @@ public:
 
     std::stringstream result;
     std::string line;
+    bool inUniformBlock = false;
     while (std::getline(file, line)) {
-      // Strip #version directives - the wrapper provides the version
       size_t versionPos = line.find("#version");
       if (versionPos != std::string::npos) {
-        continue; // Skip version directives
+        continue;
       }
 
-      // Check for #include directive
       size_t includePos = line.find("#include");
       if (includePos != std::string::npos) {
-        // Extract the include path
         size_t start = line.find('"', includePos);
         size_t end = std::string::npos;
         if (start != std::string::npos) {
@@ -182,42 +209,77 @@ public:
 
         if (start != std::string::npos && end != std::string::npos) {
           std::string includePath = line.substr(start + 1, end - start - 1);
-
-          // Resolve relative path
           std::string fullPath;
           if (includePath[0] == '/') {
             fullPath = includePath;
           } else if (includePath.substr(0, 3) == "../") {
-            // Handle ../ by going up one directory
             std::string parentDir = dir;
-            if (parentDir.length() > 0 &&
-                (parentDir.back() == '/' || parentDir.back() == '\\')) {
+            while (parentDir.length() > 0 &&
+                   (parentDir.back() == '/' || parentDir.back() == '\\')) {
               parentDir.pop_back();
             }
             size_t parentSlash = parentDir.find_last_of("/\\");
             if (parentSlash != std::string::npos) {
-              parentDir = parentDir.substr(0, parentSlash + 1);
+              parentDir = parentDir.substr(0, parentSlash);
             }
-            fullPath = parentDir + includePath.substr(3);
+            std::string remainingPath = includePath.substr(3);
+            while (remainingPath.substr(0, 3) == "../") {
+              size_t slash = parentDir.find_last_of("/\\");
+              if (slash != std::string::npos) {
+                parentDir = parentDir.substr(0, slash);
+              }
+              remainingPath = remainingPath.substr(3);
+            }
+            fullPath = parentDir + "/" + remainingPath;
+            std::ifstream testFile(fullPath.c_str());
+            if (!testFile.is_open()) {
+              std::string altPath = fullPath;
+              size_t shadersPos = altPath.find("/shaders/");
+              if (shadersPos == std::string::npos) {
+                shadersPos = altPath.rfind("/shadercandy/");
+                if (shadersPos != std::string::npos) {
+                  altPath = altPath.substr(0, shadersPos + 12) + "shaders/" + remainingPath;
+                }
+              } else {
+                altPath = altPath.substr(0, shadersPos + 8) + remainingPath;
+              }
+              std::ifstream altFile(altPath.c_str());
+              if (altFile.is_open()) {
+                fullPath = altPath;
+              }
+            }
           } else if (includePath.substr(0, 2) == "./") {
             fullPath = dir + includePath.substr(2);
           } else {
             fullPath = dir + includePath;
+            std::ifstream testFile(fullPath.c_str());
+            if (!testFile.is_open()) {
+              std::string altPath = fullPath;
+              size_t shadersPos = altPath.find("/shaders/");
+              if (shadersPos != std::string::npos) {
+                altPath = altPath.substr(0, shadersPos + 8) + "/" + includePath;
+              } else {
+                size_t pos = altPath.rfind("/shadercandy/");
+                if (pos != std::string::npos) {
+                  altPath = altPath.substr(0, pos + 12) + "shaders/" + includePath;
+                }
+              }
+              std::ifstream altFile(altPath.c_str());
+              if (altFile.is_open()) {
+                fullPath = altPath;
+              }
+            }
           }
 
-          // Recursively load the included file
-          std::string includeContent =
-              loadShaderWithIncludes(fullPath.c_str(), depth + 1);
+          std::string includeContent = loadShaderWithIncludes(fullPath.c_str(), depth + 1);
           if (!includeContent.empty()) {
             result << includeContent << "\n";
-          } else {
-            std::cerr << "Warning: Could not load include: " << includePath
-                      << std::endl;
           }
           continue;
         }
       }
-      result << line << "\n";
+
+    result << line << "\n";
     }
 
     return result.str();
@@ -226,7 +288,6 @@ public:
   bool loadShaderFromFile(const char *fragmentPath) {
     std::string fragStr = loadShaderWithIncludes(fragmentPath);
     if (fragStr.empty()) {
-      std::cerr << "Failed to load shader: " << fragmentPath << std::endl;
       return false;
     }
 
@@ -241,12 +302,12 @@ public:
       name = name.substr(0, extPos);
     }
 
-    const char *vertexSource = GLSLWrapper::getVertexShader().c_str();
-    std::string wrappedFrag = GLSLWrapper::getPreamble();
-
+    std::string vertexShaderStr = GLSLWrapper::getVertexShader();
+    std::string wrappedFrag = "\
+#version 450 core\n";
     wrappedFrag += fragStr;
 
-    return loadShader(vertexSource, wrappedFrag.c_str());
+    return loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str());
   }
 
   void use() {
@@ -299,7 +360,8 @@ public:
 private:
   GLuint compileShader(GLenum type, const char *source) {
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
+    const char* sources[] = { source };
+    glShaderSource(shader, 1, sources, nullptr);
     glCompileShader(shader);
 
     GLint success;
@@ -384,8 +446,14 @@ public:
     if (shaderPaths.empty()) {
       addShaderDirectory("/usr/share/shadercandy/shaders");
       addShaderDirectory("/usr/local/share/shadercandy/shaders");
+      addShaderDirectory("/home/rsd/.local/share/shadercandy/shaders");
+      // Also add base directory for includes
+      addShaderDirectory("/home/rsd/.local/share/shadercandy");
       addShaderDirectory("./shaders");
       addShaderDirectory("./shaders/effects");
+      addShaderDirectory("../shaders");
+      addShaderDirectory("../shaders/effects");
+      addShaderDirectory("../shaders/base");
     }
 
     // Open display
@@ -450,6 +518,23 @@ public:
                       InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
 
     XMapWindow(display, window);
+    XFlush(display);
+    
+    // Wait for window to be mapped
+    XSync(display, False);
+    
+    XWindowAttributes winAttr;
+    for (int i = 0; i < 10; i++) {
+      XGetWindowAttributes(display, window, &winAttr);
+      if (winAttr.map_state == IsViewable) break;
+      usleep(10000);
+    }
+    
+    std::cerr << "ShaderCandy: Window " << std::hex << window << std::dec 
+              << " ready (" << winAttr.width << "x" << winAttr.height << ")" << std::endl;
+
+    XRaiseWindow(display, window);
+    XFlush(display);
 
     context =
         glXCreateNewContext(display, fbc[0], GLX_RGBA_TYPE, nullptr, True);
@@ -460,9 +545,18 @@ public:
 
     glXMakeCurrent(display, window, context);
 
+    // Initialize OpenGL function pointers
+    if (!InitializeGLLoader()) {
+      std::cerr << "Failed to initialize OpenGL function pointers" << std::endl;
+      return false;
+    }
+
     // Initialize OpenGL
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glViewport(0, 0, width, height);
 
     // Create fullscreen quad
     float vertices[] = {-1.0f, -1.0f, 0.0f, 0.0f, 1.0f,  -1.0f, 1.0f, 0.0f,
@@ -532,41 +626,108 @@ public:
   }
 
   void scanShaderDirectory(const std::string &dir) {
-    std::vector<std::string> extensions = {".frag", ".glsl"};
-
-    // Try to load shaders from directory
-    std::vector<std::string> shaderFiles = {"nebula.frag",
-                                            "mandelbrot_set.frag",
-                                            "julia_set.frag",
-                                            "mandelbulb_3d.frag",
-                                            "julia_3d.frag",
-                                            "starfield_warp.frag",
-                                            "voronoi_cells.frag",
-                                            "neon_pulse.frag",
-                                            "kaleidoscopic_tunnel.frag",
-                                            "reaction_diffusion.frag",
-                                            "fractal_zoom.frag",
-                                            "liquid_gradient.frag",
-                                            "bloom.frag",
-                                            "raymarch_sculpture.frag",
-                                            "dna_helix.frag",
-                                            "quantum_field.frag",
-                                            "fluid_dynamics.frag",
-                                            "audio_spectrum.frag",
-                                            "plasma.frag",
-                                            "tunnel.frag",
-                                            "spiral.frag",
-                                            "ripples.frag",
-                                            "checkerboard.frag",
-                                            "gradient_waves.frag",
-                                            "flying_toasters.frag"};
-
-    for (const auto &file : shaderFiles) {
-      std::string fullPath = dir + "/" + file;
-      struct stat buffer;
-      if (stat(fullPath.c_str(), &buffer) == 0) {
-        loadShader(fullPath);
+    std::cerr << "Scanning shader directory: " << dir << std::endl;
+    
+    // Use glob or simple scan to find all .frag files
+    std::vector<std::string> shaderFiles;
+    
+    // Try to use glob if available, otherwise use simple approach
+    #ifdef __linux__
+    std::string cmd = "find " + dir + " -maxdepth 2 -name '*.frag' 2>/dev/null";
+    FILE *fp = popen(cmd.c_str(), "r");
+    if (fp) {
+        char buf[512];
+        while (fgets(buf, sizeof(buf), fp)) {
+            std::string path(buf);
+            path = path.substr(0, path.find_last_of("\n\r"));
+            shaderFiles.push_back(path);
+        }
+        pclose(fp);
+    }
+    #endif
+    
+    for (const auto &path : shaderFiles) {
+      std::cerr << "Found shader: " << path << std::endl;
+      loadShader(path);
+    }
+  }
+  
+  void loadShaderSimple(const std::string &path) {
+    // Load the raw file content
+    std::ifstream file(path);
+    if (!file.is_open()) {
+      std::cerr << "Failed to open: " << path << std::endl;
+      return;
+    }
+    
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string fragStr = buffer.str();
+    
+    // Extract shader name
+    std::string shaderName = path;
+    size_t lastSlash = shaderName.find_last_of("/\\");
+    if (lastSlash != std::string::npos) {
+      shaderName = shaderName.substr(lastSlash + 1);
+    }
+    size_t extPos = shaderName.find_last_of('.');
+    if (extPos != std::string::npos) {
+      shaderName = shaderName.substr(0, extPos);
+    }
+    
+    // Replace #version with our version
+    size_t versionPos = fragStr.find("#version");
+    while (versionPos != std::string::npos) {
+      size_t endLine = fragStr.find("\n", versionPos);
+      if (endLine != std::string::npos) {
+        fragStr.replace(versionPos, endLine - versionPos, "");
+      } else {
+        fragStr.replace(versionPos, std::string::npos, "");
       }
+      versionPos = fragStr.find("#version", versionPos);
+    }
+    
+    // Add our version and uniforms at the beginning
+    std::string preamble = R"Shader(#version 330 core
+
+layout(std140) uniform Uniforms {
+    float time;
+    float speed;
+    float resolution[2];
+    float mouse[2];
+    float mouseButtons;
+    float intensity;
+    float date[4];
+    int frame;
+    float deltaTime;
+    float alpha;
+    float gravity;
+    float volume;
+    float bass;
+    float mid;
+    float treble;
+    float beat;
+    float audioData[256];
+    float gpuTime;
+    float cpuTime;
+    float fps;
+};
+
+)Shader";
+    
+    std::string wrappedFrag = preamble + fragStr;
+    
+    // Compile
+    auto *shader = new GLShaderProgram();
+    std::string vertexShaderStr = GLSLWrapper::getVertexShader();
+    
+    if (shader->loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str())) {
+      shader->name = shaderName;
+      shaders.push_back(shader);
+      std::cout << "Loaded shader: " << shaderName << std::endl;
+    } else {
+      delete shader;
+      std::cerr << "Failed to compile: " << path << std::endl;
     }
   }
 
@@ -737,6 +898,11 @@ private:
   void render() {
     glClear(GL_COLOR_BUFFER_BIT);
 
+    if (!currentShader || !currentShader->program) {
+      glXSwapBuffers(display, window);
+      return;
+    }
+
     // Get current audio data if available
     const AudioData *audioData = nullptr;
     AudioData currentAudio;
@@ -746,6 +912,8 @@ private:
     }
 
     if (currentShader && currentShader->program) {
+      glBindVertexArray(vao);
+      
       if (inTransition && nextShader && nextShader->program) {
         float alpha1 = 1.0f - transitionProgress;
         float alpha2 = transitionProgress;

@@ -8,7 +8,8 @@
     #define GL_SILENCE_DEPRECATION
 #elif defined(__linux__)
     #include <GL/gl.h>
-    #include <GL/glew.h>
+    #include <GL/glext.h>
+    #include "../platform/linux/GLLoader.h"
 #endif
 
 namespace ShaderCandy {
