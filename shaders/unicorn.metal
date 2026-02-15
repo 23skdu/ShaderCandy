@@ -29,6 +29,12 @@ float sdEllipsoid(float3 p, float3 r) {
     return k0*(k0-1.0)/k1;
 }
 
+// Helper for cone
+float sdCone(float3 p, float2 c) {
+    float q = length(p.xz);
+    return dot(c, float2(q, p.y));
+}
+
 // Unicorn SDF
 float unicornSDF(float3 p, float time) {
     float d = 1e10;
@@ -137,12 +143,6 @@ float unicornSDF(float3 p, float time) {
     d = min(d, hoofFR);
     
     return d;
-}
-
-// Helper for cone
-float sdCone(float3 p, float2 c) {
-    float q = length(p.xz);
-    return dot(c, float2(q, p.y));
 }
 
 // Magical particles

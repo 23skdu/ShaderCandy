@@ -180,6 +180,9 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     
     float3 color = float3(0.08, 0.01, 0.0); // Dark red volcanic sky
     
+    // Lava flicker effect
+    float flicker = 0.7 + 0.3 * sin(t*15.0) * sin(t*23.0);
+    
     if(dTotal < 25.0) {
         float3 p = ro + rd * dTotal;
         float3 n = normalize(float3(
@@ -192,8 +195,6 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
         float3 lp1 = float3(0, -1.5, 0); // Main lava pit
         float3 lp2 = float3(3.0, -1.2, -2.0); // Side lava flow
         float3 lp3 = float3(-3.0, -1.0, 1.0); // Another lava flow
-        
-        float flicker = 0.7 + 0.3 * sin(t*15.0) * sin(t*23.0);
         
         float diff1 = max(dot(n, normalize(p-lp1)), 0.0);
         float diff2 = max(dot(n, normalize(p-lp2)), 0.0) * 0.5;
