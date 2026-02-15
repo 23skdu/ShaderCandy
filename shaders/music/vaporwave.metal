@@ -54,7 +54,7 @@ float sdMacintosh(float3 p) {
 
 // Classic Mac Rainbow Logo
 float sdMacRainbowLogo(float3 p) {
-    float3 appleBody = length(p.xy - float2(0.0, -0.02)) - 0.12;
+    float appleBody = length(p.xy - float2(0.0, -0.02)) - 0.12;
     appleBody = max(appleBody, -(length(p.xy - float2(0.0, 0.08)) - 0.06));
     appleBody = max(appleBody, abs(p.z) - 0.02);
     
