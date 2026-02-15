@@ -1581,6 +1581,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   if (!_currentPipeline || !_commandQueue)
     return;
 
+  // Ensure we have a valid render pipeline
+  if (!_currentPipeline.renderPipeline) {
+    NSLog(@"MetalRenderer: Cannot render - no valid render pipeline for shader '%@'", 
+          _activeShaderName ?: @"unknown");
+    return;
+  }
+
   [self beginFrame];
   if (_frameCount % 60 == 0) {
     NSLog(@"MetalRenderer: Drawing frame %lu (Shader: %@)",
@@ -1846,6 +1853,12 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
               renderDescriptor:(MTLRenderPassDescriptor *)descriptor
                       uniforms:(Uniforms *)uniforms
                    bufferIndex:(NSUInteger)bufferIndex {
+  // Check if we have a valid pipeline
+  if (!_currentPipeline.renderPipeline) {
+    NSLog(@"MetalRenderer: No render pipeline available, skipping render");
+    return;
+  }
+
   descriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
 
   id<MTLRenderCommandEncoder> encoder =
@@ -1883,6 +1896,12 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
             (id<MTLCommandBuffer>)commandBuffer
                                       uniforms:(Uniforms *)uniforms
                                    bufferIndex:(NSUInteger)bufferIndex {
+  // Check if we have a valid simulation pipeline
+  if (!_currentPipeline.simulationPipeline) {
+    NSLog(@"MetalRenderer: No simulation pipeline available, skipping simulation");
+    return;
+  }
+
   // Ping-pong swap logic
   id<MTLTexture> source = _resources.simulationTextureA;
   id<MTLTexture> dest = _resources.simulationTextureB;
@@ -1927,6 +1946,12 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                  renderDescriptor:(MTLRenderPassDescriptor *)finalDesc
                          uniforms:(Uniforms *)uniforms
                       bufferIndex:(NSUInteger)bufferIndex {
+  // Check if we have a valid pipeline
+  if (!_currentPipeline.renderPipeline) {
+    NSLog(@"MetalRenderer: No render pipeline available for bloom, skipping render");
+    return;
+  }
+
   // Scene pass to offscreen texture
   MTLRenderPassDescriptor *sceneDesc =
       [MTLRenderPassDescriptor renderPassDescriptor];
