@@ -23,6 +23,8 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SCREENSAVER_MACOS "Build macOS screensaver" ON)
 option(BUILD_SCREENSAVER_LINUX "Build Linux X11 screensaver" ON)
 option(BUILD_SCREENSAVER_WAYLAND "Build Linux Wayland screensaver" ON)
+option(BUILD_STANDALONE_PLAYER "Build Linux standalone player (requires GLFW)" ON)
+option(BUILD_WALLPAPER "Build Linux wallpaper mode" ON)
 
 # Detect platform
 if(APPLE)
@@ -244,12 +246,22 @@ if(BUILD_OPENGL)
                 OpenGL::GL
             )
             find_package(X11 REQUIRED)
-            find_library(XSS_LIB Xss REQUIRED)
+            find_library(XSS_LIB Xss)
+            find_library(XMU_LIB Xmu)
+            find_package(GLEW)
             target_link_libraries(shadercandy_gl PUBLIC
                 ${X11_LIBRARIES}
-                ${X11_Xmu_LIB}
-                ${XSS_LIB}
             )
+            if(XMU_LIB)
+                target_link_libraries(shadercandy_gl PUBLIC ${XMU_LIB})
+            endif()
+            if(XSS_LIB)
+                target_link_libraries(shadercandy_gl PUBLIC ${XSS_LIB})
+            endif()
+            if(GLEW_FOUND)
+                target_link_libraries(shadercandy_gl PUBLIC GLEW::GLEW)
+                target_compile_definitions(shadercandy_gl PUBLIC USE_GLEW=1)
+            endif()
         else()
             target_link_libraries(shadercandy_gl PUBLIC
                 shadercandy_core
@@ -459,9 +471,11 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
                 ${ALSALIB_INCLUDE_DIRS}
                 ${FFTW3_INCLUDE_DIRS}
             )
+            target_compile_definitions(shadercandy-screensaver PRIVATE HAS_AUDIO=1)
         endif()
         target_link_libraries(shadercandy-screensaver PRIVATE
             shadercandy_core
+            shadercandy_gl
             ${X11_LIBRARIES}
             GL
             pthread
@@ -488,51 +502,58 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
         )
         
         # Linux Standalone Player
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(GLFW REQUIRED glfw3)
-        
-        add_executable(shadercandy-player src/platform/linux/standalone_player.cpp)
-        target_include_directories(shadercandy-player PRIVATE
-            src/core
-            src/audio
-            ${GLFW_INCLUDE_DIRS}
-        )
-        if(BUILD_AUDIO_ACTUAL)
-            target_include_directories(shadercandy-player PRIVATE
-                ${ALSALIB_INCLUDE_DIRS}
-                ${FFTW3_INCLUDE_DIRS}
-            )
+        if(BUILD_STANDALONE_PLAYER)
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(GLFW glfw3)
+            
+            if(GLFW_FOUND)
+                add_executable(shadercandy-player src/platform/linux/standalone_player.cpp)
+                target_include_directories(shadercandy-player PRIVATE
+                    src/core
+                    src/audio
+                    ${GLFW_INCLUDE_DIRS}
+                )
+                if(BUILD_AUDIO_ACTUAL)
+                    target_include_directories(shadercandy-player PRIVATE
+                        ${ALSALIB_INCLUDE_DIRS}
+                        ${FFTW3_INCLUDE_DIRS}
+                    )
+                endif()
+                target_link_libraries(shadercandy-player PRIVATE
+                    shadercandy_core
+                    ${GLFW_LIBRARIES}
+                    ${GLFW_STATIC_LIBRARIES}
+                    GL
+                    pthread
+                )
+                if(BUILD_AUDIO_ACTUAL)
+                    target_link_libraries(shadercandy-player PRIVATE
+                        shadercandy_audio_linux
+                        ${ALSALIB_LIBRARIES}
+                        ${FFTW3_LIBRARIES}
+                    )
+                endif()
+                target_compile_options(shadercandy-player PRIVATE
+                    ${GLFW_CFLAGS_OTHER}
+                )
+                if(BUILD_AUDIO_ACTUAL)
+                    target_compile_options(shadercandy-player PRIVATE
+                        ${ALSALIB_CFLAGS_OTHER}
+                        ${FFTW3_CFLAGS_OTHER}
+                    )
+                endif()
+                
+                install(TARGETS shadercandy-player
+                    RUNTIME DESTINATION bin
+                )
+            else()
+                message(STATUS "GLFW3 not found. Standalone player will not be built.")
+            endif()
         endif()
-        target_link_libraries(shadercandy-player PRIVATE
-            shadercandy_core
-            ${GLFW_LIBRARIES}
-            ${GLFW_STATIC_LIBRARIES}
-            GL
-            pthread
-        )
-        if(BUILD_AUDIO_ACTUAL)
-            target_link_libraries(shadercandy-player PRIVATE
-                shadercandy_audio_linux
-                ${ALSALIB_LIBRARIES}
-                ${FFTW3_LIBRARIES}
-            )
-        endif()
-        target_compile_options(shadercandy-player PRIVATE
-            ${GLFW_CFLAGS_OTHER}
-        )
-        if(BUILD_AUDIO_ACTUAL)
-            target_compile_options(shadercandy-player PRIVATE
-                ${ALSALIB_CFLAGS_OTHER}
-                ${FFTW3_CFLAGS_OTHER}
-            )
-        endif()
-        
-        install(TARGETS shadercandy-player
-            RUNTIME DESTINATION bin
-        )
         
         # Linux Wallpaper Mode
-        add_executable(shadercandy-wallpaper src/platform/linux/wallpaper.cpp)
+        if(BUILD_WALLPAPER)
+            add_executable(shadercandy-wallpaper src/platform/linux/wallpaper.cpp)
         target_include_directories(shadercandy-wallpaper PRIVATE
             src/core
             src/audio
@@ -563,14 +584,18 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
         install(TARGETS shadercandy-wallpaper
             RUNTIME DESTINATION bin
         )
+        endif()
         
-        # Install all GLSL shaders
-        file(GLOB GLSL_SHADERS 
-            ${CMAKE_SOURCE_DIR}/shaders/*.frag
-            ${CMAKE_SOURCE_DIR}/shaders/effects/*.frag
-        )
-        install(FILES ${GLSL_SHADERS}
+        # Install all GLSL shaders with directory structure preserved
+        # This is critical - shaders reference base/common.glsl and other relative paths
+        install(DIRECTORY ${CMAKE_SOURCE_DIR}/shaders/
             DESTINATION share/shadercandy/shaders
+            FILES_MATCHING PATTERN "*.frag"
+        )
+        # Also install .glsl files (like common.glsl)
+        install(DIRECTORY ${CMAKE_SOURCE_DIR}/shaders/
+            DESTINATION share/shadercandy/shaders
+            FILES_MATCHING PATTERN "*.glsl"
         )
     else()
         message(STATUS "Linux screensaver sources not found. Set BUILD_SCREENSAVER_LINUX=OFF to disable.")

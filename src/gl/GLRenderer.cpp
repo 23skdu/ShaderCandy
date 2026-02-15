@@ -9,14 +9,11 @@
 
 #if defined(__APPLE__)
     #include <OpenGL/gl3.h>
-    #define GL_PROFILE "3.3"
+    #define GL_SILENCE_DEPRECATION
 #elif defined(__linux__)
     #include <GL/gl.h>
-    #include <GL/glew.h>
-    #define GL_PROFILE "3.3"
-#else
-    #include <GL/gl.h>
-    #define GL_PROFILE "3.3"
+    #include <GL/glext.h>
+    #include "../platform/linux/GLLoader.h"
 #endif
 
 #include "../platform/linux/GLSLWrapper.h"
@@ -330,14 +327,14 @@ void GLRenderer::render(float time) {
 void GLRenderer::resize(int width, int height) {
     if (width > 0 && height > 0) {
         metrics_.memoryUsageBytes = width * height * 4;
-        uniforms_.resolution[0] = (float)width;
-        uniforms_.resolution[1] = (float)height;
+        uniforms_.resolution.x = (float)width;
+        uniforms_.resolution.y = (float)height;
     }
 }
 
 void GLRenderer::setMouse(float x, float y, int buttons) {
-    uniforms_.mouse[0] = x;
-    uniforms_.mouse[1] = y;
+    uniforms_.mouse.x = x;
+    uniforms_.mouse.y = y;
     uniforms_.mouseButtons = (float)buttons;
 }
 

@@ -166,6 +166,77 @@ install_binaries() {
     echo ""
 }
 
+# Configure KDE Plasma Screen Saver
+configure_kde_screensaver() {
+    echo "Configuring KDE Plasma Screen Saver..."
+    
+    # KDE uses ScreenLocker which can use XScreenSaver
+    # Check if kscreensaver or xscreensaver is available
+    if command -v xscreensaver-command &> /dev/null; then
+        # Configure for XScreenSaver (works on KDE)
+        configure_xscreensaver
+        
+        echo "KDE is using XScreenSaver backend."
+        echo "To enable ShaderCandy in KDE:"
+        echo "  1. Open System Settings > Screen Saver"
+        echo "  2. Select 'ShaderCandy' from the list"
+        echo "  3. Click Apply"
+        echo ""
+        echo "Alternatively, run: kscreensaver -configure"
+        echo ""
+    else
+        echo "Warning: XScreenSaver not found. KDE Screen Saver configuration skipped."
+        echo "For KDE Plasma 5/6, please install xscreensaver:"
+        echo "  Ubuntu/Debian: sudo apt install xscreensaver"
+        echo "  Fedora:        sudo dnf install xscreensaver"
+        echo "  Arch:          sudo pacman -S xscreensaver"
+        echo ""
+    fi
+    
+    # Create a simple script to launch in fullscreen for KDE
+    KDE_SCRIPT_DIR="$HOME/.local/bin"
+    mkdir -p "$KDE_SCRIPT_DIR"
+    
+    cat > "$KDE_SCRIPT_DIR/shadercandy-kde.sh" << 'KDEEOF'
+#!/bin/bash
+# ShaderCandy launcher for KDE Plasma
+# Usage: Run this to start ShaderCandy in fullscreen mode
+
+SCREENSAVER_BIN="/usr/local/bin/shadercandy-screensaver"
+
+if [ ! -f "$SCREENSAVER_BIN" ]; then
+    SCREENSAVER_BIN="$HOME/.local/bin/shadercandy-screensaver"
+fi
+
+if [ ! -f "$SCREENSAVER_BIN" ]; then
+    echo "Error: shadercandy-screensaver not found!"
+    exit 1
+fi
+
+# Find the active display
+DISPLAY_NUM=$(echo $DISPLAY | cut -d':' -f2 | cut -d'.' -f1)
+if [ -z "$DISPLAY_NUM" ]; then
+    DISPLAY_NUM="0"
+fi
+
+# Get screen resolution
+SCREEN_WIDTH=$(xrandr | grep -A1 "^Screen" | grep -oP '\d+(?= x)')
+SCREEN_HEIGHT=$(xrandr | grep -A1 "^Screen" | grep -oP '(?<=x )\d+')
+
+if [ -z "$SCREEN_WIDTH" ]; then
+    SCREEN_WIDTH=1920
+    SCREEN_HEIGHT=1080
+fi
+
+# Create a borderless fullscreen window
+exec "$SCREENSAVER_BIN" -window-id 0x0
+KDEEOF
+    
+    chmod +x "$KDE_SCRIPT_DIR/shadercandy-kde.sh"
+    echo "Created KDE launcher: $KDE_SCRIPT_DIR/shadercandy-kde.sh"
+    echo ""
+}
+
 # Configure XScreenSaver
 configure_xscreensaver() {
     echo "Configuring XScreenSaver..."
@@ -268,7 +339,25 @@ Terminal=false
 Categories=Screensaver;Graphics;
 EOF
     
+    # Also create for KDE screen saver (support both Plasma 5 and 6)
+    for kde_dir in "$HOME/.kde/share/apps/kscreensavers" "$HOME/.local/share/kscreensavers"; do
+        mkdir -p "$kde_dir"
+        cat > "$kde_dir/shadercandy.desktop" << 'KDEEOF'
+[Desktop Entry]
+Name=ShaderCandy
+Comment=Eye-candy shader screensaver
+Exec=/usr/local/bin/shadercandy-screensaver -root
+TryExec=/usr/local/bin/shadercandy-screensaver
+Icon=video-display
+Type=Screensaver
+Categories=Qt;KDE;Graphics;ScreenSavers;
+X-KDE-ScreensaverGroup=Abstract
+X-KDE-SortingWeight=50
+KDEEOF
+    done
+    
     echo "Desktop entry created"
+    echo "KDE screensaver entry created"
     echo ""
 }
 
@@ -396,7 +485,7 @@ main() {
     fi
     
     install_binaries
-    configure_xscreensaver
+    configure_kde_screensaver
     create_desktop_entry
     setup_systemd_service
     
@@ -407,6 +496,12 @@ main() {
     echo "Usage:"
     echo "  Run directly: /usr/local/bin/shadercandy-screensaver"
     echo "  Test mode:    /usr/local/bin/shadercandy-screensaver -window-id <window_id>"
+    echo "  KDE mode:     ~/.local/bin/shadercandy-kde.sh"
+    echo ""
+    echo "For KDE Plasma:"
+    echo "  1. Open System Settings > Screen Saver"
+    echo "  2. Select 'ShaderCandy' from the list"
+    echo "  Or run: kscreensaver -configure"
     echo ""
     echo "Uninstall:"
     echo "  Run: $0 --uninstall"
