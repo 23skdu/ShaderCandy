@@ -238,395 +238,692 @@ public:
       return loadShader(vertSource.c_str(), fragSource.c_str());
     }
 
-    void update(float deltaTime, int width, int height, float mouseX,
-                float mouseY) {
-      auto now = std::chrono::steady_clock::now();
-      auto elapsed = std::chrono::duration<float>(now - startTime).count();
-      auto frameDelta = std::chrono::duration<float>(now - lastFrame).count();
-
-      uniforms.time = elapsed;
-      uniforms.deltaTime = frameDelta;
-      uniforms.resolution[0] = (float)width;
-      uniforms.resolution[1] = (float)height;
-      uniforms.mouse[0] = mouseX / width;
-      uniforms.mouse[1] = 1.0f - (mouseY / height);
-      uniforms.frame = frameCount++;
-
-      lastFrame = now;
-
-      glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-      glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Uniforms), &uniforms);
-    }
-
-  private:
-    GLuint compileShader(GLenum type, const char *source) {
-      GLuint shader = glCreateShader(type);
-      glShaderSource(shader, 1, &source, nullptr);
-      glCompileShader(shader);
-
-      GLint success;
-      glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-      if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        std::cerr << "Shader compile error ("
-                  << (type == GL_VERTEX_SHADER ? "vertex" : "fragment")
-                  << "): " << infoLog << std::endl;
-        glDeleteShader(shader);
-        return 0;
-      }
-      return shader;
-    }
-  };
-
-  // Global state
-  static std::atomic<bool> g_running{true};
-  static std::string g_currentShader;
-  static GLESShaderProgram *g_shader = nullptr;
-  static float g_mouseX = 0, g_mouseY = 0;
-  static int g_width = 1920, g_height = 1080;
-  static EGLDisplay g_eglDisplay = EGL_NO_DISPLAY;
-  static EGLSurface g_eglSurface = EGL_NO_SURFACE;
-  static EGLContext g_eglContext = EGL_NO_CONTEXT;
-  static std::unique_ptr<AudioInput> g_audioInput;
-
-  // Wayland globals
-  static struct wl_display *g_wlDisplay = nullptr;
-  static struct wl_registry *g_wlRegistry = nullptr;
-  static struct wl_compositor *g_wlCompositor = nullptr;
-  static struct wl_subcompositor *g_wlSubcompositor = nullptr;
-  static struct xdg_wm_base *g_xdgWmBase = nullptr;
-  static struct zwlr_layer_shell_v1 *g_layerShell = nullptr;
-  static struct wl_output *g_wlOutput = nullptr;
-
-  static void handleGlobal(void *data, struct wl_registry *registry,
-                           uint32_t name, const char *interface,
-                           uint32_t version) {
-    if (strcmp(interface, wl_compositor_interface.name) == 0) {
-      g_wlCompositor = (wl_compositor *)wl_registry_bind(
-          registry, name, &wl_compositor_interface, 4);
-    } else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
-      g_wlSubcompositor = (wl_subcompositor *)wl_registry_bind(
-          registry, name, &wl_subcompositor_interface, 1);
-    } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-      g_xdgWmBase = (xdg_wm_base *)wl_registry_bind(registry, name,
-                                                    &xdg_wm_base_interface, 1);
-    } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
-      g_layerShell = (zwlr_layer_shell_v1 *)wl_registry_bind(
-          registry, name, &zwlr_layer_shell_v1_interface, 4);
-    } else if (strcmp(interface, wl_output_interface.name) == 0) {
-      g_wlOutput = (wl_output *)wl_registry_bind(registry, name,
-                                                 &wl_output_interface, 2);
-    }
+    // If no #version directive, wrap the whole file as fragment shader
+    fragSource = GLSLWrapper::getPreamble(true) + source;
+    vertSource = GLSLWrapper::getVertexShader(true);
+    return loadShader(vertSource.c_str(), fragSource.c_str());
   }
 
-  static void handleGlobalRemove(void *data, struct wl_registry *registry,
-                                 uint32_t name) {}
+  void update(float deltaTime, int width, int height, float mouseX,
+              float mouseY) {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration<float>(now - startTime).count();
+    auto frameDelta = std::chrono::duration<float>(now - lastFrame).count();
 
-  static const struct wl_registry_listener registryListener = {
-      .global = handleGlobal, .global_remove = handleGlobalRemove};
+    uniforms.time = elapsed;
+    uniforms.deltaTime = frameDelta;
+    uniforms.resolution[0] = (float)width;
+    uniforms.resolution[1] = (float)height;
+    uniforms.mouse[0] = mouseX / width;
+    uniforms.mouse[1] = 1.0f - (mouseY / height);
+    uniforms.frame = frameCount++;
 
-  static bool initEGL(WaylandOutput *output) {
-    // Get EGL extensions
-    const char *clientExtensions =
-        eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+    lastFrame = now;
 
-    // Initialize EGL
-    PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplay =
-        (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
-            "eglGetPlatformDisplayEXT");
-
-    if (eglGetPlatformDisplay && clientExtensions &&
-        strstr(clientExtensions, "EGL_EXT_platform_wayland")) {
-      g_eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_WAYLAND_EXT,
-                                           (void *)g_wlDisplay, nullptr);
-    } else {
-      g_eglDisplay = eglGetDisplay((EGLNativeDisplayType)g_wlDisplay);
-    }
-
-    if (g_eglDisplay == EGL_NO_DISPLAY) {
-      std::cerr << "Failed to get EGL display" << std::endl;
-      return false;
-    }
-
-    EGLint major, minor;
-    if (!eglInitialize(g_eglDisplay, &major, &minor)) {
-      std::cerr << "Failed to initialize EGL" << std::endl;
-      return false;
-    }
-
-    // Choose config
-    EGLint configAttribs[] = {EGL_SURFACE_TYPE,
-                              EGL_WINDOW_BIT,
-                              EGL_RED_SIZE,
-                              8,
-                              EGL_GREEN_SIZE,
-                              8,
-                              EGL_BLUE_SIZE,
-                              8,
-                              EGL_ALPHA_SIZE,
-                              8,
-                              EGL_DEPTH_SIZE,
-                              0,
-                              EGL_RENDERABLE_TYPE,
-                              EGL_OPENGL_ES2_BIT,
-                              EGL_NONE};
-
-    EGLConfig config;
-    EGLint numConfigs;
-    if (!eglChooseConfig(g_eglDisplay, configAttribs, &config, 1,
-                         &numConfigs) ||
-        numConfigs == 0) {
-      std::cerr << "Failed to choose EGL config" << std::endl;
-      return false;
-    }
-
-    // Bind OpenGL ES
-    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
-      std::cerr << "Failed to bind OpenGL ES API" << std::endl;
-      return false;
-    }
-
-    // Create context
-    EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-
-    g_eglContext =
-        eglCreateContext(g_eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
-    if (g_eglContext == EGL_NO_CONTEXT) {
-      std::cerr << "Failed to create EGL context" << std::endl;
-      return false;
-    }
-
-    // Create surface (will be created per-output)
-
-    std::cout << "EGL initialized: " << major << "." << minor << std::endl;
-    return true;
+    glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Uniforms), &uniforms);
   }
 
-  static bool initOpenGLES() {
-    glewInit = (PFNGLGETPROCADDRESSARBPROC)eglGetProcAddress;
+private:
+  GLuint compileShader(GLenum type, const char *source) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
 
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glViewport(0, 0, g_width, g_height);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+      char infoLog[512];
+      glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+      std::cerr << "Shader compile error ("
+                << (type == GL_VERTEX_SHADER ? "vertex" : "fragment")
+                << "): " << infoLog << std::endl;
+      glDeleteShader(shader);
+      return 0;
+    }
+    return shader;
+  }
+};
 
-    std::cout << "OpenGL ES initialized" << std::endl;
-    std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
-    std::cout << "Renderer: " << glGetString(GL_RENDERER) << std::endl;
-    std::cout << "Version: " << glGetString(GL_VERSION) << std::endl;
+// Global state
+static std::atomic<bool> g_running{true};
+static std::string g_currentShader;
+static GLESShaderProgram *g_shader = nullptr;
+static std::vector<std::string> g_shaderList;
+static size_t g_currentShaderIndex = 0;
+static std::chrono::steady_clock::time_point g_shaderStartTime;
+static float g_shaderDisplayTime = 30.0f;
+static float g_mouseX = 0, g_mouseY = 0;
+static int g_width = 1920, g_height = 1080;
+static EGLDisplay g_eglDisplay = EGL_NO_DISPLAY;
+static EGLSurface g_eglSurface = EGL_NO_SURFACE;
+static EGLContext g_eglContext = EGL_NO_CONTEXT;
+static std::unique_ptr<AudioInput> g_audioInput;
+static struct wl_keyboard *g_wlKeyboard = nullptr;
+static struct wl_seat *g_wlSeat = nullptr;
 
-    return true;
+// Wayland globals
+static struct wl_display *g_wlDisplay = nullptr;
+static struct wl_registry *g_wlRegistry = nullptr;
+static struct wl_compositor *g_wlCompositor = nullptr;
+static struct wl_subcompositor *g_wlSubcompositor = nullptr;
+static struct xdg_wm_base *g_xdgWmBase = nullptr;
+static struct zwlr_layer_shell_v1 *g_layerShell = nullptr;
+static struct wl_output *g_wlOutput = nullptr;
+
+static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
+                              uint32_t serial, uint32_t time, uint32_t key,
+                              uint32_t state);
+
+static void handleGlobal(void *data, struct wl_registry *registry,
+                         uint32_t name, const char *interface,
+                         uint32_t version) {
+  if (strcmp(interface, wl_compositor_interface.name) == 0) {
+    g_wlCompositor = (wl_compositor *)wl_registry_bind(
+        registry, name, &wl_compositor_interface, 4);
+  } else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
+    g_wlSubcompositor = (wl_subcompositor *)wl_registry_bind(
+        registry, name, &wl_subcompositor_interface, 1);
+  } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+    g_xdgWmBase = (xdg_wm_base *)wl_registry_bind(registry, name,
+                                                  &xdg_wm_base_interface, 1);
+  } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
+    g_layerShell = (zwlr_layer_shell_v1 *)wl_registry_bind(
+        registry, name, &zwlr_layer_shell_v1_interface, 4);
+  } else if (strcmp(interface, wl_output_interface.name) == 0) {
+    g_wlOutput =
+        (wl_output *)wl_registry_bind(registry, name, &wl_output_interface, 2);
+  } else if (strcmp(interface, wl_seat_interface.name) == 0) {
+    g_wlSeat =
+        (wl_seat *)wl_registry_bind(registry, name, &wl_seat_interface, 5);
+  }
+}
+
+static void handleGlobalRemove(void *data, struct wl_registry *registry,
+                               uint32_t name) {}
+
+static const struct wl_registry_listener registryListener = {
+    .global = handleGlobal, .global_remove = handleGlobalRemove};
+
+static void goToNextShader();
+static void goToPreviousShader();
+
+static void handleKeyboardKeymap(void *data, struct wl_keyboard *keyboard,
+                                 uint32_t format, int fd, uint32_t size) {}
+static void handleKeyboardEnter(void *data, struct wl_keyboard *keyboard,
+                                uint32_t serial, struct wl_surface *surface,
+                                struct wl_array *keys) {}
+static void handleKeyboardLeave(void *data, struct wl_keyboard *keyboard,
+                                uint32_t serial, struct wl_surface *surface) {}
+static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
+                              uint32_t serial, uint32_t time, uint32_t key,
+                              uint32_t state) {
+  if (state == 0)
+    return;
+
+  switch (key) {
+  case 1:
+    g_running = false;
+    break;
+  case 57:
+    goToNextShader();
+    break;
+  case 48:
+    goToPreviousShader();
+    break;
+  }
+}
+static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
+                                    uint32_t serial, uint32_t modsDepressed,
+                                    uint32_t modsLatched, uint32_t modsLocked,
+                                    uint32_t group) {}
+static void handleKeyboardRepeatInfo(void *data, struct wl_keyboard *keyboard,
+                                     int32_t rate, int32_t delay) {}
+
+static const struct wl_keyboard_listener keyboardListener = {
+    .keymap = handleKeyboardKeymap,
+    .enter = handleKeyboardEnter,
+    .leave = handleKeyboardLeave,
+    .key = handleKeyboardKey,
+    .modifiers = handleKeyboardModifiers,
+    .repeat_info = handleKeyboardRepeatInfo};
+
+static void handleSeatCapabilities(void *data, struct wl_seat *seat,
+                                   uint32_t caps) {
+  if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !g_wlKeyboard) {
+    g_wlKeyboard = wl_seat_get_keyboard(seat);
+    wl_keyboard_add_listener(g_wlKeyboard, &keyboardListener, nullptr);
+  } else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && g_wlKeyboard) {
+    wl_keyboard_destroy(g_wlKeyboard);
+    g_wlKeyboard = nullptr;
+  }
+}
+static void handleSeatName(void *data, struct wl_seat *seat, const char *name) {
+}
+
+static const struct wl_seat_listener seatListener = {
+    .capabilities = handleSeatCapabilities, .name = handleSeatName};
+
+static void initInput() {
+  if (g_wlSeat) {
+    wl_seat_add_listener(g_wlSeat, &seatListener, nullptr);
+  }
+}
+
+// Wayland surface and layer shell objects
+static struct wl_surface *g_wlSurface = nullptr;
+static struct zwlr_layer_surface_v1 *g_layerSurface = nullptr;
+static struct wl_egl_window *g_eglWindow = nullptr;
+static int g_surfaceWidth = 1920;
+static int g_surfaceHeight = 1080;
+
+static bool initEGL() {
+  // Get EGL extensions
+  const char *clientExtensions = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+
+  // Initialize EGL
+  PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplay =
+      (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
+          "eglGetPlatformDisplayEXT");
+
+  if (eglGetPlatformDisplay && clientExtensions &&
+      strstr(clientExtensions, "EGL_EXT_platform_wayland")) {
+    g_eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_WAYLAND_EXT,
+                                         (void *)g_wlDisplay, nullptr);
+  } else {
+    g_eglDisplay = eglGetDisplay((EGLNativeDisplayType)g_wlDisplay);
   }
 
-  static void renderFrame() {
-    if (!g_shader)
-      return;
-
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    g_shader->update(1.0f / 60.0f, g_width, g_height, g_mouseX, g_mouseY);
-
-    glUseProgram(g_shader->program);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    // Draw fullscreen quad
-    float vertices[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
-
-    GLint posLoc = glGetAttribLocation(g_shader->program, "position");
-    if (posLoc >= 0) {
-      glEnableVertexAttribArray(posLoc);
-      glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, vertices);
-    }
-
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-  }
-
-  static void handleSignal(int signum) { g_running = false; }
-
-  static std::vector<std::string> discoverShaders(const std::string &dir) {
-    std::vector<std::string> shaders;
-
-    // Check various shader directories
-    std::vector<std::string> dirs = {dir, "./shaders", "./shaders/effects",
-                                     "/usr/local/share/shadercandy/shaders",
-                                     "/usr/share/shadercandy/shaders"};
-
-    for (const auto &shaderDir : dirs) {
-      DIR *d = opendir(shaderDir.c_str());
-      if (!d)
-        continue;
-
-      struct dirent *entry;
-      while ((entry = readdir(d))) {
-        std::string name = entry->d_name;
-        if (name.length() > 5 && (name.substr(name.length() - 5) == ".frag" ||
-                                  name.substr(name.length() - 6) == ".metal" ||
-                                  name.substr(name.length() - 5) == ".glsl")) {
-          shaders.push_back(shaderDir + "/" + name);
-        }
-      }
-      closedir(d);
-    }
-
-    return shaders;
-  }
-
-  static bool loadShader(const std::string &path) {
-    if (g_shader) {
-      delete g_shader;
-    }
-
-    g_shader = new GLESShaderProgram();
-    if (g_shader->loadFromFile(path.c_str())) {
-      g_currentShader = path;
-      std::cout << "Loaded shader: " << path << std::endl;
-      return true;
-    }
-
-    delete g_shader;
-    g_shader = nullptr;
+  if (g_eglDisplay == EGL_NO_DISPLAY) {
+    std::cerr << "Failed to get EGL display" << std::endl;
     return false;
   }
 
-  static void printUsage(const char *prog) {
-    std::cout << "Usage: " << prog << " [options]\n\n"
-              << "Options:\n"
-              << "  --shader <path>    Load specific shader\n"
-              << "  --list             List available shaders\n"
-              << "  --help             Show this help\n"
-              << "\nKeyboard controls:\n"
-              << "  ESC, q             Quit\n"
-              << "  SPACE              Next shader\n"
-              << "  b                  Previous shader\n"
-              << "  h                  Toggle metrics\n"
-              << "  +/-                Adjust speed\n"
-              << "  i/o                Adjust intensity\n";
+  EGLint major, minor;
+  if (!eglInitialize(g_eglDisplay, &major, &minor)) {
+    std::cerr << "Failed to initialize EGL" << std::endl;
+    return false;
   }
 
-  int main(int argc, char *argv[]) {
-    signal(SIGINT, handleSignal);
-    signal(SIGTERM, handleSignal);
+  // Choose config
+  EGLint configAttribs[] = {EGL_SURFACE_TYPE,
+                            EGL_WINDOW_BIT,
+                            EGL_RED_SIZE,
+                            8,
+                            EGL_GREEN_SIZE,
+                            8,
+                            EGL_BLUE_SIZE,
+                            8,
+                            EGL_ALPHA_SIZE,
+                            8,
+                            EGL_DEPTH_SIZE,
+                            0,
+                            EGL_RENDERABLE_TYPE,
+                            EGL_OPENGL_ES2_BIT,
+                            EGL_NONE};
 
-    std::string shaderPath;
-    bool listShaders = false;
+  EGLConfig config;
+  EGLint numConfigs;
+  if (!eglChooseConfig(g_eglDisplay, configAttribs, &config, 1, &numConfigs) ||
+      numConfigs == 0) {
+    std::cerr << "Failed to choose EGL config" << std::endl;
+    return false;
+  }
 
-    for (int i = 1; i < argc; i++) {
-      std::string arg = argv[i];
-      if (arg == "--shader" && i + 1 < argc) {
-        shaderPath = argv[++i];
-      } else if (arg == "--list") {
-        listShaders = true;
-      } else if (arg == "--help") {
-        printUsage(argv[0]);
-        return 0;
+  // Bind OpenGL ES
+  if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+    std::cerr << "Failed to bind OpenGL ES API" << std::endl;
+    return false;
+  }
+
+  // Create context
+  EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+
+  g_eglContext =
+      eglCreateContext(g_eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
+  if (g_eglContext == EGL_NO_CONTEXT) {
+    std::cerr << "Failed to create EGL context" << std::endl;
+    return false;
+  }
+
+  std::cout << "EGL initialized: " << major << "." << minor << std::endl;
+  return true;
+}
+
+static void layerSurfaceConfigure(void *data,
+                                  struct zwlr_layer_surface_v1 *layer_surface,
+                                  uint32_t serial, uint32_t width,
+                                  uint32_t height) {
+  zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+  g_surfaceWidth = width;
+  g_surfaceHeight = height;
+  g_width = width;
+  g_height = height;
+  if (g_eglWindow) {
+    wl_egl_window_resize(g_eglWindow, width, height, 0, 0);
+  }
+  std::cout << "Layer surface configured: " << width << "x" << height
+            << std::endl;
+}
+
+static void layerSurfaceClosed(void *data,
+                               struct zwlr_layer_surface_v1 *layer_surface) {
+  g_running = false;
+}
+
+static const struct zwlr_layer_surface_v1_listener layerSurfaceListener = {
+    .configure = layerSurfaceConfigure, .closed = layerSurfaceClosed};
+
+static bool createWaylandSurface() {
+  if (!g_wlCompositor) {
+    std::cerr << "No compositor available" << std::endl;
+    return false;
+  }
+
+  // Create wl_surface
+  g_wlSurface = wl_compositor_create_surface(g_wlCompositor);
+  if (!g_wlSurface) {
+    std::cerr << "Failed to create Wayland surface" << std::endl;
+    return false;
+  }
+
+  // Get output geometry if available
+  if (g_wlOutput) {
+    // Use default size for now, will be updated by configure event
+    g_surfaceWidth = g_width;
+    g_surfaceHeight = g_height;
+  }
+
+  // Try to create layer shell surface for screensaver overlay
+  if (g_layerShell) {
+    g_layerSurface = zwlr_layer_shell_v1_get_layer_surface(
+        g_layerShell, g_wlSurface, g_wlOutput,
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "shadercandy-screensaver");
+
+    if (g_layerSurface) {
+      zwlr_layer_surface_v1_set_size(g_layerSurface, g_surfaceWidth,
+                                     g_surfaceHeight);
+      zwlr_layer_surface_v1_set_anchor(g_layerSurface,
+                                       ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+                                           ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+                                           ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+                                           ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+      zwlr_layer_surface_v1_set_exclusive_zone(g_layerSurface, -1);
+      zwlr_layer_surface_v1_set_keyboard_interactivity(
+          g_layerSurface, ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
+
+      zwlr_layer_surface_v1_add_listener(g_layerSurface, &layerSurfaceListener,
+                                         nullptr);
+    }
+  }
+
+  // Create EGL window
+  g_eglWindow =
+      wl_egl_window_create(g_wlSurface, g_surfaceWidth, g_surfaceHeight);
+  if (!g_eglWindow) {
+    std::cerr << "Failed to create EGL window" << std::endl;
+    return false;
+  }
+
+  // Create EGL surface
+  EGLint configAttribs[] = {EGL_SURFACE_TYPE,
+                            EGL_WINDOW_BIT,
+                            EGL_RED_SIZE,
+                            8,
+                            EGL_GREEN_SIZE,
+                            8,
+                            EGL_BLUE_SIZE,
+                            8,
+                            EGL_ALPHA_SIZE,
+                            8,
+                            EGL_DEPTH_SIZE,
+                            0,
+                            EGL_RENDERABLE_TYPE,
+                            EGL_OPENGL_ES2_BIT,
+                            EGL_NONE};
+
+  EGLConfig config;
+  EGLint numConfigs;
+  if (!eglChooseConfig(g_eglDisplay, configAttribs, &config, 1, &numConfigs) ||
+      numConfigs == 0) {
+    std::cerr << "Failed to choose EGL config for surface" << std::endl;
+    return false;
+  }
+
+  g_eglSurface = eglCreateWindowSurface(
+      g_eglDisplay, config, (EGLNativeWindowType)g_eglWindow, nullptr);
+  if (g_eglSurface == EGL_NO_SURFACE) {
+    std::cerr << "Failed to create EGL surface" << std::endl;
+    return false;
+  }
+
+  // Make current
+  if (!eglMakeCurrent(g_eglDisplay, g_eglSurface, g_eglSurface, g_eglContext)) {
+    std::cerr << "Failed to make EGL context current" << std::endl;
+    return false;
+  }
+
+  std::cout << "Wayland surface created: " << g_surfaceWidth << "x"
+            << g_surfaceHeight << std::endl;
+  return true;
+}
+
+static bool initOpenGLES() {
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  glViewport(0, 0, g_width, g_height);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  std::cout << "OpenGL ES initialized" << std::endl;
+  std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
+  std::cout << "Renderer: " << glGetString(GL_RENDERER) << std::endl;
+  std::cout << "Version: " << glGetString(GL_VERSION) << std::endl;
+
+  return true;
+}
+
+static void renderFrame() {
+  if (!g_shader)
+    return;
+
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  g_shader->update(1.0f / 60.0f, g_width, g_height, g_mouseX, g_mouseY);
+
+  glUseProgram(g_shader->program);
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+  // Draw fullscreen quad
+  float vertices[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
+
+  GLint posLoc = glGetAttribLocation(g_shader->program, "position");
+  if (posLoc >= 0) {
+    glEnableVertexAttribArray(posLoc);
+    glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+  }
+
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+static void handleSignal(int signum) { g_running = false; }
+
+static void discoverAndLoadShaders(const std::string &dir) {
+  g_shaderList.clear();
+
+  std::vector<std::string> dirs = {dir, "./shaders", "./shaders/effects",
+                                   "/usr/local/share/shadercandy/shaders",
+                                   "/usr/share/shadercandy/shaders"};
+
+  for (const auto &shaderDir : dirs) {
+    DIR *d = opendir(shaderDir.c_str());
+    if (!d)
+      continue;
+
+    struct dirent *entry;
+    while ((entry = readdir(d))) {
+      std::string name = entry->d_name;
+      if (name.length() > 5 && (name.substr(name.length() - 5) == ".frag" ||
+                                name.substr(name.length() - 6) == ".metal" ||
+                                name.substr(name.length() - 5) == ".glsl")) {
+        g_shaderList.push_back(shaderDir + "/" + name);
       }
     }
+    closedir(d);
+  }
 
-    // Connect to Wayland display
-    g_wlDisplay = wl_display_connect(nullptr);
-    if (!g_wlDisplay) {
-      std::cerr << "Failed to connect to Wayland display" << std::endl;
-      std::cerr
-          << "Make sure WAYLAND_DISPLAY is set or running in a Wayland session"
-          << std::endl;
-      return 1;
-    }
+  std::cout << "Discovered " << g_shaderList.size() << " shaders" << std::endl;
+}
 
-    // Get registry
-    g_wlRegistry = wl_display_get_registry(g_wlRegistry);
-    wl_registry_add_listener(g_wlRegistry, &registryListener, nullptr);
-    wl_display_roundtrip(g_wlDisplay);
+static bool loadShaderByIndex(size_t index) {
+  if (g_shaderList.empty() || index >= g_shaderList.size()) {
+    return false;
+  }
 
-    if (!g_wlCompositor) {
-      std::cerr << "No Wayland compositor found" << std::endl;
-      return 1;
-    }
+  if (g_shader) {
+    delete g_shader;
+    g_shader = nullptr;
+  }
 
-    // Initialize EGL
-    if (!initEGL(nullptr)) {
-      return 1;
-    }
+  g_shader = new GLESShaderProgram();
+  if (g_shader->loadFromFile(g_shaderList[index].c_str())) {
+    g_currentShader = g_shaderList[index];
+    g_currentShaderIndex = index;
+    g_shaderStartTime = std::chrono::steady_clock::now();
+    std::cout << "Loaded shader [" << index << "]: " << g_shaderList[index]
+              << std::endl;
+    return true;
+  }
 
-    // Initialize OpenGL ES
-    if (!initOpenGLES()) {
-      return 1;
-    }
+  delete g_shader;
+  g_shader = nullptr;
+  return false;
+}
 
-    // List shaders if requested
-    if (listShaders) {
-      auto shaders = discoverShaders(".");
-      std::cout << "Available shaders:\n";
-      for (const auto &s : shaders) {
-        std::cout << "  " << s << "\n";
-      }
+static void goToNextShader() {
+  if (g_shaderList.empty())
+    return;
+  size_t nextIndex = (g_currentShaderIndex + 1) % g_shaderList.size();
+  loadShaderByIndex(nextIndex);
+}
+
+static void goToPreviousShader() {
+  if (g_shaderList.empty())
+    return;
+  size_t prevIndex =
+      (g_currentShaderIndex + g_shaderList.size() - 1) % g_shaderList.size();
+  loadShaderByIndex(prevIndex);
+}
+
+static bool loadShader(const std::string &path) {
+  if (g_shader) {
+    delete g_shader;
+    g_shader = nullptr;
+  }
+
+  g_shader = new GLESShaderProgram();
+  if (g_shader->loadFromFile(path.c_str())) {
+    g_currentShader = path;
+    std::cout << "Loaded shader: " << path << std::endl;
+    return true;
+  }
+
+  delete g_shader;
+  g_shader = nullptr;
+  return false;
+}
+
+static void printUsage(const char *prog) {
+  std::cout << "Usage: " << prog << " [options]\n\n"
+            << "Options:\n"
+            << "  --shader <path>    Load specific shader\n"
+            << "  --list             List available shaders\n"
+            << "  --help             Show this help\n"
+            << "\nKeyboard controls:\n"
+            << "  ESC, q             Quit\n"
+            << "  SPACE              Next shader\n"
+            << "  b                  Previous shader\n"
+            << "  h                  Toggle metrics\n"
+            << "  +/-                Adjust speed\n"
+            << "  i/o                Adjust intensity\n";
+}
+
+int main(int argc, char *argv[]) {
+  signal(SIGINT, handleSignal);
+  signal(SIGTERM, handleSignal);
+
+  std::string shaderPath;
+  bool listShaders = false;
+
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "--shader" && i + 1 < argc) {
+      shaderPath = argv[++i];
+    } else if (arg == "--list") {
+      listShaders = true;
+    } else if (arg == "--help") {
+      printUsage(argv[0]);
       return 0;
     }
+  }
 
-    // Load initial shader
-    if (shaderPath.empty()) {
-      // Try default shaders
-      std::vector<std::string> defaults = {
-          "./shaders/plasma.glsl", "./shaders/plasma.frag",
-          "./shaders/effects/plasma.glsl",
-          "/usr/local/share/shadercandy/shaders/plasma.glsl"};
-      for (const auto &s : defaults) {
-        if (loadShader(s))
-          break;
-      }
-    } else {
-      loadShader(shaderPath);
+  // Connect to Wayland display
+  g_wlDisplay = wl_display_connect(nullptr);
+  if (!g_wlDisplay) {
+    std::cerr << "Failed to connect to Wayland display" << std::endl;
+    std::cerr
+        << "Make sure WAYLAND_DISPLAY is set or running in a Wayland session"
+        << std::endl;
+    return 1;
+  }
+
+  // Get registry
+  g_wlRegistry = wl_display_get_registry(g_wlDisplay);
+  wl_registry_add_listener(g_wlRegistry, &registryListener, nullptr);
+  wl_display_roundtrip(g_wlDisplay);
+
+  if (!g_wlCompositor) {
+    std::cerr << "No Wayland compositor found" << std::endl;
+    return 1;
+  }
+
+  // Initialize EGL
+  if (!initEGL()) {
+    return 1;
+  }
+
+  // Create Wayland surface and EGL window surface
+  if (!createWaylandSurface()) {
+    return 1;
+  }
+
+  // Commit the surface
+  if (g_layerSurface) {
+    wl_surface_commit(g_wlSurface);
+    wl_display_roundtrip(g_wlDisplay);
+  }
+
+  // Initialize OpenGL ES
+  if (!initOpenGLES()) {
+    return 1;
+  }
+
+  // Initialize input handling
+  initInput();
+  wl_display_roundtrip(g_wlDisplay);
+
+  // Discover all available shaders
+  discoverAndLoadShaders(".");
+
+  // List shaders if requested
+  if (listShaders) {
+    std::cout << "Available shaders:\n";
+    for (size_t i = 0; i < g_shaderList.size(); ++i) {
+      std::cout << "  [" << i << "] " << g_shaderList[i] << "\n";
     }
-
-    if (!g_shader) {
-      std::cerr << "Failed to load any shader" << std::endl;
-      return 1;
-    }
-
-    // Main event loop
-    while (g_running) {
-      // Handle Wayland events
-      wl_display_dispatch_pending(g_wlDisplay);
-
-      // Render
-      renderFrame();
-
-      // Swap buffers
-      eglSwapBuffers(g_eglDisplay, g_eglSurface);
-
-      // Frame rate limiting (~60fps)
-      std::this_thread::sleep_for(std::chrono::milliseconds(16));
-    }
-
-    // Cleanup
-    if (g_shader)
-      delete g_shader;
-
-    if (g_eglContext != EGL_NO_CONTEXT) {
-      eglDestroyContext(g_eglDisplay, g_eglContext);
-    }
-    if (g_eglSurface != EGL_NO_SURFACE) {
-      eglDestroySurface(g_eglDisplay, g_eglSurface);
-    }
-    if (g_eglDisplay != EGL_NO_DISPLAY) {
-      eglTerminate(g_eglDisplay);
-    }
-
-    if (g_layerShell)
-      zwlr_layer_shell_v1_destroy(g_layerShell);
-    if (g_xdgWmBase)
-      xdg_wm_base_destroy(g_xdgWmBase);
-    if (g_wlSubcompositor)
-      wl_subcompositor_destroy(g_wlSubcompositor);
-    if (g_wlCompositor)
-      wl_compositor_destroy(g_wlCompositor);
-    if (g_wlRegistry)
-      wl_registry_destroy(g_wlRegistry);
-    if (g_wlDisplay)
-      wl_display_disconnect(g_wlDisplay);
-
-    std::cout << "Wayland screensaver terminated" << std::endl;
     return 0;
   }
+
+  // Load initial shader
+  bool shaderLoaded = false;
+  if (!shaderPath.empty()) {
+    // Add to list if specific shader requested
+    g_shaderList.insert(g_shaderList.begin(), shaderPath);
+    shaderLoaded = loadShaderByIndex(0);
+  } else if (!g_shaderList.empty()) {
+    shaderLoaded = loadShaderByIndex(0);
+  }
+
+  // Fallback to defaults if no shaders loaded
+  if (!shaderLoaded) {
+    std::vector<std::string> defaults = {
+        "./shaders/plasma.glsl", "./shaders/plasma.frag",
+        "./shaders/effects/plasma.glsl",
+        "/usr/local/share/shadercandy/shaders/plasma.glsl"};
+    for (const auto &s : defaults) {
+      if (loadShader(s)) {
+        shaderLoaded = true;
+        break;
+      }
+    }
+  }
+
+  if (!g_shader) {
+    std::cerr << "Failed to load any shader" << std::endl;
+    return 1;
+  }
+
+  // Main event loop
+  while (g_running) {
+    // Handle Wayland events (blocking with timeout)
+    wl_display_dispatch(g_wlDisplay);
+
+    // Check for shader auto-switch
+    auto now = std::chrono::steady_clock::now();
+    float shaderTime =
+        std::chrono::duration<float>(now - g_shaderStartTime).count();
+    if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1) {
+      goToNextShader();
+    }
+
+    // Render
+    renderFrame();
+
+    // Swap buffers
+    eglSwapBuffers(g_eglDisplay, g_eglSurface);
+
+    // Frame rate limiting (~60fps)
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+  }
+
+  // Cleanup
+  if (g_shader) {
+    delete g_shader;
+    g_shader = nullptr;
+  }
+
+  g_audioInput.reset();
+  g_shaderList.clear();
+
+  if (g_eglContext != EGL_NO_CONTEXT) {
+    eglDestroyContext(g_eglDisplay, g_eglContext);
+    g_eglContext = EGL_NO_CONTEXT;
+  }
+  if (g_eglSurface != EGL_NO_SURFACE) {
+    eglDestroySurface(g_eglDisplay, g_eglSurface);
+    g_eglSurface = EGL_NO_SURFACE;
+  }
+  if (g_eglWindow) {
+    wl_egl_window_destroy(g_eglWindow);
+    g_eglWindow = nullptr;
+  }
+  if (g_eglDisplay != EGL_NO_DISPLAY) {
+    eglTerminate(g_eglDisplay);
+    g_eglDisplay = EGL_NO_DISPLAY;
+  }
+
+  if (g_wlKeyboard)
+    wl_keyboard_destroy(g_wlKeyboard);
+  if (g_wlSeat)
+    wl_seat_destroy(g_wlSeat);
+  if (g_layerSurface)
+    zwlr_layer_surface_v1_destroy(g_layerSurface);
+  if (g_wlSurface)
+    wl_surface_destroy(g_wlSurface);
+  if (g_layerShell)
+    zwlr_layer_shell_v1_destroy(g_layerShell);
+  if (g_xdgWmBase)
+    xdg_wm_base_destroy(g_xdgWmBase);
+  if (g_wlSubcompositor)
+    wl_subcompositor_destroy(g_wlSubcompositor);
+  if (g_wlCompositor)
+    wl_compositor_destroy(g_wlCompositor);
+  if (g_wlRegistry)
+    wl_registry_destroy(g_wlRegistry);
+  if (g_wlDisplay)
+    wl_display_disconnect(g_wlDisplay);
+
+  std::cout << "Wayland screensaver terminated" << std::endl;
+  return 0;
+}
