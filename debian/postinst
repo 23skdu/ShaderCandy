@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Add to xscreensaver if installed
+        if [ -f /etc/xscreensaver/xscreensaver.conf ]; then
+            if ! grep -q "shadercandy" /etc/xscreensaver/xscreensaver.conf 2>/dev/null; then
+                echo "GL: \"ShaderCandy\" shadercandy-screensaver \n\\" >> /etc/xscreensaver/xscreensaver.conf
+            fi
+        fi
+        
+        # Update desktop database
+        if [ -x /usr/bin/update-desktop-database ]; then
+            update-desktop-database -q /usr/share/applications
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

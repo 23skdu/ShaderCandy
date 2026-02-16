@@ -1,0 +1,73 @@
+.TH SHADERCANDY 1 "February 2026" "ShaderCandy 1.0.0" "User Commands"
+.SH NAME
+shadercandy-screensaver \- GPU-accelerated OpenGL screensaver
+.SH SYNOPSIS
+.B shadercandy-screensaver
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+ShaderCandy is a high-performance screensaver engine delivering real-time 
+procedural graphics through OpenGL. It features 25+ visual effects including 
+fractals, raymarching, particle systems, and generative art.
+.SH OPTIONS
+.TP
+.BR \-shader " " \fINAME\fR
+Start with a specific shader. Available shaders include:
+nebula, mandelbrot_set, julia_set, mandelbulb_3d, julia_3d,
+starfield_warp, voronoi_cells, neon_pulse, kaleidoscopic_tunnel,
+reaction_diffusion, fractal_zoom, liquid_gradient, bloom,
+tunnel, plasma, spiral, ripples, checkerboard, gradient_waves,
+flying_toasters, raymarch_sculpture, dna_helix, quantum_field,
+fluid_dynamics, audio_spectrum
+.TP
+.BR \-shader-dir " " \fIPATH\fR
+Add a directory to search for shaders
+.TP
+.BR \-window-id " " \fIID\fR
+Run in an existing X11 window (for embedding)
+.TP
+.BR \-root
+Run on the root window
+.TP
+.BR \-h ", " \-\-help
+Display help message
+.SH CONTROLS
+.TP
+.B Right Arrow
+Switch to next shader
+.TP
+.B ESC or Q
+Exit screensaver
+.TP
+.B Mouse Click
+Exit screensaver
+.TP
+.B Mouse Movement
+Interactive effects (when supported)
+.SH FILES
+.TP
+.I /usr/share/shadercandy/shaders/
+Directory containing GLSL shader files
+.TP
+.I /usr/local/share/shadercandy/shaders/
+Additional shader directory (local installations)
+.SH EXAMPLES
+Run with default shader:
+.RS
+.B shadercandy-screensaver
+.RE
+.PP
+Run specific shader:
+.RS
+.B shadercandy-screensaver -shader mandelbrot_set
+.RE
+.PP
+Run with custom shader directory:
+.RS
+.B shadercandy-screensaver -shader-dir ~/my-shaders
+.RE
+.SH SEE ALSO
+.BR xscreensaver (1)
+.SH AUTHOR
+ShaderCandy Team <dev@shadercandy.io>
+.SH COPYRIGHT
+MIT License - See /usr/share/doc/shadercandy/copyright

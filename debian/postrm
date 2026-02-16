@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        # Remove from xscreensaver config if present
+        if [ -f /etc/xscreensaver/xscreensaver.conf ]; then
+            sed -i '/shadercandy/d' /etc/xscreensaver/xscreensaver.conf 2>/dev/null || true
+        fi
+        
+        # Update desktop database
+        if [ -x /usr/bin/update-desktop-database ]; then
+            update-desktop-database -q /usr/share/applications
+        fi
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

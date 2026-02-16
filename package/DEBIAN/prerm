@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+# Remove from xscreensaver config
+XSCREENSAVER_CONF="/etc/xscreensaver/config"
+if [ -f "$XSCREENSAVER_CONF" ] && grep -q "shadercandy" "$XSCREENSAVER_CONF"; then
+    sed -i '/shadercandy/d' "$XSCREENSAVER_CONF"
+fi
+
+exit 0

@@ -1,0 +1,20 @@
+Package: shadercandy
+Version: 1.0.0-1
+Section: x11
+Priority: optional
+Architecture: amd64
+Maintainer: ShaderCandy Team <dev@shadercandy.io>
+Depends: libgl1-mesa-glx | libgl1, libx11-6, libxss1
+Description: Cross-platform GPU-accelerated screensaver
+ ShaderCandy is a high-performance screensaver engine delivering
+ real-time procedural graphics through native GPU APIs.
+ .
+ Features include:
+  - 20+ visual effects (fractals, particles, raymarching)
+  - Interactive mouse physics
+  - Shader hot-reloading
+  - Cross-fade transitions
+  - SIMD optimizations (AVX2/NEON)
+  - X11 and Wayland support
+ .
+ This package provides the Linux X11/OpenGL/Wayland screensaver.

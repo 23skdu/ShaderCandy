@@ -35,10 +35,10 @@ echo "Setting up build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Copy source to build directory
+# Copy source to build directory (excluding build-deb and .git)
 echo "Copying source files..."
-cp -r "$PROJECT_ROOT"/* "$BUILD_DIR/"
-cp -r "$PROJECT_ROOT"/.github "$BUILD_DIR/" 2>/dev/null || true
+rsync -av --exclude='build-deb' --exclude='.git' --exclude='build' "$PROJECT_ROOT/" "$BUILD_DIR/" 2>/dev/null || \
+  (find "$PROJECT_ROOT" -maxdepth 1 -not -path "$PROJECT_ROOT" -not -path "$PROJECT_ROOT/build*" -not -path "$PROJECT_ROOT/.git" -exec cp -r {} "$BUILD_DIR/" \;)
 
 # Copy debian directory
 echo "Preparing Debian package files..."
