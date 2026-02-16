@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+# Create xscreensaver config if xscreensaver is installed
+if [ -f /etc/xscreensaver/config ] || command -v xscreensaver-command &> /dev/null; then
+    echo "Configuring XScreenSaver..."
+    
+    # Add shadercandy to xscreensaver config
+    XSCREENSAVER_CONF="/etc/xscreensaver/config"
+    if [ -f "$XSCREENSAVER_CONF" ]; then
+        if ! grep -q "shadercandy" "$XSCREENSAVER_CONF"; then
+            # Backup
+            cp "$XSCREENSAVER_CONF" "$XSCREENSAVER_CONF.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+            
+            # Add entry
+            echo "" >> "$XSCREENSAVER_CONF"
+            echo "  shadercandy \\t/usr/bin/shadercandy-screensaver    -root    \\n" >> "$XSCREENSAVER_CONF"
+        fi
+    fi
+fi
+
+# Update desktop database
+if command -v update-desktop-database &> /dev/null; then
+    update-desktop-database /usr/share/applications
+fi
+
+exit 0
