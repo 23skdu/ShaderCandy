@@ -52,8 +52,8 @@
 
 - (instancetype)init {
   NSWindow *window = [[NSWindow alloc]
-      initWithContentRect:NSMakeRect(0, 0, 420, 420)
-                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+      initWithContentRect:NSMakeRect(0, 0, 550, 550)
+                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                   backing:NSBackingStoreBuffered
                     defer:NO];
   self = [super initWithWindow:window];
@@ -102,7 +102,7 @@
   self.window.styleMask &= ~NSWindowStyleMaskResizable;
 
   // Create tab view
-  _tabView = [[NSTabView alloc] initWithFrame:NSMakeRect(0, 60, 400, 250)];
+  _tabView = [[NSTabView alloc] initWithFrame:NSMakeRect(0, 60, 530, 420)];
   _tabView.delegate = self;
   [self.window.contentView addSubview:_tabView];
 
