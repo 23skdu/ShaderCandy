@@ -1,3 +1,4 @@
+#include "GLLoader.h"
 #include "GLSLWrapper.h"
 #include "LinuxStubs.h"
 
@@ -15,9 +16,39 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <vector>
 
+// Audio support
+#ifdef HAS_AUDIO
 #include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
+#else
+// Stubs when audio is not available
+namespace ShaderCandy {
+namespace Audio {
+struct AudioData {
+  float volume = 0.0f;
+  float bass = 0.0f;
+  float mid = 0.0f;
+  float treble = 0.0f;
+  float beat = 0.0f;
+  std::vector<float> spectrum;
+};
+class AudioInput {
+public:
+  AudioInput() {}
+  ~AudioInput() {}
+  bool initialize(int = 0, int = 0) { return false; }
+  bool autoSelectDevice() { return false; }
+  bool start() { return false; }
+  void stop() {}
+  bool isRunning() const { return false; }
+  AudioData getCurrentData() const { return AudioData(); }
+};
+} // namespace Audio
+} // namespace ShaderCandy
+using namespace ShaderCandy::Audio;
+#endif
 
 using namespace ShaderCandy::Platform::Linux;
 
@@ -212,11 +243,11 @@ std::string ShaderProgram::loadWithIncludes(const char *path, int depth) {
 }
 
 bool ShaderProgram::compile(const char *fragmentSource) {
-  const char *vertexSource = R"(#version 330 core
+  const char *vertexSource = R"(#version 450 core
         layout(location = 0) in vec2 aPos;
         layout(location = 1) in vec2 aTex;
-        out vec2 vTexCoord;
-        out vec2 vScreenPos;
+        layout(location = 0) out vec2 vTexCoord;
+        layout(location = 1) out vec2 vScreenPos;
         void main() {
             gl_Position = vec4(aPos, 0.0, 1.0);
             vTexCoord = aTex;
@@ -313,9 +344,9 @@ bool ShaderProgram::loadFromFile(const char *fragmentPath) {
     name = name.substr(0, extPos);
   }
 
-  // Wrap with common utilities
-  std::string wrappedFrag = GLSLWrapper::getPreamble();
-
+  // Add version directive only (shaders already include uniforms from
+  // common.glsl)
+  std::string wrappedFrag = "#version 450 core\n";
   wrappedFrag += fragStr;
 
   return compile(wrappedFrag.c_str());
@@ -410,6 +441,14 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1); // Enable vsync
 
+  // Initialize OpenGL function pointers
+  if (!InitializeGLLoader()) {
+    std::cerr << "Failed to initialize OpenGL function pointers" << std::endl;
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return false;
+  }
+
   // Set callbacks
   glfwSetWindowUserPointer(window, this);
   glfwSetKeyCallback(window, keyCallback);
@@ -497,8 +536,10 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
 
 void StandalonePlayer::loadShaders() {
   std::vector<std::string> shaderPaths = {
-      "./shaders", "./shaders/effects", "/usr/share/shadercandy/shaders",
-      "/usr/local/share/shadercandy/shaders"};
+      "./shaders", "./shaders/effects",
+      std::string(getenv("HOME") ? getenv("HOME") : "") +
+          "/.local/share/shadercandy/shaders",
+      "/usr/share/shadercandy/shaders", "/usr/local/share/shadercandy/shaders"};
 
   std::vector<std::string> shaderFiles = {"nebula.frag",
                                           "mandelbrot_set.frag",
