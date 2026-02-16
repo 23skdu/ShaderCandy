@@ -612,6 +612,7 @@ if(LINUX AND BUILD_SCREENSAVER_WAYLAND)
         
         # Find Wayland packages
         pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
+        pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
         pkg_check_modules(WAYLAND_PROTOCOLS wayland-protocols)
         
         # wlroots is optional - will use native wayland if not available
@@ -626,6 +627,7 @@ if(LINUX AND BUILD_SCREENSAVER_WAYLAND)
             src/core
             src/audio
             ${WAYLAND_CLIENT_INCLUDE_DIRS}
+            ${WAYLAND_EGL_INCLUDE_DIRS}
             ${EGL_INCLUDE_DIRS}
             ${GLESV2_INCLUDE_DIRS}
         )
@@ -638,6 +640,7 @@ if(LINUX AND BUILD_SCREENSAVER_WAYLAND)
         target_link_libraries(shadercandy-wayland PRIVATE
             shadercandy_core
             ${WAYLAND_CLIENT_LIBRARIES}
+            ${WAYLAND_EGL_LIBRARIES}
             ${EGL_LIBRARIES}
             ${GLESV2_LIBRARIES}
             pthread
