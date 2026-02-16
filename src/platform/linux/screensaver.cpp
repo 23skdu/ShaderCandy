@@ -1,6 +1,6 @@
+#include "GLLoader.h"
 #include "GLSLWrapper.h"
 #include "LinuxStubs.h"
-#include "GLLoader.h"
 #ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -23,6 +23,22 @@
 #include <unistd.h>
 #include <vector>
 
+struct vec2 {
+  float x, y;
+  float &operator[](int i) { return i == 0 ? x : y; }
+  float operator[](int i) const { return i == 0 ? x : y; }
+};
+
+struct vec4 {
+  float x, y, z, w;
+  float &operator[](int i) {
+    return i == 0 ? x : (i == 1 ? y : (i == 2 ? z : w));
+  }
+  float operator[](int i) const {
+    return i == 0 ? x : (i == 1 ? y : (i == 2 ? z : w));
+  }
+};
+
 using namespace ShaderCandy::Platform::Linux;
 
 // Audio support
@@ -34,26 +50,26 @@ using namespace ShaderCandy::Audio;
 namespace ShaderCandy {
 namespace Audio {
 struct AudioData {
-    float volume = 0.0f;
-    float bass = 0.0f;
-    float mid = 0.0f;
-    float treble = 0.0f;
-    float beat = 0.0f;
-    std::vector<float> spectrum;
+  float volume = 0.0f;
+  float bass = 0.0f;
+  float mid = 0.0f;
+  float treble = 0.0f;
+  float beat = 0.0f;
+  std::vector<float> spectrum;
 };
 class AudioInput {
 public:
-    AudioInput() {}
-    ~AudioInput() {}
-    bool initialize(int = 0, int = 0) { return false; }
-    bool autoSelectDevice() { return false; }
-    bool start() { return false; }
-    void stop() {}
-    bool isRunning() const { return false; }
-    AudioData getCurrentData() const { return AudioData(); }
+  AudioInput() {}
+  ~AudioInput() {}
+  bool initialize(int = 0, int = 0) { return false; }
+  bool autoSelectDevice() { return false; }
+  bool start() { return false; }
+  void stop() {}
+  bool isRunning() const { return false; }
+  AudioData getCurrentData() const { return AudioData(); }
 };
-}
-}
+} // namespace Audio
+} // namespace ShaderCandy
 using namespace ShaderCandy::Audio;
 #endif
 
@@ -61,11 +77,11 @@ using namespace ShaderCandy::Audio;
 struct Uniforms {
   float time;
   float speed;
-  float resolution[2];
-  float mouse[2];
+  vec2 resolution;
+  vec2 mouse;
   float mouseButtons;
   float intensity;
-  float date[4];
+  vec4 date;
   int frame;
   float deltaTime;
   float alpha;
@@ -84,6 +100,19 @@ struct Uniforms {
   float cpuTime;
   float fps;
 };
+
+struct AudioUniforms {
+  float audioVolume;
+  float audioBass;
+  float audioMid;
+  float audioTreble;
+  float audioBeat;
+  float audioBands[8];
+  float audioSpectrum[64];
+};
+
+GLuint audioUbo = 0;
+AudioUniforms audioUniforms;
 
 // Shader program with full UBO support
 class GLShaderProgram {
@@ -153,8 +182,39 @@ public:
     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
 
     GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
+    std::cerr << "Shader '" << name << "': Uniform block index = " << blockIndex
+              << std::endl;
     if (blockIndex != GL_INVALID_INDEX) {
       glUniformBlockBinding(program, blockIndex, 0);
+      std::cerr << "Shader '" << name
+                << "': Uniform block bound to binding point 0" << std::endl;
+    } else {
+      std::cerr << "Shader '" << name
+                << "': WARNING - Uniform block 'Uniforms' not found!"
+                << std::endl;
+    }
+
+    // Check for AudioUniforms block
+    GLuint audioBlockIndex = glGetUniformBlockIndex(program, "AudioUniforms");
+    if (audioBlockIndex != GL_INVALID_INDEX) {
+      std::cerr << "Shader '" << name << "': AudioUniforms block found!"
+                << std::endl;
+
+      // Create separate UBO for AudioUniforms
+      if (!audioUbo) {
+        glGenBuffers(1, &audioUbo);
+        glBindBuffer(GL_UNIFORM_BUFFER, audioUbo);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(AudioUniforms), nullptr,
+                     GL_DYNAMIC_DRAW);
+
+        // Bind AudioUniforms to binding point 1
+        glUniformBlockBinding(program, audioBlockIndex, 1);
+        std::cerr << "Shader '" << name
+                  << "': AudioUniforms bound to binding point 1" << std::endl;
+      }
+    } else {
+      std::cerr << "Shader '" << name << "': No AudioUniforms block found"
+                << std::endl;
     }
 
     // Initialize uniforms
@@ -238,7 +298,8 @@ public:
               if (shadersPos == std::string::npos) {
                 shadersPos = altPath.rfind("/shadercandy/");
                 if (shadersPos != std::string::npos) {
-                  altPath = altPath.substr(0, shadersPos + 12) + "shaders/" + remainingPath;
+                  altPath = altPath.substr(0, shadersPos + 12) + "shaders/" +
+                            remainingPath;
                 }
               } else {
                 altPath = altPath.substr(0, shadersPos + 8) + remainingPath;
@@ -246,6 +307,15 @@ public:
               std::ifstream altFile(altPath.c_str());
               if (altFile.is_open()) {
                 fullPath = altPath;
+              } else {
+                // Try the shader's own directory + base/ (for ../base/
+                // includes)
+                std::string shaderBasePath =
+                    dir + "base/" + remainingPath.substr(5); // Skip "base/"
+                std::ifstream shaderBaseFile(shaderBasePath.c_str());
+                if (shaderBaseFile.is_open()) {
+                  fullPath = shaderBasePath;
+                }
               }
             }
           } else if (includePath.substr(0, 2) == "./") {
@@ -261,7 +331,8 @@ public:
               } else {
                 size_t pos = altPath.rfind("/shadercandy/");
                 if (pos != std::string::npos) {
-                  altPath = altPath.substr(0, pos + 12) + "shaders/" + includePath;
+                  altPath =
+                      altPath.substr(0, pos + 12) + "shaders/" + includePath;
                 }
               }
               std::ifstream altFile(altPath.c_str());
@@ -271,7 +342,8 @@ public:
             }
           }
 
-          std::string includeContent = loadShaderWithIncludes(fullPath.c_str(), depth + 1);
+          std::string includeContent =
+              loadShaderWithIncludes(fullPath.c_str(), depth + 1);
           if (!includeContent.empty()) {
             result << includeContent << "\n";
           }
@@ -279,7 +351,7 @@ public:
         }
       }
 
-    result << line << "\n";
+      result << line << "\n";
     }
 
     return result.str();
@@ -328,6 +400,14 @@ public:
     uniforms.frame = frameCount++;
     uniforms.deltaTime = std::chrono::duration<float>(now - lastFrame).count();
 
+    static int uniformDebugCount = 0;
+    if (uniformDebugCount++ < 5) {
+      std::cerr << "Uniforms: time=" << uniforms.time
+                << " res=" << uniforms.resolution[0] << "x"
+                << uniforms.resolution[1] << " speed=" << uniforms.speed
+                << " intensity=" << uniforms.alpha << std::endl;
+    }
+
     time_t t = time(nullptr);
     tm *lt = localtime(&t);
     uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
@@ -360,7 +440,7 @@ public:
 private:
   GLuint compileShader(GLenum type, const char *source) {
     GLuint shader = glCreateShader(type);
-    const char* sources[] = { source };
+    const char *sources[] = {source};
     glShaderSource(shader, 1, sources, nullptr);
     glCompileShader(shader);
 
@@ -384,6 +464,7 @@ private:
   Display *display = nullptr;
   Window window = 0;
   GLXContext context = nullptr;
+  Colormap colormap = 0;
 
   std::vector<GLShaderProgram *> shaders;
   size_t currentShaderIndex = 0;
@@ -427,12 +508,14 @@ public:
     // Parse arguments
     Window parent = 0;
     std::string initialShader;
+    bool useRootWindow = false;
 
     for (int i = 1; i < argc; i++) {
       if (strcmp(argv[i], "-window-id") == 0 && i + 1 < argc) {
         parent = strtoul(argv[i + 1], nullptr, 0);
       } else if (strcmp(argv[i], "-root") == 0) {
         // Run on root window
+        useRootWindow = true;
       } else if (strcmp(argv[i], "-shader") == 0 && i + 1 < argc) {
         initialShader = argv[++i];
       } else if (strcmp(argv[i], "-shader-dir") == 0 && i + 1 < argc) {
@@ -506,40 +589,57 @@ public:
     }
 
     XVisualInfo *vi = glXGetVisualFromFBConfig(display, fbc[0]);
-    Colormap cmap = XCreateColormap(display, parent, vi->visual, AllocNone);
 
-    XSetWindowAttributes swa;
-    swa.colormap = cmap;
-    swa.event_mask = ExposureMask | KeyPressMask | ButtonPressMask |
-                     PointerMotionMask | StructureNotifyMask;
+    if (useRootWindow) {
+      // Use root window directly
+      window = parent;
+      std::cerr << "ShaderCandy: Using root window " << std::hex << window
+                << std::dec << " (" << width << "x" << height << ")"
+                << std::endl;
+    } else {
+      // Create a new window
+      Colormap cmap = XCreateColormap(display, parent, vi->visual, AllocNone);
 
-    window =
-        XCreateWindow(display, parent, 0, 0, width, height, 0, vi->depth,
-                      InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
+      XSetWindowAttributes swa;
+      swa.colormap = cmap;
+      swa.event_mask = ExposureMask | KeyPressMask | ButtonPressMask |
+                       PointerMotionMask | StructureNotifyMask;
 
-    XMapWindow(display, window);
-    XFlush(display);
-    
-    // Wait for window to be mapped
-    XSync(display, False);
-    
-    XWindowAttributes winAttr;
-    for (int i = 0; i < 10; i++) {
-      XGetWindowAttributes(display, window, &winAttr);
-      if (winAttr.map_state == IsViewable) break;
-      usleep(10000);
+      window = XCreateWindow(display, parent, 0, 0, width, height, 0, vi->depth,
+                             InputOutput, vi->visual, CWColormap | CWEventMask,
+                             &swa);
+
+      XMapWindow(display, window);
+      XFlush(display);
+
+      // Wait for window to be mapped
+      XSync(display, False);
+
+      XWindowAttributes winAttr;
+      for (int i = 0; i < 10; i++) {
+        XGetWindowAttributes(display, window, &winAttr);
+        if (winAttr.map_state == IsViewable)
+          break;
+        usleep(10000);
+      }
+
+      std::cerr << "ShaderCandy: Window " << std::hex << window << std::dec
+                << " ready (" << winAttr.width << "x" << winAttr.height << ")"
+                << std::endl;
+
+      XRaiseWindow(display, window);
+      XFlush(display);
+
+      // Store colormap for cleanup
+      colormap = cmap;
     }
-    
-    std::cerr << "ShaderCandy: Window " << std::hex << window << std::dec 
-              << " ready (" << winAttr.width << "x" << winAttr.height << ")" << std::endl;
-
-    XRaiseWindow(display, window);
-    XFlush(display);
 
     context =
         glXCreateNewContext(display, fbc[0], GLX_RGBA_TYPE, nullptr, True);
     if (!context) {
       std::cerr << "Failed to create OpenGL context" << std::endl;
+      XFree(fbc);
+      XFree(vi);
       return false;
     }
 
@@ -548,6 +648,8 @@ public:
     // Initialize OpenGL function pointers
     if (!InitializeGLLoader()) {
       std::cerr << "Failed to initialize OpenGL function pointers" << std::endl;
+      XFree(fbc);
+      XFree(vi);
       return false;
     }
 
@@ -627,31 +729,31 @@ public:
 
   void scanShaderDirectory(const std::string &dir) {
     std::cerr << "Scanning shader directory: " << dir << std::endl;
-    
+
     // Use glob or simple scan to find all .frag files
     std::vector<std::string> shaderFiles;
-    
-    // Try to use glob if available, otherwise use simple approach
-    #ifdef __linux__
+
+// Try to use glob if available, otherwise use simple approach
+#ifdef __linux__
     std::string cmd = "find " + dir + " -maxdepth 2 -name '*.frag' 2>/dev/null";
     FILE *fp = popen(cmd.c_str(), "r");
     if (fp) {
-        char buf[512];
-        while (fgets(buf, sizeof(buf), fp)) {
-            std::string path(buf);
-            path = path.substr(0, path.find_last_of("\n\r"));
-            shaderFiles.push_back(path);
-        }
-        pclose(fp);
+      char buf[512];
+      while (fgets(buf, sizeof(buf), fp)) {
+        std::string path(buf);
+        path = path.substr(0, path.find_last_of("\n\r"));
+        shaderFiles.push_back(path);
+      }
+      pclose(fp);
     }
-    #endif
-    
+#endif
+
     for (const auto &path : shaderFiles) {
       std::cerr << "Found shader: " << path << std::endl;
       loadShader(path);
     }
   }
-  
+
   void loadShaderSimple(const std::string &path) {
     // Load the raw file content
     std::ifstream file(path);
@@ -659,11 +761,11 @@ public:
       std::cerr << "Failed to open: " << path << std::endl;
       return;
     }
-    
+
     std::stringstream buffer;
     buffer << file.rdbuf();
     std::string fragStr = buffer.str();
-    
+
     // Extract shader name
     std::string shaderName = path;
     size_t lastSlash = shaderName.find_last_of("/\\");
@@ -674,7 +776,7 @@ public:
     if (extPos != std::string::npos) {
       shaderName = shaderName.substr(0, extPos);
     }
-    
+
     // Replace #version with our version
     size_t versionPos = fragStr.find("#version");
     while (versionPos != std::string::npos) {
@@ -686,7 +788,7 @@ public:
       }
       versionPos = fragStr.find("#version", versionPos);
     }
-    
+
     // Add our version and uniforms at the beginning
     std::string preamble = R"Shader(#version 330 core
 
@@ -714,13 +816,13 @@ layout(std140) uniform Uniforms {
 };
 
 )Shader";
-    
+
     std::string wrappedFrag = preamble + fragStr;
-    
+
     // Compile
     auto *shader = new GLShaderProgram();
     std::string vertexShaderStr = GLSLWrapper::getVertexShader();
-    
+
     if (shader->loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str())) {
       shader->name = shaderName;
       shaders.push_back(shader);
@@ -857,6 +959,11 @@ layout(std140) uniform Uniforms {
       window = 0;
     }
 
+    if (colormap) {
+      XFreeColormap(display, colormap);
+      colormap = 0;
+    }
+
     if (display) {
       XCloseDisplay(display);
       display = nullptr;
@@ -899,8 +1006,18 @@ private:
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (!currentShader || !currentShader->program) {
+      std::cerr << "Render: No current shader or program (currentShader="
+                << (currentShader ? "valid" : "null")
+                << ", program=" << (currentShader ? currentShader->program : 0)
+                << ")" << std::endl;
       glXSwapBuffers(display, window);
       return;
+    }
+
+    static int frameCount = 0;
+    if (frameCount++ < 10) {
+      std::cerr << "Render: Drawing with shader '" << currentShader->name
+                << "' (program=" << currentShader->program << ")" << std::endl;
     }
 
     // Get current audio data if available
@@ -913,7 +1030,14 @@ private:
 
     if (currentShader && currentShader->program) {
       glBindVertexArray(vao);
-      
+
+      // Check for OpenGL errors
+      GLenum error = glGetError();
+      if (error != GL_NO_ERROR) {
+        std::cerr << "Render: OpenGL error before drawing: " << error
+                  << std::endl;
+      }
+
       if (inTransition && nextShader && nextShader->program) {
         float alpha1 = 1.0f - transitionProgress;
         float alpha2 = transitionProgress;
@@ -940,6 +1064,13 @@ private:
         currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns,
                                       audioData);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+      }
+
+      // Check for OpenGL errors after drawing
+      error = glGetError();
+      if (error != GL_NO_ERROR) {
+        std::cerr << "Render: OpenGL error after drawing: " << error
+                  << std::endl;
       }
     }
 
