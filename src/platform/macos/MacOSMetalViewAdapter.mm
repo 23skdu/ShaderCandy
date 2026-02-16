@@ -276,12 +276,15 @@
   [_renderer setViewportSize:self.mtkView.drawableSize];
 
   // Discover shaders - prefer renderer discovery but use early discovery as fallback
+  NSLog(@"MacOSMetalViewAdapter: About to discover shaders from renderer...");
   NSArray *rendererShaders = [_renderer availableShaderNames];
+  NSLog(@"MacOSMetalViewAdapter: Renderer found %lu shaders: %@", (unsigned long)rendererShaders.count, rendererShaders);
   if (rendererShaders.count > 0) {
     _availableShaders = rendererShaders;
   } else if (_availableShaders.count == 0) {
     // If neither discovery worked, use defaults
     _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb"];
+    NSLog(@"MacOSMetalViewAdapter: Using default shader list");
   }
   NSLog(@"MacOSMetalViewAdapter: Final shader list: %@", _availableShaders);
 
@@ -304,11 +307,16 @@
 }
 
 - (void)loadShaders {
-  if (!_renderer || !_currentShaderName)
+  if (!_renderer || !_currentShaderName) {
+    NSLog(@"MacOSMetalViewAdapter: loadShaders early exit - renderer: %p, shaderName: %@", _renderer, _currentShaderName);
     return;
+  }
 
+  NSLog(@"MacOSMetalViewAdapter: Attempting to load shader: %@", _currentShaderName);
   NSError *error = nil;
   BOOL success = [_renderer setActiveShader:_currentShaderName error:&error];
+  
+  NSLog(@"MacOSMetalViewAdapter: Shader load result: %@, error: %@", success ? @"SUCCESS" : @"FAILED", error);
   
   if (!success && error) {
     NSLog(@"MacOSMetalViewAdapter: Failed to load shader '%@': %@",
@@ -395,8 +403,17 @@
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor)
+  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor) {
+    NSLog(@"MacOSMetalViewAdapter: drawInMTKView early exit - renderer: %p, drawable: %p, descriptor: %p", 
+          _renderer, view.currentDrawable, view.currentRenderPassDescriptor);
     return;
+  }
+  
+  // Log first frame for debugging
+  if (_frameCount == 0) {
+    NSLog(@"MacOSMetalViewAdapter: First draw call - currentShader: %@, pipeline: %p", 
+          _currentShaderName, _renderer.currentPipeline);
+  }
 
   // Update uniforms
   NSTimeInterval elapsed = [[MetalSharedState sharedState] synchronizedTime];
@@ -417,6 +434,13 @@
                              height:NSHeight(self.bounds)];
 
   // Render
+  id currentPipeline = _renderer.currentPipeline;
+  if (!currentPipeline || ![currentPipeline respondsToSelector:@selector(renderPipeline)] || 
+      ![(id)currentPipeline renderPipeline]) {
+    NSLog(@"MacOSMetalViewAdapter: RENDER WARNING - No valid pipeline! Shader: %@, Pipeline: %p", 
+          _currentShaderName, currentPipeline);
+  }
+  
   [_renderer renderToDrawable:view.currentDrawable
          renderPassDescriptor:view.currentRenderPassDescriptor];
 

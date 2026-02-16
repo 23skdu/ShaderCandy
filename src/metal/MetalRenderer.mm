@@ -829,10 +829,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   __block BOOL alreadyLoaded = NO;
   __block NSError *localError = nil;
 
+  NSLog(@"[SHADER DEBUG] Attempting to load shader: '%@'", name);
+
   // Logic from former loadShaderWithName:
   // Check for shader file
   NSString *path = [self pathForShader:name];
   if (!path) {
+    NSLog(@"[SHADER DEBUG] FAILED: Shader '%@' not found at any search path", name);
     localError = [NSError
         errorWithDomain:@"MetalRenderer"
                    code:MetalRendererErrorCodeShaderCompilationFailed
@@ -844,11 +847,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       *error = localError;
     return NO;
   }
+  NSLog(@"[SHADER DEBUG] Found shader file at: %@", path);
 
   // Check modification date
   NSDate *modDate = [self modificationDateForPath:path];
   NSDate *lastMod = self.shaderModificationDates[name];
   if (lastMod && [modDate isEqualToDate:lastMod] && self.pipelineCache[name]) {
+    NSLog(@"[SHADER DEBUG] Shader '%@' already loaded and unchanged", name);
     return YES; // Already loaded and unchanged
   }
 
@@ -860,17 +865,24 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                                                encoding:NSUTF8StringEncoding
                                                   error:&compileError];
   if (!source) {
+    NSLog(@"[SHADER DEBUG] FAILED: Could not read shader file: %@", compileError);
     if (error)
       *error = compileError;
     return NO;
   }
+  NSLog(@"[SHADER DEBUG] Read %lu bytes from shader file", (unsigned long)source.length);
 
   // Create library with full source
+  NSLog(@"[SHADER DEBUG] Preparing shader source...");
   NSString *fullSource = [self prepareShaderSource:source forShader:name];
+  NSLog(@"[SHADER DEBUG] Prepared source size: %lu bytes", (unsigned long)fullSource.length);
+  
+  NSLog(@"[SHADER DEBUG] Creating Metal library...");
   id<MTLLibrary> library = [self.device newLibraryWithSource:fullSource
                                                      options:nil
                                                        error:&compileError];
   if (compileError) {
+    NSLog(@"[SHADER DEBUG] FAILED: Metal library creation failed: %@", compileError);
     [self handleShaderCompileError:compileError
                          forShader:name
                             source:fullSource];
@@ -878,20 +890,33 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       *error = compileError;
     return NO;
   }
+  NSLog(@"[SHADER DEBUG] Metal library created successfully");
 
   self.libraryCache[name] = library;
 
   // Create pipeline
+  NSLog(@"[SHADER DEBUG] Creating pipeline state...");
   NSError *pipelineError = nil;
   MetalPipelineState *pipeline =
       [self createPipelineStateWithLibrary:library
                                 shaderName:name
                                      error:&pipelineError];
   if (pipelineError) {
+    NSLog(@"[SHADER DEBUG] FAILED: Pipeline creation failed: %@", pipelineError);
     if (error)
       *error = pipelineError;
     return NO;
   }
+  if (!pipeline) {
+    NSLog(@"[SHADER DEBUG] FAILED: Pipeline is nil (missing vertex_main or fragment_main)");
+    if (error) {
+      *error = [NSError errorWithDomain:@"MetalRenderer"
+                                   code:MetalRendererErrorCodeShaderCompilationFailed
+                               userInfo:@{NSLocalizedDescriptionKey: @"Pipeline creation returned nil"}];
+    }
+    return NO;
+  }
+  NSLog(@"[SHADER DEBUG] Pipeline state created successfully");
 
   self.pipelineCache[name] = pipeline;
   self.currentPipeline = pipeline;
@@ -931,11 +956,19 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   if (path)
     return path;
 
+  // Also try mainBundle (important for screensaver/player contexts)
+  NSBundle *mainBundle = [NSBundle mainBundle];
+  path = [mainBundle pathForResource:name ofType:type inDirectory:subDir];
+  if (path)
+    return path;
+
   // Fallback to manual search
   NSFileManager *fm = [NSFileManager defaultManager];
   NSArray *searchPaths = @[
     [[bundle resourcePath] stringByAppendingPathComponent:subDir ?: @""],
     [bundle.bundlePath stringByAppendingPathComponent:subDir ?: @""],
+    [[mainBundle resourcePath] stringByAppendingPathComponent:subDir ?: @""],
+    [[mainBundle bundlePath] stringByAppendingPathComponent:subDir ?: @""],
     [[fm currentDirectoryPath] stringByAppendingPathComponent:subDir ?: @""],
     [[fm currentDirectoryPath] stringByAppendingPathComponent:@"src/core"],
     [[fm currentDirectoryPath] stringByAppendingPathComponent:@"src/metal"],
@@ -1019,7 +1052,8 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   }
   if (self.cachedUtilsSource) {
     [fullSource appendString:self.cachedUtilsSource];
-    [fullSource appendString:@"\n\n"];
+    // Make ShaderUtils namespace available to all shaders
+    [fullSource appendString:@"\nusing namespace ShaderUtils;\n\n"];
   }
 
   // Add vertex shader wrapper
@@ -1050,6 +1084,17 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   regex = [NSRegularExpression
       regularExpressionWithPattern:
           @"#\\s*include\\s+[\"<](?:.*/)?utils\\.metal[\">]"
+                           options:NSRegularExpressionCaseInsensitive
+                             error:nil];
+  [regex replaceMatchesInString:cleanedSource
+                        options:0
+                          range:NSMakeRange(0, cleanedSource.length)
+                   withTemplate:@""];
+
+  // Remove any "using namespace ShaderUtils;" statements since we add it after utils
+  regex = [NSRegularExpression
+      regularExpressionWithPattern:
+          @"using\\s+namespace\\s+ShaderUtils\\s*;"
                            options:NSRegularExpressionCaseInsensitive
                              error:nil];
   [regex replaceMatchesInString:cleanedSource
@@ -1129,36 +1174,46 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   id<MTLFunction> vertexFunc = [library newFunctionWithName:@"vertex_main"];
   id<MTLFunction> fragmentFunc = [library newFunctionWithName:@"fragment_main"];
 
-  if (vertexFunc && fragmentFunc) {
-    MTLRenderPipelineDescriptor *desc =
-        [[MTLRenderPipelineDescriptor alloc] init];
-    desc.vertexFunction = vertexFunc;
-    desc.fragmentFunction = fragmentFunc;
-    desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-    desc.colorAttachments[0].blendingEnabled = YES;
-    desc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    desc.colorAttachments[0].destinationRGBBlendFactor =
-        MTLBlendFactorOneMinusSourceAlpha;
-
-    // Vertex descriptor
-    MTLVertexDescriptor *vDesc = [MTLVertexDescriptor vertexDescriptor];
-    vDesc.attributes[0].format = MTLVertexFormatFloat2;
-    vDesc.attributes[0].offset = 0;
-    vDesc.attributes[0].bufferIndex = 0;
-    vDesc.attributes[1].format = MTLVertexFormatFloat2;
-    vDesc.attributes[1].offset = 8;
-    vDesc.attributes[1].bufferIndex = 0;
-    vDesc.layouts[0].stride = 16;
-    desc.vertexDescriptor = vDesc;
-
-    state.renderPipeline =
-        [_device newRenderPipelineStateWithDescriptor:desc
-                                                error:&pipelineError];
-    if (pipelineError) {
-      if (error)
-        *error = pipelineError;
-      return nil;
+  if (!vertexFunc || !fragmentFunc) {
+    NSLog(@"Shader '%@' missing required functions: vertex_main=%@, fragment_main=%@",
+          name, vertexFunc ? @"YES" : @"NO", fragmentFunc ? @"YES" : @"NO");
+    if (error) {
+      *error = [NSError errorWithDomain:@"MetalRenderer"
+                                   code:MetalRendererErrorCodeShaderCompilationFailed
+                               userInfo:@{NSLocalizedDescriptionKey :
+                                            [NSString stringWithFormat:@"Shader '%@' missing vertex_main or fragment_main", name]}];
     }
+    return nil;
+  }
+
+  MTLRenderPipelineDescriptor *desc =
+      [[MTLRenderPipelineDescriptor alloc] init];
+  desc.vertexFunction = vertexFunc;
+  desc.fragmentFunction = fragmentFunc;
+  desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+  desc.colorAttachments[0].blendingEnabled = YES;
+  desc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+  desc.colorAttachments[0].destinationRGBBlendFactor =
+      MTLBlendFactorOneMinusSourceAlpha;
+
+  // Vertex descriptor
+  MTLVertexDescriptor *vDesc = [MTLVertexDescriptor vertexDescriptor];
+  vDesc.attributes[0].format = MTLVertexFormatFloat2;
+  vDesc.attributes[0].offset = 0;
+  vDesc.attributes[0].bufferIndex = 0;
+  vDesc.attributes[1].format = MTLVertexFormatFloat2;
+  vDesc.attributes[1].offset = 8;
+  vDesc.attributes[1].bufferIndex = 0;
+  vDesc.layouts[0].stride = 16;
+  desc.vertexDescriptor = vDesc;
+
+  state.renderPipeline =
+      [_device newRenderPipelineStateWithDescriptor:desc
+                                              error:&pipelineError];
+  if (pipelineError) {
+    if (error)
+      *error = pipelineError;
+    return nil;
   }
 
   // Check for simulation pipeline
@@ -1232,17 +1287,27 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSMutableSet *foundNames = [NSMutableSet set];
 
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSLog(@"MetalRenderer: bundleForClass resolved to: %@", bundle.bundlePath);
   NSFileManager *fm = [NSFileManager defaultManager];
 
   // List of paths to search for shaders
+  // Also try [NSBundle mainBundle] as a fallback for screensaver/player contexts
+  NSBundle *mainBundle = [NSBundle mainBundle];
   NSArray *searchPaths = @[
     [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"],
     [bundle resourcePath],
     [[bundle bundlePath] stringByAppendingPathComponent:@"shaders"],
+    [[mainBundle resourcePath] stringByAppendingPathComponent:@"shaders"],
+    [mainBundle resourcePath],
+    [[mainBundle bundlePath] stringByAppendingPathComponent:@"shaders"],
     [[fm currentDirectoryPath] stringByAppendingPathComponent:@"shaders"]
   ];
 
-  NSLog(@"Searching for shaders in multiple locations...");
+  NSLog(@"MetalRenderer: Searching for shaders in %lu locations (mainBundle: %@)...", 
+        (unsigned long)searchPaths.count, mainBundle.bundlePath);
+  for (NSString *path in searchPaths) {
+    NSLog(@"MetalRenderer:   Checking path: %@", path);
+  }
 
   for (NSString *path in searchPaths) {
     if (!path)
@@ -1589,10 +1654,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   }
 
   [self beginFrame];
-  if (_frameCount % 60 == 0) {
-    NSLog(@"MetalRenderer: Drawing frame %lu (Shader: %@)",
-          (unsigned long)_frameCount, _activeShaderName);
-  }
 
   id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
 
@@ -1606,6 +1667,19 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSUInteger bufferIndex = _frameCount % 3;
   uint8_t *bufferPtr = (uint8_t *)_resources.uniformBuffer.contents;
   Uniforms *uniforms = (Uniforms *)(bufferIndex * sizeof(Uniforms) + bufferPtr);
+  
+  // Debug output for problem shaders
+  BOOL isProblemShader = [_activeShaderName isEqualToString:@"capman"] ||
+                         [_activeShaderName isEqualToString:@"area_51"] ||
+                         [_activeShaderName isEqualToString:@"burning_ship"] ||
+                         [_activeShaderName isEqualToString:@"biolume_forest"];
+  
+  if (isProblemShader || _frameCount % 60 == 0) {
+    NSLog(@"MetalRenderer: Drawing frame %lu (Shader: %@, Pipeline: %@, Time: %.2f, Resolution: %.0fx%.0f)",
+          (unsigned long)_frameCount, _activeShaderName,
+          _currentPipeline.renderPipeline ? @"OK" : @"NIL",
+          uniforms->time, uniforms->resolution.x, uniforms->resolution.y);
+  }
 
   // Determine if we need the advanced offscreen pipeline
   BOOL needsOffscreen = _bloomConfig.enabled || _hdrEnabled ||

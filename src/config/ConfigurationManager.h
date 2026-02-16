@@ -124,22 +124,42 @@ public:
   void resetParameter(const std::string &shader, const std::string &param);
   void resetAllParameters(const std::string &shader);
 
-  // Parameter values (Typed helpers)
+  // Parameter values (Typed helpers with safe fallback)
   float getFloatParameter(const std::string &shader,
                           const std::string &param) const {
-    return std::get<float>(getParameter(shader, param));
+    auto value = getParameter(shader, param);
+    if (std::holds_alternative<float>(value)) {
+      return std::get<float>(value);
+    } else if (std::holds_alternative<int>(value)) {
+      return static_cast<float>(std::get<int>(value));
+    }
+    return 1.0f;
   }
   bool getBoolParameter(const std::string &shader,
                         const std::string &param) const {
-    return std::get<bool>(getParameter(shader, param));
+    auto value = getParameter(shader, param);
+    if (std::holds_alternative<bool>(value)) {
+      return std::get<bool>(value);
+    }
+    return false;
   }
   int getIntParameter(const std::string &shader,
                       const std::string &param) const {
-    return std::get<int>(getParameter(shader, param));
+    auto value = getParameter(shader, param);
+    if (std::holds_alternative<int>(value)) {
+      return std::get<int>(value);
+    } else if (std::holds_alternative<float>(value)) {
+      return static_cast<int>(std::get<float>(value));
+    }
+    return 0;
   }
   std::string getStringParameter(const std::string &shader,
                                  const std::string &param) const {
-    return std::get<std::string>(getParameter(shader, param));
+    auto value = getParameter(shader, param);
+    if (std::holds_alternative<std::string>(value)) {
+      return std::get<std::string>(value);
+    }
+    return "";
   }
 
   // Persistence

@@ -103,7 +103,7 @@ ConfigurationManager::getParameterDefault(const std::string &shader,
       }
     }
   }
-  return ConfigValue(0);
+  return ConfigValue(1.0f);
 }
 
 void ConfigurationManager::resetParameter(const std::string &shader,
@@ -294,7 +294,7 @@ static ConfigValue parseValue(const std::string& json, size_t& pos) {
         return ConfigValue(std::stoi(numStr));
     }
     
-    return ConfigValue(0);
+    return ConfigValue(1.0f);
 }
 
 std::string serializeSettings(const AppSettings &settings) {
