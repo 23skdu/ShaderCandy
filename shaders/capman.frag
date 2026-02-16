@@ -120,12 +120,3 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     return vec4(color, alpha);
 }
-
-// Main function
-void main() {
-    vec2 uv = vTexCoord;
-    vec2 centered = uv * 2.0 - 1.0;
-    centered.x *= resolution.x / resolution.y;
-    
-    fragColor = effect_main(centered, uv);
-}

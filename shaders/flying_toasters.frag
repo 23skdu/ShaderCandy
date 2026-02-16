@@ -6,11 +6,6 @@ float sdRoundBox(vec3 p, vec3 b, float r) {
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;
 }
 
-float sdBox(vec3 p, vec3 b) {
-    vec3 q = abs(p) - b;
-    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
-
 mat3 rotateY(float a) {
     float s = sin(a), c = cos(a);
     return mat3(c, 0, s, 0, 1, 0, -s, 0, c);

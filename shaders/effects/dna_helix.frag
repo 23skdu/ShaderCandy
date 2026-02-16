@@ -21,11 +21,6 @@ vec3 rotateAroundAxis(vec3 p, vec3 axis, float angle) {
     return rot * p;
 }
 
-// Sphere SDF
-float sdSphere(vec3 p, float r) {
-    return length(p) - r;
-}
-
 // Cylinder SDF
 float sdCylinder(vec3 p, float r, float h) {
     vec2 d = vec2(length(p.xz) - r, abs(p.y) - h);
