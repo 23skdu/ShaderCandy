@@ -2,7 +2,7 @@
 
 This document provides a complete catalog of all available shaders in ShaderCandy, organized by category.
 
-**Total Shaders:** 64 unique effects
+**Total Shaders:** 110 unique effects  
 **Platforms:** macOS (Metal), Linux (OpenGL/GLSL)
 
 ---
@@ -10,9 +10,12 @@ This document provides a complete catalog of all available shaders in ShaderCand
 ## Table of Contents
 
 - [Music-Reactive Shaders](#music-reactive-shaders) (10 shaders)
-- [Visual Effects](#visual-effects) (33 shaders)
-- [Character & Creature Shaders](#character--creature-shaders) (18 shaders)
-- [Audio Visualization](#audio-visualization) (1 shader)
+- [Visual Effects](#visual-effects) (49 shaders)
+- [Character & Creature Shaders](#character--creature-shaders) (12 shaders)
+- [Nature & Environment](#nature--environment) (12 shaders)
+- [Geometric & Mathematical](#geometric--mathematical) (9 shaders)
+- [Artistic & Cultural](#artistic--cultural) (8 shaders)
+- [Audio Visualization](#audio-visualization) (4 shaders)
 - [Neural Style Transfer](#neural-style-transfer) (1 shader)
 - [Classic Shaders](#classic-shaders) (7 shaders)
 
@@ -26,8 +29,6 @@ These shaders respond to audio input, creating dynamic visuals synchronized to y
 **File:** `music/8bit.metal` / `music/8bit.frag`
 
 Retro 8-bit platformer aesthetic with scrolling clouds, question blocks, coins, enemies, and a castle. Features pixelation effects and CRT scanlines for authentic retro gaming feel.
-
-![8-Bit](../screenshots/8bit.png)
 
 **Features:**
 - Scrolling parallax clouds with animated faces
@@ -45,8 +46,6 @@ Retro 8-bit platformer aesthetic with scrolling clouds, question blocks, coins, 
 
 Elegant flowing ribbons in gold and ivory tones with 3D musical notes and treble clefs floating through space. Perfect for orchestral and classical music.
 
-![Classical](../screenshots/classical.png)
-
 **Features:**
 - Flowing ribbon curves
 - 3D rendered musical notes
@@ -62,8 +61,6 @@ Elegant flowing ribbons in gold and ivory tones with 3D musical notes and treble
 
 Cyberpunk digital rain aesthetic with grid landscapes and neon pulses. Ideal for EDM, techno, and electronic music.
 
-![Electronic](../screenshots/electronic.png)
-
 **Features:**
 - Matrix-style digital rain
 - Neon grid landscapes
@@ -76,8 +73,6 @@ Cyberpunk digital rain aesthetic with grid landscapes and neon pulses. Ideal for
 **File:** `music/heavymetal.metal` / `music/heavymetal.frag`
 
 Dark industrial theme with fiery effects and aggressive motion. Perfect for metal, rock, and industrial genres.
-
-![Heavy Metal](../screenshots/heavymetal.png)
 
 **Features:**
 - Industrial aesthetic
@@ -92,8 +87,6 @@ Dark industrial theme with fiery effects and aggressive motion. Perfect for meta
 
 Urban graffiti-style visuals with street art influences and rhythmic patterns.
 
-![Hip Hop](../screenshots/hiphop.png)
-
 **Features:**
 - Graffiti-style elements
 - Urban color palette
@@ -106,8 +99,6 @@ Urban graffiti-style visuals with street art influences and rhythmic patterns.
 
 Smooth flowing patterns inspired by jazz improvisation and liquid motion.
 
-![Jazz](../screenshots/jazz.png)
-
 **Features:**
 - Smooth flowing curves
 - Warm color transitions
@@ -119,8 +110,6 @@ Smooth flowing patterns inspired by jazz improvisation and liquid motion.
 **File:** `music/punk.metal` / `music/punk.frag`
 
 Aggressive glitch aesthetic with distorted visuals and chaotic energy.
-
-![Punk](../screenshots/punk.png)
 
 **Features:**
 - Glitch effects
@@ -135,8 +124,6 @@ Aggressive glitch aesthetic with distorted visuals and chaotic energy.
 
 Tropical island vibes with beach sunsets and ocean themes.
 
-![Reggae](../screenshots/reggae.png)
-
 **Features:**
 - Tropical colors (green, yellow, red)
 - Sunset gradients
@@ -149,8 +136,6 @@ Tropical island vibes with beach sunsets and ocean themes.
 **File:** `music/soul.metal` / `music/soul.frag`
 
 Warm flowing gradients with smooth, emotive transitions.
-
-![Soul](../screenshots/soul.png)
 
 **Features:**
 - Warm color palette
@@ -165,8 +150,6 @@ Warm flowing gradients with smooth, emotive transitions.
 
 80s retro nostalgia with pink/purple gradients, palm trees, and sunset grids.
 
-![Vaporwave](../screenshots/vaporwave.png)
-
 **Features:**
 - Synthwave grid landscape
 - Pink and purple gradients
@@ -176,31 +159,14 @@ Warm flowing gradients with smooth, emotive transitions.
 
 ---
 
-### Mushroom
-**File:** `effects/mushroom.metal`
-
-3D rotating neon rainbow colored mushrooms as particles on a fractal neon background. Features organic mushroom shapes with caps and stalks, rotating on the X-axis at different heights and sizes.
-
-![Mushroom](../screenshots/mushroom.png)
-
-**Features:**
-- SDF-based mushroom caps and stalks
-- 40 rotating mushroom particles at varied heights
-- Fractal neon background using multi-layer noise
-- Rainbow color shifting effect over time
-- X-axis rotation for each mushroom particle
-- Glow effect based on distance field
-
----
-
 ## Visual Effects
+
+Advanced procedural effects and mathematical visualizations.
 
 ### Area 51
 **File:** `effects/area_51.metal` / `effects/area_51.frag`
 
 Alien and UFO sighting at a secret desert base with multiple flying saucers, tractor beams, and cows grazing on the ground.
-
-![Area 51](../screenshots/area_51.png)
 
 **Features:**
 - 3D raymarched UFOs with animated lights
@@ -217,8 +183,6 @@ Alien and UFO sighting at a secret desert base with multiple flying saucers, tra
 
 3D Mandelbox fractal tunnel with psychedelic color shifts, dynamic zoom, and vibrant rainbow colors.
 
-![Astra Fractal](../screenshots/astra_fractal.png)
-
 **Features:**
 - Mandelbox fractal with Julia set variation
 - Dynamic zoom effect (1x to 4x)
@@ -230,11 +194,9 @@ Alien and UFO sighting at a secret desert base with multiple flying saucers, tra
 ---
 
 ### Audio Spectrum
-**File:** `effects/audio_spectrum.frag`
+**File:** `effects/audio_spectrum.metal` / `effects/audio_spectrum.frag`
 
 Real-time frequency analysis visualization with bars responding to different frequency bands.
-
-![Audio Spectrum](../screenshots/audio_spectrum.png)
 
 **Features:**
 - FFT frequency analysis
@@ -249,8 +211,6 @@ Real-time frequency analysis visualization with bars responding to different fre
 
 Organic glowing mushrooms and vines in a dark void with bioluminescent effects and floating spores.
 
-![Biolume Forest](../screenshots/biolume_forest.png)
-
 **Features:**
 - Procedural mushroom generation
 - Glowing caps and stems
@@ -263,11 +223,9 @@ Organic glowing mushrooms and vines in a dark void with bioluminescent effects a
 ---
 
 ### Bloom
-**File:** `effects/bloom.frag`
+**File:** `effects/bloom.metal` / `effects/bloom.frag`
 
 HDR glow effect with high dynamic range lighting simulation.
-
-![Bloom](../screenshots/bloom.png)
 
 **Features:**
 - HDR rendering
@@ -277,12 +235,23 @@ HDR glow effect with high dynamic range lighting simulation.
 
 ---
 
+### Burning Ship
+**File:** `effects/burning_ship.metal` / `effects/burning_ship.frag`
+
+The Burning Ship fractal with detailed iterates and ship-like structures.
+
+**Features:**
+- Burning Ship fractal algorithm
+- Detailed boundary exploration
+- Color mapping based on iteration counts
+- Zoom capability
+
+---
+
 ### Calibration
 **File:** `effects/calibration.metal` / `effects/calibration.frag`
 
 Test pattern for display setup with color bars, gradients, and geometric patterns.
-
-![Calibration](../screenshots/calibration.png)
 
 **Features:**
 - Color bar test pattern
@@ -297,8 +266,6 @@ Test pattern for display setup with color bars, gradients, and geometric pattern
 
 Time-distortion tunnel with clock-inspired elements and temporal effects.
 
-![Chrono Warp](../screenshots/chrono_warp.png)
-
 **Features:**
 - Clock face elements
 - Time-warp distortion
@@ -311,8 +278,6 @@ Time-distortion tunnel with clock-inspired elements and temporal effects.
 **File:** `effects/cosmic_kaleido.metal` / `effects/cosmic_kaleido.frag`
 
 Mirror symmetry patterns inspired by kaleidoscopes with cosmic color schemes.
-
-![Cosmic Kaleido](../screenshots/cosmic_kaleido.png)
 
 **Features:**
 - Mirror symmetry (6-fold)
@@ -327,8 +292,6 @@ Mirror symmetry patterns inspired by kaleidoscopes with cosmic color schemes.
 
 Underwater caustics and bubbles with deep blue color palette and bioluminescent effects.
 
-![Deep Ocean Pulse](../screenshots/deep_ocean_pulse.png)
-
 **Features:**
 - Caustic light patterns
 - Rising bubbles
@@ -337,12 +300,23 @@ Underwater caustics and bubbles with deep blue color palette and bioluminescent 
 
 ---
 
+### DNA Helix
+**File:** `effects/dna_helix.metal` / `effects/dna_helix.frag`
+
+3D double helix DNA structure rotating in space with glowing base pairs.
+
+**Features:**
+- Double helix geometry
+- Rotating animation
+- Glowing base pairs
+- Molecular aesthetic
+
+---
+
 ### Event Horizon
 **File:** `effects/event_horizon.metal` / `effects/event_horizon.frag`
 
 Black hole visualization with accretion disk and gravitational lensing effects.
-
-![Event Horizon](../screenshots/event_horizon.png)
 
 **Features:**
 - Black hole silhouette
@@ -358,8 +332,6 @@ Black hole visualization with accretion disk and gravitational lensing effects.
 
 Post-apocalyptic wasteland with radioactive effects and decay aesthetics.
 
-![Fallout](../screenshots/fallout.png)
-
 **Features:**
 - Radioactive green glow
 - Decay textures
@@ -369,12 +341,23 @@ Post-apocalyptic wasteland with radioactive effects and decay aesthetics.
 
 ---
 
+### Fluid Dynamics
+**File:** `effects/fluid_dynamics.metal` / `effects/fluid_dynamics.frag`
+
+Realistic fluid simulation with Navier-Stokes based flow patterns.
+
+**Features:**
+- Fluid flow simulation
+- Velocity field visualization
+- Vortex formation
+- Interactive turbulence
+
+---
+
 ### Fractal Zoom
 **File:** `effects/fractal_zoom.metal` / `effects/fractal_zoom.frag`
 
 Infinite Mandelbrot dive with smooth zooming and color cycling.
-
-![Fractal Zoom](../screenshots/fractal_zoom.png)
 
 **Features:**
 - Deep Mandelbrot zoom
@@ -389,8 +372,6 @@ Infinite Mandelbrot dive with smooth zooming and color cycling.
 
 3D floating hearts coming from all directions with romantic atmosphere.
 
-![Hearts](../screenshots/hearts.png)
-
 **Features:**
 - 3D heart shapes
 - Multiple heart streams
@@ -401,12 +382,23 @@ Infinite Mandelbrot dive with smooth zooming and color cycling.
 
 ---
 
+### IFS 3D
+**File:** `effects/ifs_3d.metal` / `effects/ifs_3d.frag`
+
+3D Iterated Function System fractal with customizable transformation parameters.
+
+**Features:**
+- IFS fractal generation
+- 3D structure
+- Customizable transforms
+- Recursive detail
+
+---
+
 ### Julia 3D
 **File:** `effects/julia_3d.metal` / `effects/julia_3d.frag`
 
 3D Julia set fractal with complex mathematical visualization.
-
-![Julia 3D](../screenshots/julia_3d.png)
 
 **Features:**
 - 3D Julia set
@@ -416,12 +408,36 @@ Infinite Mandelbrot dive with smooth zooming and color cycling.
 
 ---
 
+### Julia 4D
+**File:** `effects/julia_4d.metal` / `effects/julia_4d.frag`
+
+4D Julia set projection with hypercomplex number visualization.
+
+**Features:**
+- 4D to 3D projection
+- Hypercomplex mathematics
+- Animated morphing
+- Rich detail
+
+---
+
+### Julia Bulb
+**File:** `effects/julia_bulb.metal` / `effects/julia_bulb.frag`
+
+Julia set rendered as a 3D bulb-like structure.
+
+**Features:**
+- Bulb-shaped fractal
+- 3D raymarching
+- Smooth color gradients
+- Rotating animation
+
+---
+
 ### Julia Set
 **File:** `effects/julia_set.metal` / `effects/julia_set.frag`
 
 2D Julia set visualization with interactive parameter control.
-
-![Julia Set](../screenshots/julia_set.png)
 
 **Features:**
 - 2D Julia set
@@ -436,8 +452,6 @@ Infinite Mandelbrot dive with smooth zooming and color cycling.
 
 Psychedelic tunnel with kaleidoscopic patterns and vibrant colors.
 
-![Kaleidoscopic Tunnel](../screenshots/kaleidoscopic_tunnel.png)
-
 **Features:**
 - Tunnel perspective
 - Kaleidoscope patterns
@@ -446,12 +460,23 @@ Psychedelic tunnel with kaleidoscopic patterns and vibrant colors.
 
 ---
 
+### KIFS
+**File:** `effects/kifs.metal` / `effects/kifs.frag`
+
+Kaleidoscopic Iterated Function System fractal with folded space aesthetics.
+
+**Features:**
+- KIFS algorithm
+- Folded geometric patterns
+- Symmetric design
+- Colorful output
+
+---
+
 ### Liquid Aura
 **File:** `effects/liquid_aura.metal` / `effects/liquid_aura.frag`
 
 Fluid energy simulation with smooth flowing motion and ethereal glow.
-
-![Liquid Aura](../screenshots/liquid_aura.png)
 
 **Features:**
 - Fluid dynamics
@@ -466,8 +491,6 @@ Fluid energy simulation with smooth flowing motion and ethereal glow.
 
 Smooth flowing colors with liquid-like motion and organic transitions.
 
-![Liquid Gradient](../screenshots/liquid_gradient.png)
-
 **Features:**
 - Smooth color transitions
 - Liquid motion
@@ -476,12 +499,36 @@ Smooth flowing colors with liquid-like motion and organic transitions.
 
 ---
 
+### Mandelbox
+**File:** `effects/mandelbox.metal` / `effects/mandelbox.frag`
+
+Box-based fractal with fold and scale operations creating complex structures.
+
+**Features:**
+- Mandelbox algorithm
+- Fold operations
+- Box geometry
+- Detailed exploration
+
+---
+
+### Mandelbrot 3D
+**File:** `effects/mandelbrot_3d.metal` / `effects/mandelbrot_3d.frag`
+
+3D extrusion of the classic Mandelbrot set with volumetric depth.
+
+**Features:**
+- 3D Mandelbrot extrusion
+- Volumetric rendering
+- Depth-based coloring
+- Zoom capability
+
+---
+
 ### Mandelbrot Set
 **File:** `effects/mandelbrot_set.metal` / `effects/mandelbrot_set.frag`
 
 Classic fractal explorer with deep zoom and smooth coloring.
-
-![Mandelbrot Set](../screenshots/mandelbrot_set.png)
 
 **Features:**
 - Deep zoom capability
@@ -491,12 +538,10 @@ Classic fractal explorer with deep zoom and smooth coloring.
 
 ---
 
-### Mandelbulb 3D
-**File:** `effects/mandelbulb_3d.metal` / `effects/mandelbulb_3d.frag`
+### Mandelbulb
+**File:** `effects/mandelbulb.metal` / `effects/mandelbulb.frag`
 
 3D Mandelbrot set (Mandelbulb) with volumetric rendering.
-
-![Mandelbulb 3D](../screenshots/mandelbulb_3d.png)
 
 **Features:**
 - 3D Mandelbulb fractal
@@ -506,12 +551,23 @@ Classic fractal explorer with deep zoom and smooth coloring.
 
 ---
 
+### Mandelbulb 3D
+**File:** `effects/mandelbulb_3d.metal` / `effects/mandelbulb_3d.frag`
+
+Alternative 3D Mandelbrot rendering with enhanced detail.
+
+**Features:**
+- 3D Mandelbulb variation
+- Enhanced detail
+- Ray marching
+- Complex surface detail
+
+---
+
 ### Mind Palace
 **File:** `effects/mind_palace.metal` / `effects/mind_palace.frag`
 
 Infinite shifting architectural rooms with rotating perspectives and appearing/disappearing cross beams.
-
-![Mind Palace](../screenshots/mind_palace.png)
 
 **Features:**
 - Architectural structures
@@ -523,12 +579,25 @@ Infinite shifting architectural rooms with rotating perspectives and appearing/d
 
 ---
 
+### Mushroom
+**File:** `effects/mushroom.metal` / `effects/mushroom.frag`
+
+3D rotating neon rainbow colored mushrooms as particles on a fractal neon background. Features organic mushroom shapes with caps and stalks, rotating on the X-axis at different heights and sizes.
+
+**Features:**
+- SDF-based mushroom caps and stalks
+- 40 rotating mushroom particles at varied heights
+- Fractal neon background using multi-layer noise
+- Rainbow color shifting effect over time
+- X-axis rotation for each mushroom particle
+- Glow effect based on distance field
+
+---
+
 ### Nebula
 **File:** `effects/nebula.metal` / `effects/nebula.frag`
 
 Cosmic gas clouds with volumetric rendering and starfield backdrop.
-
-![Nebula](../screenshots/nebula.png)
 
 **Features:**
 - Volumetric gas clouds
@@ -543,8 +612,6 @@ Cosmic gas clouds with volumetric rendering and starfield backdrop.
 
 Synthwave grid landscape with neon lights and retro aesthetic.
 
-![Neon Pulse](../screenshots/neon_pulse.png)
-
 **Features:**
 - Retro grid floor
 - Neon light strips
@@ -558,8 +625,6 @@ Synthwave grid landscape with neon lights and retro aesthetic.
 
 AI-inspired network visualization with interconnected nodes and data flows.
 
-![Neural Nexus](../screenshots/neural_nexus.png)
-
 **Features:**
 - Network nodes
 - Data flow visualization
@@ -568,12 +633,23 @@ AI-inspired network visualization with interconnected nodes and data flows.
 
 ---
 
+### Newton
+**File:** `effects/newton.metal` / `effects/newton.frag`
+
+Newton fractal based on Newton's method for finding polynomial roots.
+
+**Features:**
+- Newton's method visualization
+- Root finding basins
+- Colorful convergence regions
+- Mathematical precision
+
+---
+
 ### Particles
 **File:** `effects/particles.metal` / `effects/particles.frag`
 
 GPU particle system with thousands of interactive particles.
-
-![Particles](../screenshots/particles.png)
 
 **Features:**
 - Thousands of particles
@@ -583,12 +659,23 @@ GPU particle system with thousands of interactive particles.
 
 ---
 
+### Plasma
+**File:** `effects/plasma.metal` / `effects/plasma.frag`
+
+Classic demo scene plasma effect with vibrant color waves.
+
+**Features:**
+- Plasma wave patterns
+- Demo scene aesthetic
+- Animated colors
+- Mathematical patterns
+
+---
+
 ### Prism Core
 **File:** `effects/prism_core.metal` / `effects/prism_core.frag`
 
 Crystal refraction with light splitting into spectral colors.
-
-![Prism Core](../screenshots/prism_core.png)
 
 **Features:**
 - Crystal geometry
@@ -603,8 +690,6 @@ Crystal refraction with light splitting into spectral colors.
 
 Quantum field visualization with crystalline structures and probability waves.
 
-![Quantum Crystalline](../screenshots/quantum_crystalline.png)
-
 **Features:**
 - Crystalline structures
 - Probability waves
@@ -613,12 +698,36 @@ Quantum field visualization with crystalline structures and probability waves.
 
 ---
 
+### Quantum Field
+**File:** `effects/quantum_field.metal` / `effects/quantum_field.frag`
+
+Visualization of quantum field fluctuations and probability distributions.
+
+**Features:**
+- Quantum field simulation
+- Probability waves
+- Particle-like effects
+- Wave interference patterns
+
+---
+
+### Raymarch Sculpture
+**File:** `effects/raymarch_sculpture.metal` / `effects/raymarch_sculpture.frag`
+
+Abstract sculptural forms created through raymarching with organic shapes.
+
+**Features:**
+- Raymarched sculpture
+- Organic forms
+- Smooth surfaces
+- Dynamic lighting
+
+---
+
 ### Reaction Diffusion
 **File:** `effects/reaction_diffusion.metal` / `effects/reaction_diffusion.frag`
 
 Chemical pattern formation simulating Gray-Scott reaction-diffusion.
-
-![Reaction Diffusion](../screenshots/reaction_diffusion.png)
 
 **Features:**
 - Gray-Scott model
@@ -633,8 +742,6 @@ Chemical pattern formation simulating Gray-Scott reaction-diffusion.
 
 Vintage sci-fi aesthetic with robot motifs and retro-futuristic elements.
 
-![Retro Robot](../screenshots/retro_robot.png)
-
 **Features:**
 - Retro sci-fi aesthetic
 - Robot motifs
@@ -643,12 +750,23 @@ Vintage sci-fi aesthetic with robot motifs and retro-futuristic elements.
 
 ---
 
+### Sierpinski
+**File:** `effects/sierpinski.metal` / `effects/sierpinski.frag`
+
+Sierpinski triangle and its 3D variant, the Sierpinski tetrahedron.
+
+**Features:**
+- Sierpinski fractal
+- Recursive subdivision
+- 3D tetrahedron variant
+- Infinite detail
+
+---
+
 ### Starfield Warp
 **File:** `effects/starfield_warp.metal` / `effects/starfield_warp.frag`
 
 Hyperspace travel effect with stars stretching into light trails.
-
-![Starfield Warp](../screenshots/starfield_warp.png)
 
 **Features:**
 - Starfield generation
@@ -663,8 +781,6 @@ Hyperspace travel effect with stars stretching into light trails.
 
 Sci-fi interface elements with targeting systems and ship telemetry.
 
-![Starship HUD](../screenshots/starship_hud.png)
-
 **Features:**
 - HUD interface elements
 - Targeting systems
@@ -678,8 +794,6 @@ Sci-fi interface elements with targeting systems and ship telemetry.
 
 Geometric tessellation with Voronoi diagram patterns.
 
-![Voronoi Cells](../screenshots/voronoi_cells.png)
-
 **Features:**
 - Voronoi diagram
 - Cell borders
@@ -692,8 +806,6 @@ Geometric tessellation with Voronoi diagram patterns.
 **File:** `effects/vortex_dream.metal` / `effects/vortex_dream.frag`
 
 Swirling color tunnel with hypnotic rotation and smooth gradients.
-
-![Vortex Dream](../screenshots/vortex_dream.png)
 
 **Features:**
 - Vortex/tunnel effect
@@ -710,8 +822,6 @@ Swirling color tunnel with hypnotic rotation and smooth gradients.
 
 Underwater life scene with 3D depth layers, dark blue waves, and fish silhouettes.
 
-![Aquatic](../screenshots/aquatic.png)
-
 **Features:**
 - 3D depth layers (far, middle, near)
 - Multiple dark blue wave layers
@@ -727,8 +837,6 @@ Underwater life scene with 3D depth layers, dark blue waves, and fish silhouette
 
 Pac-Man style game board with maze walls, dots, and ghosts.
 
-![CapMan](../screenshots/capman.png)
-
 **Features:**
 - Authentic Pac-Man maze
 - Collectible dots and power pellets
@@ -742,8 +850,6 @@ Pac-Man style game board with maze walls, dots, and ghosts.
 **File:** `dragon.metal` / `dragon.frag`
 
 Mystical dragon eye with 3D blinking animation and detailed scales.
-
-![Dragon](../screenshots/dragon.png)
 
 **Features:**
 - 3D raymarched eye
@@ -760,8 +866,6 @@ Mystical dragon eye with 3D blinking animation and detailed scales.
 
 Underground forge scene with 3D dwarves working at anvils.
 
-![Dwarves](../screenshots/dwarves.png)
-
 **Features:**
 - 3D raymarched dwarves
 - Beards and helmets
@@ -776,8 +880,6 @@ Underground forge scene with 3D dwarves working at anvils.
 **File:** `elves.metal` / `elves.frag`
 
 Mystical forest elves with pointed ears, bows, and flowing hair.
-
-![Elves](../screenshots/elves.png)
 
 **Features:**
 - 3D raymarched elves
@@ -794,8 +896,6 @@ Mystical forest elves with pointed ears, bows, and flowing hair.
 
 Pond life with lily pad, water ripples, and sun orbit in the sky.
 
-![Frog](../screenshots/frog.png)
-
 **Features:**
 - 3D raymarched frog
 - Lily pad platform
@@ -811,8 +911,6 @@ Pond life with lily pad, water ripples, and sun orbit in the sky.
 
 Medieval battle scene with armored knights and castle backdrop.
 
-![Knights](../screenshots/knights.png)
-
 **Features:**
 - Armored knights
 - Castle architecture
@@ -825,8 +923,6 @@ Medieval battle scene with armored knights and castle backdrop.
 **File:** `orcs.metal` / `orcs.frag`
 
 Volcanic fortress warriors with 3D orcs, spiked armor, and weapons.
-
-![Orcs](../screenshots/orcs.png)
 
 **Features:**
 - 3D raymarched orcs
@@ -844,8 +940,6 @@ Volcanic fortress warriors with 3D orcs, spiked armor, and weapons.
 
 Night watch with 3D owls featuring detailed feathers and rotating heads.
 
-![Owl](../screenshots/owl.png)
-
 **Features:**
 - 3D raymarched owls
 - Rotating heads
@@ -862,8 +956,6 @@ Night watch with 3D owls featuring detailed feathers and rotating heads.
 
 Stealth shadow scene with thieves hiding in darkness.
 
-![Thieves](../screenshots/thieves.png)
-
 **Features:**
 - Stealth aesthetic
 - Shadow effects
@@ -877,8 +969,6 @@ Stealth shadow scene with thieves hiding in darkness.
 
 Magical creature with flowing rainbow mane and glowing spiral horn.
 
-![Unicorn](../screenshots/unicorn.png)
-
 **Features:**
 - 3D raymarched unicorn
 - Flowing rainbow mane
@@ -889,14 +979,421 @@ Magical creature with flowing rainbow mane and glowing spiral horn.
 
 ---
 
+## Nature & Environment
+
+### Alien Landscape
+**File:** `alien_landscape.metal` / `alien_landscape.frag`
+
+Extraterrestrial terrain with alien vegetation and multiple moons.
+
+**Features:**
+- Alien terrain generation
+- Strange vegetation
+- Multiple moons
+- Atmospheric scattering
+
+---
+
+### Aurora
+**File:** `aurora.metal` / `aurora.frag`
+
+Northern lights dancing in the sky with ethereal curtains of color.
+
+**Features:**
+- Aurora borealis effect
+- Colorful light curtains
+- Animated movement
+- Night sky backdrop
+
+---
+
+### Fireflies
+**File:** `fireflies.metal` / `fireflies.frag`
+
+Nighttime forest with floating firefly particles and ambient glow.
+
+**Features:**
+- Firefly particles
+- Bioluminescent glow
+- Night forest setting
+- Ambient lighting
+
+---
+
+### Forest
+**File:** `forest.metal` / `forest.frag`
+
+Dense woodland scene with trees, foliage, and atmospheric depth.
+
+**Features:**
+- Procedural trees
+- Dense foliage
+- Atmospheric depth
+- Lighting effects
+
+---
+
+### Galaxy
+**File:** `galaxy.metal` / `galaxy.frag`
+
+Spiral galaxy with billions of stars, dust lanes, and core brightness.
+
+**Features:**
+- Spiral galaxy structure
+- Star generation
+- Dust lanes
+- Bright galactic core
+
+---
+
+### Nebula (Root)
+**File:** `nebula.metal` / `nebula.frag`
+
+Cosmic gas clouds with colorful emission and reflection nebulae.
+
+**Features:**
+- Volumetric nebula
+- Emission colors
+- Star illumination
+- Deep space background
+
+---
+
+### Ocean
+**File:** `ocean.metal` / `ocean.frag`
+
+Open ocean scene with waves, foam, and dynamic water surface.
+
+**Features:**
+- Animated waves
+- Foam generation
+- Water reflections
+- Dynamic surface
+
+---
+
+### Planet
+**File:** `planet.metal` / `planet.frag`
+
+3D rendered planet with atmosphere, clouds, and terrain.
+
+**Features:**
+- Planetary rendering
+- Atmospheric glow
+- Cloud layers
+- Terrain detail
+
+---
+
+### Rain
+**File:** `rain.metal` / `rain.frag`
+
+Rainy scene with falling droplets, puddles, and wet surfaces.
+
+**Features:**
+- Falling rain
+- Splash effects
+- Wet surface reflections
+- Atmospheric gloom
+
+---
+
+### Snow
+**File:** `snow.metal` / `snow.frag`
+
+Winter scene with snowfall, accumulation, and frosted landscape.
+
+**Features:**
+- Snowfall particles
+- Accumulation effects
+- Frosted surfaces
+- Cold color palette
+
+---
+
+### Starfield
+**File:** `starfield.metal` / `starfield.frag`
+
+Dense starfield with varying star sizes and subtle color variations.
+
+**Features:**
+- Procedural stars
+- Size variation
+- Color diversity
+- Subtle twinkling
+
+---
+
+### Thunderstorm
+**File:** `thunderstorm.metal` / `thunderstorm.frag`
+
+Dynamic storm with lightning, clouds, and heavy rain.
+
+**Features:**
+- Lightning bolts
+- Storm clouds
+- Heavy rain
+- Flash effects
+
+---
+
+### Waterfall
+**File:** `waterfall.metal` / `waterfall.frag`
+
+Cascading waterfall with mist, spray, and rocky surroundings.
+
+**Features:**
+- Water flow simulation
+- Mist and spray
+- Rock formations
+- Ambient moisture
+
+---
+
+## Geometric & Mathematical
+
+### Cellular
+**File:** `cellular.metal` / `cellular.frag`
+
+Cellular automata patterns with evolving geometric structures.
+
+**Features:**
+- Cellular automaton rules
+- Geometric patterns
+- Evolving structures
+- Colorful output
+
+---
+
+### Julia
+**File:** `julia.metal` / `julia.frag`
+
+Interactive 2D Julia set with adjustable parameters.
+
+**Features:**
+- 2D Julia set
+- Adjustable c parameter
+- Smooth coloring
+- Real-time updates
+
+---
+
+### Lissajous
+**File:** `lissajous.metal` / `lissajous.frag`
+
+Lissajous curves with configurable frequencies and phase.
+
+**Features:**
+- Lissajous curve generation
+- Adjustable frequencies
+- Phase control
+- Clean geometric lines
+
+---
+
+### Mandala
+**File:** `mandala.metal` / `mandala.frag`
+
+Intricate radial patterns inspired by traditional mandala art.
+
+**Features:**
+- Radial symmetry
+- Detailed patterns
+- Layered design
+- Vibrant colors
+
+---
+
+### Mandelbrot (Root)
+**File:** `mandelbrot.metal` / `mandelbrot.frag`
+
+Classic 2D Mandelbrot set with deep zoom capability.
+
+**Features:**
+- 2D Mandelbrot set
+- Zoom capability
+- Smooth coloring
+- Boundary detail
+
+---
+
+### Psychedelic
+**File:** `psychedelic.metal` / `psychedelic.frag`
+
+Mind-bending color patterns with warping and distortion effects.
+
+**Features:**
+- Color warping
+- Distortion effects
+- Pulsing patterns
+- Vibrant colors
+
+---
+
+### Trigonometric
+**File:** `trigonometric.metal` / `trigonometric.frag`
+
+Mathematical function visualization with trigonometric patterns.
+
+**Features:**
+- Trig function plots
+- Wave interference
+- Pattern complexity
+- Smooth gradients
+
+---
+
+### Wormhole
+**File:** `wormhole.metal` / `wormhole.frag`
+
+Space-time wormhole visualization with gravitational lensing.
+
+**Features:**
+- Wormhole tunnel
+- Gravitational lensing
+- Space distortion
+- Star field background
+
+---
+
+## Artistic & Cultural
+
+### Art Deco
+**File:** `art_deco.metal` / `art_deco.frag`
+
+Art deco geometric patterns with gold and black aesthetic.
+
+**Features:**
+- Art deco patterns
+- Geometric lines
+- Gold and black palette
+- Symmetrical design
+
+---
+
+### Blackhole
+**File:** `blackhole.metal` / `blackhole.frag`
+
+Gravitational singularity with event horizon and accretion disk.
+
+**Features:**
+- Black hole rendering
+- Event horizon
+- Accretion disk
+- Gravitational effects
+
+---
+
+### Byzantine
+**File:** `byzantine.metal` / `byzantine.frag`
+
+Byzantine-inspired mosaics with golden icons and religious imagery.
+
+**Features:**
+- Mosaic patterns
+- Byzantine aesthetic
+- Golden elements
+- Religious iconography
+
+---
+
+### Celtic
+**File:** `celtic.metal` / `celtic.frag`
+
+Intricate Celtic knot patterns with interlacing designs.
+
+**Features:**
+- Celtic knots
+- Interlacing patterns
+- Traditional motifs
+- Ornate design
+
+---
+
+### Egyptian
+**File:** `egyptian.metal` / `egyptian.frag`
+
+Ancient Egyptian theme with pyramids, hieroglyphs, and desert.
+
+**Features:**
+- Pyramid scenes
+- Hieroglyphic patterns
+- Desert landscape
+- Ancient aesthetic
+
+---
+
+### Japanese
+**File:** `japanese.metal` / `japanese.frag`
+
+Japanese-inspired art with cherry blossoms, torii gates, and zen gardens.
+
+**Features:**
+- Cherry blossoms
+- Torii gates
+- Zen garden elements
+- Traditional aesthetic
+
+---
+
+### Tribal
+**File:** `tribal.metal` / `tribal.frag`
+
+Tribal patterns with bold shapes and earth tones.
+
+**Features:**
+- Tribal patterns
+- Bold geometric shapes
+- Earth tone colors
+- Primitive aesthetic
+
+---
+
 ## Audio Visualization
+
+### Audio Bars
+**File:** `audio_bars.metal` / `audio_bars.frag`
+
+Classic bar graph equalizer visualization with frequency spectrum display.
+
+**Features:**
+- Bar equalizer
+- Frequency bands
+- Beat detection
+- Color gradients
+
+---
+
+### Audio Circular
+**File:** `audio_circular.metal` / `audio_circular.frag`
+
+Circular audio visualizer with radial frequency display.
+
+**Features:**
+- Circular display
+- Radial frequency
+- Symmetric patterns
+- Glow effects
+
+---
+
+### Audio Wave
+**File:** `audio_wave.metal` / `audio_wave.frag`
+
+Waveform visualization showing amplitude over time.
+
+**Features:**
+- Waveform display
+- Amplitude visualization
+- Real-time updates
+- Smooth curves
+
+---
 
 ### Audio Ray Tracing
 **File:** `audio/audio_ray_tracing.metal` / `audio/audio_ray_tracing.frag`
 
 Acoustic visualization using ray tracing techniques to show sound propagation.
-
-![Audio Ray Tracing](../screenshots/audio_ray_tracing.png)
 
 **Features:**
 - Ray-traced audio visualization
@@ -914,8 +1411,6 @@ Acoustic visualization using ray tracing techniques to show sound propagation.
 
 Artistic style transfer using neural networks to blend content and style images.
 
-![Neural Style Blend](../screenshots/neural_style_blend.png)
-
 **Features:**
 - Neural network-based style transfer
 - Real-time processing
@@ -928,11 +1423,9 @@ Artistic style transfer using neural networks to blend content and style images.
 ## Classic Shaders
 
 ### Checkerboard
-**File:** `checkerboard.frag`
+**File:** `checkerboard.metal` / `checkerboard.frag`
 
 Optical illusion pattern with animated checkerboard.
-
-![Checkerboard](../screenshots/checkerboard.png)
 
 **Features:**
 - Animated checkerboard
@@ -943,11 +1436,9 @@ Optical illusion pattern with animated checkerboard.
 ---
 
 ### Flying Toasters
-**File:** `flying_toasters.frag`
+**File:** `flying_toasters.metal` / `flying_toasters.frag`
 
 After Dark screensaver tribute with flying toasters and toast.
-
-![Flying Toasters](../screenshots/flying_toasters.png)
 
 **Features:**
 - Flying toasters
@@ -958,11 +1449,9 @@ After Dark screensaver tribute with flying toasters and toast.
 ---
 
 ### Gradient Waves
-**File:** `gradient_waves.frag`
+**File:** `gradient_waves.metal` / `gradient_waves.frag`
 
 Smooth flowing colors with wave-like motion.
-
-![Gradient Waves](../screenshots/gradient_waves.png)
 
 **Features:**
 - Smooth gradients
@@ -973,11 +1462,9 @@ Smooth flowing colors with wave-like motion.
 ---
 
 ### Plasma
-**File:** `plasma.frag`
+**File:** `plasma.metal` / `plasma.frag`
 
 Classic demo scene effect with animated plasma.
-
-![Plasma](../screenshots/plasma.png)
 
 **Features:**
 - Classic plasma effect
@@ -988,11 +1475,9 @@ Classic demo scene effect with animated plasma.
 ---
 
 ### Ripples
-**File:** `ripples.frag`
+**File:** `ripples.metal` / `ripples.frag`
 
 Water ripple simulation with realistic wave propagation.
-
-![Ripples](../screenshots/ripples.png)
 
 **Features:**
 - Water ripple simulation
@@ -1003,11 +1488,9 @@ Water ripple simulation with realistic wave propagation.
 ---
 
 ### Spiral
-**File:** `spiral.frag`
+**File:** `spiral.metal` / `spiral.frag`
 
 Hypnotic rotating spiral with color cycling.
-
-![Spiral](../screenshots/spiral.png)
 
 **Features:**
 - Rotating spiral
@@ -1018,11 +1501,9 @@ Hypnotic rotating spiral with color cycling.
 ---
 
 ### Tunnel
-**File:** `tunnel.frag`
+**File:** `tunnel.metal` / `tunnel.frag`
 
 Infinite corridor effect with perspective and motion.
-
-![Tunnel](../screenshots/tunnel.png)
 
 **Features:**
 - Infinite corridor
@@ -1082,13 +1563,13 @@ shaders/
 │   ├── common.metal     # Metal common definitions
 │   ├── utils.metal      # Metal utility functions
 │   └── default.metal    # Default shader
-├── effects/             # Visual effects (33 shaders)
-├── music/               # Music-reactive (10 shaders)
+├── effects/             # Visual effects (49 shaders)
+├── music/              # Music-reactive (10 shaders)
 ├── audio/               # Audio visualization (1 shader)
 ├── neural/              # Neural network effects (1 shader)
 ├── system/
 │   └── debug_overlay.metal  # Debug visualization
-└── [root]/              # Classic & character shaders (23 shaders)
+└── [root]/              # Classic & character shaders (49 shaders)
 ```
 
 ---
