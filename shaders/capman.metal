@@ -4,7 +4,7 @@
 using namespace metal;
 
 // Classic Pac-Man maze (21x21 grid - original arcade size)
-float maze[21][21] = {
+constant float maze[21][21] = {
     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
     {1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
     {1,0,1,1,0,1,1,1,1,0,1,0,1,1,1,1,0,1,1,0,1},
@@ -29,7 +29,7 @@ float maze[21][21] = {
 };
 
 // Ghost colors (classic Pac-Man ghosts)
-float3 ghostColors[4] = {
+constant float3 ghostColors[4] = {
     float3(1.0, 0.0, 0.0),
     float3(0.0, 1.0, 1.0),
     float3(1.0, 0.5, 0.7),

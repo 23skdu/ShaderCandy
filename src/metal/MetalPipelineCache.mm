@@ -52,7 +52,9 @@
                                                         error:&error];
 
         if (error) {
+#ifdef DEBUG
             NSLog(@"MetalPipelineCache: Failed to create cache directory: %@", error);
+#endif
             _enableDiskCache = NO;
         }
 
@@ -70,7 +72,9 @@
 }
 
 - (void)handleMemoryWarning {
+#ifdef DEBUG
     NSLog(@"MetalPipelineCache: Memory warning, clearing memory cache");
+#endif
     [self clearMemoryCache];
 }
 
@@ -93,7 +97,9 @@
         }
     }
 
+#ifdef DEBUG
     NSLog(@"MetalPipelineCache: Loaded %lu pipeline states from disk", (unsigned long)_diskCache.count);
+#endif
 }
 
 - (void)saveToDiskCache:(NSString *)shaderName data:(NSData *)data {
@@ -256,11 +262,15 @@
             NSError *error = nil;
             [self pipelineForShader:shaderName device:device library:library descriptor:desc error:&error];
             if (error) {
+#ifdef DEBUG
                 NSLog(@"MetalPipelineCache: Failed to prewarm %@: %@", shaderName, error);
+#endif
             }
         }
 
+#ifdef DEBUG
         NSLog(@"MetalPipelineCache: Pre-warmed %lu pipelines", (unsigned long)shaders.count);
+#endif
     });
 }
 
@@ -303,7 +313,9 @@
     [[NSFileManager defaultManager] removeItemAtPath:diskPath error:nil];
     [_diskCache removeObjectForKey:shaderName];
 
+#ifdef DEBUG
     NSLog(@"MetalPipelineCache: Invalidated cache for %@", shaderName);
+#endif
 }
 
 - (void)clearAllCaches {
@@ -316,7 +328,9 @@
     [_simPipelineCache removeAllObjects];
     [_computePipelineCache removeAllObjects];
     [_particlePipelineCache removeAllObjects];
+#ifdef DEBUG
     NSLog(@"MetalPipelineCache: Cleared memory cache");
+#endif
 }
 
 - (void)clearDiskCache {
@@ -327,7 +341,9 @@
                                                  attributes:nil
                                                       error:&error];
     [_diskCache removeAllObjects];
+#ifdef DEBUG
     NSLog(@"MetalPipelineCache: Cleared disk cache");
+#endif
 }
 
 - (NSUInteger)cacheSize {

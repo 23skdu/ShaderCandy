@@ -28,7 +28,13 @@ private:
     TestResult testGLSLVertexShader() {
         // Check if vertex shader file exists and has valid content
         std::ifstream file("shaders/base/vertex.glsl");
-        TEST_ASSERT(file.is_open(), "Failed to open vertex.glsl");
+        if (!file.is_open()) {
+            // Try alternate path for running from build directory
+            file.open("../shaders/base/vertex.glsl");
+        }
+        if (!file.is_open()) {
+            return {__func__, false, "Failed to open vertex.glsl - GLSL not supported in this build configuration", 0.0};
+        }
         
         std::string content((std::istreambuf_iterator<char>(file)),
                             std::istreambuf_iterator<char>());
@@ -44,7 +50,13 @@ private:
     TestResult testGLSLFragmentShader() {
         // Check fragment shader includes
         std::ifstream file("shaders/base/common.glsl");
-        TEST_ASSERT(file.is_open(), "Failed to open common.glsl");
+        if (!file.is_open()) {
+            // Try alternate path for running from build directory
+            file.open("../shaders/base/common.glsl");
+        }
+        if (!file.is_open()) {
+            return {__func__, false, "Failed to open common.glsl - GLSL not supported in this build configuration", 0.0};
+        }
         
         std::string content((std::istreambuf_iterator<char>(file)),
                             std::istreambuf_iterator<char>());
@@ -60,7 +72,13 @@ private:
     TestResult testShaderUniforms() {
         // Verify uniform buffer structure
         std::ifstream file("shaders/base/common.glsl");
-        TEST_ASSERT(file.is_open(), "Failed to open common.glsl");
+        if (!file.is_open()) {
+            // Try alternate path for running from build directory
+            file.open("../shaders/base/common.glsl");
+        }
+        if (!file.is_open()) {
+            return {__func__, false, "Failed to open common.glsl - GLSL not supported in this build configuration", 0.0};
+        }
         
         std::string content((std::istreambuf_iterator<char>(file)),
                             std::istreambuf_iterator<char>());

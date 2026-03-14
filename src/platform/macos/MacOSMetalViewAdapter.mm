@@ -158,15 +158,16 @@
   }
 
   // Also look in subdirectories (effects, music, etc.)
-  NSArray *subDirs = @[@"effects", @"music", @"neural", @"audio", @"system"];
+  NSArray *subDirs = @[@"effects", @"music", @"neural", @"audio", @"system", @"base"];
   for (NSString *subDir in subDirs) {
     NSString *subPath = [shadersPath stringByAppendingPathComponent:subDir];
     if ([fm fileExistsAtPath:subPath]) {
+      NSLog(@"MacOSMetalViewAdapter: Scanning subdirectory: %@", subPath);
       NSDirectoryEnumerator *subEnum =
           [fm enumeratorAtURL:[NSURL fileURLWithPath:subPath]
               includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
-                                 options:NSDirectoryEnumerationSkipsHiddenFiles
-                            errorHandler:nil];
+                         options:NSDirectoryEnumerationSkipsHiddenFiles
+                    errorHandler:nil];
       for (NSURL *fileURL in subEnum) {
         NSString *fileName;
         [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
@@ -199,6 +200,10 @@
   [super setFrame:frame];
   if (_mtkView) {
     _mtkView.frame = self.bounds;
+  }
+  // Retry Metal setup if previous attempt was deferred due to small bounds
+  if (!self.mtkView && (self.isPreview || (NSWidth(self.bounds) >= 1.0 && NSHeight(self.bounds) >= 1.0))) {
+    [self setupMetal];
   }
 }
 
@@ -411,8 +416,8 @@
   
   // Log first frame for debugging
   if (_frameCount == 0) {
-    NSLog(@"MacOSMetalViewAdapter: First draw call - currentShader: %@, pipeline: %p", 
-          _currentShaderName, _renderer.currentPipeline);
+    NSLog(@"MacOSMetalViewAdapter: First draw call - currentShader: %@, pipeline: %p, device: %@", 
+          _currentShaderName, _renderer.currentPipeline, _renderer.device);
   }
 
   // Update uniforms
@@ -467,6 +472,11 @@
   } else if ([chars isEqualToString:@"s"] || [chars isEqualToString:@"S"]) {
     // Screenshot shortcut for screensaver
     [self saveScreenshot];
+  } else if ([chars isEqualToString:@"t"] || [chars isEqualToString:@"T"]) {
+    // Test all shaders
+    if (_renderer) {
+      [_renderer testAllShaders];
+    }
   } else {
     [super keyDown:event];
   }
