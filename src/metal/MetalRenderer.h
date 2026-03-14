@@ -265,7 +265,7 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 - (BOOL)reloadCurrentShader:(NSError **)error;
 
 - (NSArray<NSString *> *)availableShaderNames;
-
+- (NSDictionary<NSString *, NSNumber *> *)testAllShaders;
 - (BOOL)setActiveShader:(NSString *)name error:(NSError **)error;
 
 - (BOOL)transitionToShaderNamed:(NSString *)name

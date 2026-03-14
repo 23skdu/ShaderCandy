@@ -30,16 +30,14 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float centerGlow = smoothstep(0.5, 0.0, r);
     color = mix(color, darkColor, radialLine * centerGlow * 0.7);
     
-    // Concentric circles
+    // Concentric circles - optimized with branchless mixing
     for (float i = 0.0; i < 5.0; i++) {
         float circleR = 0.15 + i * 0.12;
         float circle = smoothstep(0.015, 0.01, abs(r - circleR));
         
-        if (mod(i, 2.0) > 0.5) {
-            color = mix(color, darkColor, circle);
-        } else {
-            color = mix(color, goldColor, circle);
-        }
+        // Branchless: use mod(i, 2.0) as blend factor instead of if-else
+        float useDarkColor = smoothstep(0.0, 0.5, mod(i, 2.0));
+        color = mix(color, mix(goldColor, darkColor, useDarkColor), circle);
     }
     
     // Corner triangles

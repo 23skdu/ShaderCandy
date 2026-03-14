@@ -4,6 +4,10 @@
 #include <metal_stdlib>
 using namespace metal;
 
+// Common constants
+constant float PI = 3.14159265359f;
+constant float TWO_PI = 6.28318530718f;
+
 // Utility functions for Metal Shaders
 namespace ShaderUtils {
     // Scalar and Vector operations

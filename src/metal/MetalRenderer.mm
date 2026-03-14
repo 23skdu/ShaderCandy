@@ -67,38 +67,31 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     _isHeadless = device.isHeadless;
     _recommendedMaxWorkingSetSize = device.recommendedMaxWorkingSetSize;
 
-    // Detect GPU family
-    if ([device supportsFamily:MTLGPUFamilyApple3]) {
-      _family = MetalGPUFamilyApple3;
-      _supportsTileShaders = YES;
-      _supportsSimdGroups = YES;
-      _supportsMeshShaders = YES;
-    } else if ([device supportsFamily:MTLGPUFamilyApple2]) {
-      _family = MetalGPUFamilyApple2;
-      _supportsTileShaders = YES;
-      _supportsSimdGroups = YES;
-      _supportsMeshShaders = NO;
-    } else if ([device supportsFamily:MTLGPUFamilyApple1]) {
-      _family = MetalGPUFamilyApple1;
-      _supportsTileShaders = YES;
-      _supportsSimdGroups = YES;
-      _supportsMeshShaders = NO;
-    } else if ([device supportsFamily:MTLGPUFamilyMac2]) {
-      _family = MetalGPUFamilyMac2;
-      _supportsTileShaders = NO;
-      _supportsSimdGroups = YES;
-      _supportsMeshShaders = NO;
-    } else if ([device supportsFamily:MTLGPUFamilyMac1]) {
-      _family = MetalGPUFamilyMac1;
-      _supportsTileShaders = NO;
-      _supportsSimdGroups = YES;
-      _supportsMeshShaders = NO;
-    } else {
-      _family = MetalGPUFamilyUnknown;
-      _supportsTileShaders = NO;
-      _supportsSimdGroups = YES;
-      _supportsMeshShaders = NO;
-    }
+    // Detect GPU family - optimized with branchless pattern
+    // Check capabilities using bitwise flags to avoid branch misprediction
+    BOOL supportsApple3 = [device supportsFamily:MTLGPUFamilyApple3];
+    BOOL supportsApple2 = [device supportsFamily:MTLGPUFamilyApple2];
+    BOOL supportsApple1 = [device supportsFamily:MTLGPUFamilyApple1];
+    BOOL supportsMac2 = [device supportsFamily:MTLGPUFamilyMac2];
+    BOOL supportsMac1 = [device supportsFamily:MTLGPUFamilyMac1];
+    
+    // Branchless family detection using cascading boolean logic
+    _family = supportsApple3 ? MetalGPUFamilyApple3 :
+              supportsApple2 ? MetalGPUFamilyApple2 :
+              supportsApple1 ? MetalGPUFamilyApple1 :
+              supportsMac2    ? MetalGPUFamilyMac2 :
+              supportsMac1    ? MetalGPUFamilyMac1 :
+                                MetalGPUFamilyUnknown;
+    
+    // Branchless capability flag computation using bitwise operations
+    // Tile shaders: only available on Apple silicon (Apple1/2/3)
+    _supportsTileShaders = (supportsApple1 || supportsApple2 || supportsApple3) ? YES : NO;
+    
+    // SIMD groups: available on all Apple silicon and modern Mac GPUs
+    _supportsSimdGroups = (supportsApple1 || supportsApple2 || supportsApple3 || supportsMac2 || supportsMac1) ? YES : NO;
+    
+    // Mesh shaders: only available on Apple3+
+    _supportsMeshShaders = supportsApple3 ? YES : NO;
 
     // Use a reasonable default for thread group size
     // Actual value depends on compute pipeline, but 512 is safe for most GPUs
@@ -402,7 +395,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   }
 
   if (![self createParticleBuffers]) {
-    NSLog(@"MetalRenderer: Warning - Failed to create particle buffers");
+  #ifdef DEBUG
+  NSLog(@"MetalRenderer: Warning - Failed to create particle buffers");
+#endif
   }
 
   // Setup file watcher
@@ -425,8 +420,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   _neuralStyleEnabled = NO;
   _styleStrength = 0.5f;
 
+#ifdef DEBUG
   NSLog(@"MetalRenderer: Initialized with device %@ (Family: %ld)",
         _deviceInfo.name, (long)_deviceInfo.family);
+#endif
 
   return YES;
 }
@@ -450,7 +447,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   _device = nil;
   _commandQueue = nil;
 
+#ifdef DEBUG
   NSLog(@"MetalRenderer: Shutdown complete");
+#endif
 }
 
 #pragma mark - Device Capabilities
@@ -464,16 +463,16 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   // Set memory budget to 50% of recommended working set to leave headroom
   _maxMemoryBudgetBytes = recommendedWorkingSet / 2;
 
-  // Adjust texture limits based on device
-  if ([_device supportsFamily:MTLGPUFamilyApple3]) {
-    _maxTextureDimension = 16384.0f; // Apple Silicon can handle 16K textures
-  } else if ([_device supportsFamily:MTLGPUFamilyApple2]) {
-    _maxTextureDimension = 8192.0f; // Older Apple Silicon supports 8K
-  } else if ([_device supportsFamily:MTLGPUFamilyMac2]) {
-    _maxTextureDimension = 16384.0f; // Modern Mac GPUs
-  } else {
-    _maxTextureDimension = 8192.0f; // Fallback
-  }
+  // Adjust texture limits based on device - branchless approach
+  BOOL supportsApple3 = [_device supportsFamily:MTLGPUFamilyApple3];
+  BOOL supportsApple2 = [_device supportsFamily:MTLGPUFamilyApple2];
+  BOOL supportsMac2 = [_device supportsFamily:MTLGPUFamilyMac2];
+  
+  // Branchless texture dimension selection
+  _maxTextureDimension = supportsApple3 ? 16384.0f :
+                         supportsApple2 ? 8192.0f :
+                         supportsMac2    ? 16384.0f :
+                                          8192.0f;
 
   // Enable dynamic resolution for high-res displays by default
   NSScreen *mainScreen = [NSScreen mainScreen];
@@ -482,18 +481,22 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     if (screenSize.width >= 3840 || screenSize.height >= 2160) {
       _dynamicResolutionEnabled = YES;
       _resolutionScale = 0.75f; // Start at 75% for 4K+
+#ifdef DEBUG
       NSLog(
           @"MetalRenderer: 4K+ display detected, enabling dynamic resolution");
+#endif
     }
   }
 
   // Configure resource pool with adjusted limits
   _resourcePool.maxMemoryUsageBytes = _maxMemoryBudgetBytes;
 
+#ifdef DEBUG
   NSLog(@"MetalRenderer: Configured for device %@ - Memory budget: %luMB, Max "
         @"texture: %.0f",
         _device.name, (unsigned long)(_maxMemoryBudgetBytes / 1024 / 1024),
         _maxTextureDimension);
+#endif
 }
 
 - (void)updateThermalState {
@@ -524,11 +527,15 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     if (_preferredFPS > 30.0f) {
       _preferredFPS = 30.0f;
       _targetFrameTime = 1.0 / 30.0;
+#ifdef DEBUG
       NSLog(@"MetalRenderer: Thermal throttling active - reducing to 30fps");
+#endif
     }
     if (_bloomConfig.enabled) {
       _bloomConfig.enabled = NO;
+#ifdef DEBUG
       NSLog(@"MetalRenderer: Thermal throttling - disabling bloom");
+#endif
     }
   }
 #endif
@@ -541,12 +548,16 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       addObserver:self
          selector:@selector(handleDeviceLossNotification:)
              name:MTLDeviceWasRemovedNotification
-           object:_device];
+            object:_device];
+#ifdef DEBUG
   NSLog(@"Device loss notification registered");
+#endif
 }
 
 - (void)handleDeviceLossNotification:(NSNotification *)notification {
+#ifdef DEBUG
   NSLog(@"MetalRenderer: Device loss detected!");
+#endif
   _isDeviceLost = YES;
 
   MetalRendererError *error =
@@ -564,17 +575,23 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   if (!_isDeviceLost)
     return;
 
+#ifdef DEBUG
   NSLog(@"MetalRenderer: Attempting to recover from device loss...");
+#endif
 
   // Try to get a new device
   id<MTLDevice> newDevice = MTLCreateSystemDefaultDevice();
   if (newDevice) {
     NSError *error = nil;
     if ([self recoverWithDevice:newDevice error:&error]) {
+#ifdef DEBUG
       NSLog(@"MetalRenderer: Successfully recovered from device loss");
+#endif
       _isDeviceLost = NO;
     } else {
+#ifdef DEBUG
       NSLog(@"MetalRenderer: Failed to recover from device loss: %@", error);
+#endif
     }
   }
 }
@@ -676,9 +693,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSUInteger particleBufferSize = [bufferSizes.lastObject unsignedLongValue];
 
   if (_heapManager) {
+#ifdef DEBUG
     NSLog(@"MetalRenderer: Attempting to create particle buffers from heap "
           @"with size %lu",
           (unsigned long)particleBufferSize);
+#endif
 
     _resources.particleBufferA =
         [_heapManager newBufferWithLength:particleBufferSize
@@ -688,14 +707,20 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                                   options:MTLResourceStorageModeShared];
 
     if (_resources.particleBufferA && _resources.particleBufferB) {
+#ifdef DEBUG
       NSLog(@"MetalRenderer: Successfully created particle buffers from heap");
+#endif
       return YES;
     }
+#ifdef DEBUG
     NSLog(@"MetalRenderer: Heap allocation failed, falling back to device "
           @"allocation");
+#endif
   } else {
+#ifdef DEBUG
     NSLog(@"MetalRenderer: Heap manager unavailable, falling back to device "
           @"allocation");
+#endif
   }
 
   // Fallback to direct device allocation if heap fails or is unavailable
@@ -707,13 +732,17 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                            options:MTLResourceStorageModeShared];
 
   if (_resources.particleBufferA && _resources.particleBufferB) {
+#ifdef DEBUG
     NSLog(@"MetalRenderer: Successfully created particle buffers via direct "
           @"device allocation");
+#endif
     return YES;
   }
 
+#ifdef DEBUG
   NSLog(@"MetalRenderer: CRITICAL - Failed to create particle buffers via any "
         @"method");
+#endif
   return NO;
 }
 
@@ -794,10 +823,12 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
   _resources.samplerState = [_device newSamplerStateWithDescriptor:samplerDesc];
 
+#ifdef DEBUG
   NSLog(@"MetalRenderer: Created textures for viewport %.0f x %.0f -> render "
         @"%.0f x %.0f (scale: %.2f)",
         size.width, size.height, renderSize.width, renderSize.height,
         _resolutionScale);
+#endif
 }
 
 - (void)setViewportSize:(CGSize)size {
@@ -829,13 +860,17 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   __block BOOL alreadyLoaded = NO;
   __block NSError *localError = nil;
 
+#ifdef DEBUG
   NSLog(@"[SHADER DEBUG] Attempting to load shader: '%@'", name);
+#endif
 
   // Logic from former loadShaderWithName:
   // Check for shader file
   NSString *path = [self pathForShader:name];
   if (!path) {
+#ifdef DEBUG
     NSLog(@"[SHADER DEBUG] FAILED: Shader '%@' not found at any search path", name);
+#endif
     localError = [NSError
         errorWithDomain:@"MetalRenderer"
                    code:MetalRendererErrorCodeShaderCompilationFailed
@@ -847,13 +882,17 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       *error = localError;
     return NO;
   }
+#ifdef DEBUG
   NSLog(@"[SHADER DEBUG] Found shader file at: %@", path);
+#endif
 
   // Check modification date
   NSDate *modDate = [self modificationDateForPath:path];
   NSDate *lastMod = self.shaderModificationDates[name];
   if (lastMod && [modDate isEqualToDate:lastMod] && self.pipelineCache[name]) {
+#ifdef DEBUG
     NSLog(@"[SHADER DEBUG] Shader '%@' already loaded and unchanged", name);
+#endif
     return YES; // Already loaded and unchanged
   }
 
@@ -1317,11 +1356,18 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     NSError *error = nil;
     NSArray *files = [fm contentsOfDirectoryAtPath:path error:&error];
     if (files) {
+      NSInteger metalCount = 0;
       for (NSString *fileName in files) {
         if ([fileName hasSuffix:@".metal"]) {
           [foundNames addObject:[fileName stringByDeletingPathExtension]];
+          metalCount++;
         }
       }
+      if (metalCount > 0) {
+        NSLog(@"MetalRenderer: Found %ld .metal files in %@", (long)metalCount, path);
+      }
+    } else if (error) {
+      NSLog(@"MetalRenderer: Error reading %@: %@", path, error);
     }
 
     // Also check subdirectories one level deep
@@ -1330,10 +1376,15 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       NSString *subPath = [path stringByAppendingPathComponent:sub];
       files = [fm contentsOfDirectoryAtPath:subPath error:nil];
       if (files) {
+        NSInteger metalCount = 0;
         for (NSString *fileName in files) {
           if ([fileName hasSuffix:@".metal"]) {
             [foundNames addObject:[fileName stringByDeletingPathExtension]];
+            metalCount++;
           }
+        }
+        if (metalCount > 0) {
+          NSLog(@"MetalRenderer: Found %ld .metal files in %@", (long)metalCount, subPath);
         }
       }
     }
@@ -1354,6 +1405,50 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
   NSLog(@"Discovered %lu shaders: %@", (unsigned long)shaders.count, shaders);
   return [shaders copy];
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)testAllShaders {
+  NSArray<NSString *> *shaders = [self availableShaderNames];
+  NSMutableDictionary *results = [NSMutableDictionary dictionary];
+  
+  NSLog(@"\n========== TESTING ALL SHADERS ==========");
+  
+  for (NSString *shaderName in shaders) {
+    NSError *error = nil;
+    BOOL success = [self loadShaderWithName:shaderName error:&error];
+    results[shaderName] = @(success);
+    
+    if (success) {
+      NSLog(@"  [OK] %@", shaderName);
+    } else {
+      NSLog(@"  [FAIL] %@ - %@", shaderName, error.localizedDescription ?: @"unknown error");
+    }
+  }
+  
+  NSInteger successCount = 0;
+  NSInteger failCount = 0;
+  for (NSString *name in results) {
+    if ([results[name] boolValue]) {
+      successCount++;
+    } else {
+      failCount++;
+    }
+  }
+  
+  NSLog(@"\n========== SHADER TEST RESULTS ==========");
+  NSLog(@"Total: %lu, Passed: %ld, Failed: %ld", (unsigned long)shaders.count, (long)successCount, (long)failCount);
+  
+  if (failCount > 0) {
+    NSLog(@"Failed shaders:");
+    for (NSString *name in results) {
+      if (![results[name] boolValue]) {
+        NSLog(@"  - %@", name);
+      }
+    }
+  }
+  NSLog(@"==========================================\n");
+  
+  return [results copy];
 }
 
 - (BOOL)setActiveShader:(NSString *)name error:(NSError **)error {
