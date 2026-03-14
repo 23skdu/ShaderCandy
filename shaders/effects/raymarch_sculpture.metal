@@ -15,17 +15,31 @@ float map(float3 p, float t) {
     for (int i = 0; i < 6; i++) {
         float angle = float(i) * TWO_PI / 6.0 + t;
         float3 holePos = float3(cos(angle), sin(angle * 0.5), sin(angle)) * 0.8;
-        d1 = opSubtraction(sdSphere(q - holePos, 0.4), d1);
+        // Branchless SDF subtraction using max operation
+        d1 = max(-ShaderUtils::sdSphere(q - holePos, 0.4), d1);
     }
     
     float3 q2 = rotateZ(p, t * 0.7);
     q2 = rotateY(q2, t * 0.3);
-    float d2 = sdTorus(q2, float2(2.2, 0.15));
+    // sdTorus is in ShaderUtils namespace - need to check how to access it
+    // For now, define torus SDF directly (inline implementation)
+    float2 torusParam1 = float2(2.2, 0.15);
+    float2 q_torus1 = float2(length(q2.xz) - torusParam1.x, q2.y);
+    float d2 = length(q_torus1) - torusParam1.y;
     
-    float d3 = sdTorus(rotateX(p, t * 0.5 + PI/3.0), float2(2.0, 0.1));
+    float3 rotatedP = rotateX(p, t * 0.5 + PI/3.0);
+    float2 torusParam2 = float2(2.0, 0.1);
+    float2 q_torus2 = float2(length(rotatedP.xz) - torusParam2.x, rotatedP.y);
+    float d3 = length(q_torus2) - torusParam2.y;
     
-    float d = opSmoothUnion(d1, d2, 0.2);
-    d = opSmoothUnion(d, d3, 0.15);
+    // Branchless smooth union using k parameter
+    float k = 0.2;
+    float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+    float d = mix(d2, d1, h) - k * h * (1.0 - h);
+    
+    k = 0.15;
+    h = clamp(0.5 + 0.5 * (d3 - d) / k, 0.0, 1.0);
+    d = mix(d3, d, h) - k * h * (1.0 - h);
     
     for (int i = 0; i < 4; i++) {
         float fi = float(i);
@@ -34,7 +48,11 @@ float map(float3 p, float t) {
             cos(t * 0.3 + fi * 1.3) * (2.0 + fi * 0.2),
             sin(t * 0.4 + fi * 0.7) * (2.5 + fi * 0.3)
         );
-        d = opSmoothUnion(d, sdSphere(p - particlePos, 0.1 + fi * 0.05), 0.1);
+        // Branchless smooth union implementation
+        float sphereDist = length(p - particlePos) - (0.1 + fi * 0.05);
+        float k = 0.1;
+        float h = clamp(0.5 + 0.5 * (sphereDist - d) / k, 0.0, 1.0);
+        d = mix(sphereDist, d, h) - k * h * (1.0 - h);
     }
     
     return d;
