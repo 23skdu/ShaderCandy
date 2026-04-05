@@ -26,13 +26,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary<NSString *, NSString *> *)allAssignments;
 
 // Per-Display Per-Space
-- (nullable NSString *)shaderForSpace:(NSString *)spaceID display:(NSString *)displayID;
-- (void)setShader:(NSString *)shaderName forSpace:(NSString *)spaceID display:(NSString *)displayID;
+- (nullable NSString *)shaderForSpace:(NSString *)spaceID
+                              display:(NSString *)displayID;
+- (void)setShader:(NSString *)shaderName
+         forSpace:(NSString *)spaceID
+          display:(NSString *)displayID;
 
 // Space Operations
 - (void)assignCurrentShaderToCurrentSpace;
 - (void)assignShaderToAllSpaces:(NSString *)shaderName;
-- (void)copyAssignmentsFromSpace:(NSString *)sourceSpace toSpace:(NSString *)destSpace;
+- (void)copyAssignmentsFromSpace:(NSString *)sourceSpace
+                         toSpace:(NSString *)destSpace;
 
 // Automatic Rotation
 @property(nonatomic, assign) BOOL autoRotateEnabled;

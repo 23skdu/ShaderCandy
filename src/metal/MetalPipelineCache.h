@@ -22,20 +22,23 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)sharedCache;
 
-- (nullable MetalPipelineState *)pipelineForShader:(NSString *)shaderName
-                                         device:(id<MTLDevice>)device
-                                      library:(id<MTLLibrary>)library
-                                   descriptor:(MTLRenderPipelineDescriptor *)descriptor
-                                           error:(NSError **)error;
+- (nullable MetalPipelineState *)
+    pipelineForShader:(NSString *)shaderName
+               device:(id<MTLDevice>)device
+              library:(id<MTLLibrary>)library
+           descriptor:(MTLRenderPipelineDescriptor *)descriptor
+                error:(NSError **)error;
 
 - (nullable MetalPipelineState *)computePipelineForShader:(NSString *)shaderName
-                                                  device:(id<MTLDevice>)device
-                                               function:(id<MTLFunction>)function
+                                                   device:(id<MTLDevice>)device
+                                                 function:
+                                                     (id<MTLFunction>)function
                                                     error:(NSError **)error;
 
 - (void)prewarmPipelinesForShaders:(NSArray<NSString *> *)shaders
-                           device:(id<MTLDevice>)device
-                        libraries:(NSDictionary<NSString *, id<MTLLibrary>> *)libraries;
+                            device:(id<MTLDevice>)device
+                         libraries:(NSDictionary<NSString *, id<MTLLibrary>> *)
+                                       libraries;
 
 - (void)invalidateCacheForShader:(NSString *)shaderName;
 

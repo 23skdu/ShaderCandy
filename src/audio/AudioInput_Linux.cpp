@@ -4,9 +4,9 @@
 #include "AudioInput.h"
 
 #include <alsa/asoundlib.h>
-#include <fftw3.h>
 #include <cmath>
 #include <cstring>
+#include <fftw3.h>
 #include <iostream>
 #include <thread>
 
@@ -15,7 +15,8 @@ namespace Audio {
 
 class AudioInput::Impl {
 public:
-  Impl(AudioInput *parent) : parent_(parent), pcmHandle_(nullptr), fftPlan_(nullptr) {}
+  Impl(AudioInput *parent)
+      : parent_(parent), pcmHandle_(nullptr), fftPlan_(nullptr) {}
 
   ~Impl() { cleanup(); }
 
@@ -26,12 +27,14 @@ public:
     // Allocate buffers
     inputBuffer_.resize(bufferSize);
     fftIn_ = (double *)fftw_malloc(sizeof(double) * bufferSize);
-    fftOut_ = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * (bufferSize / 2 + 1));
+    fftOut_ = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) *
+                                          (bufferSize / 2 + 1));
     fftWindow_.resize(bufferSize);
 
     // Create Hann window
     for (int i = 0; i < bufferSize; ++i) {
-      fftWindow_[i] = 0.5f * (1.0f - std::cos(2.0f * M_PI * i / (bufferSize - 1)));
+      fftWindow_[i] =
+          0.5f * (1.0f - std::cos(2.0f * M_PI * i / (bufferSize - 1)));
     }
 
     // Create FFT plan
@@ -50,7 +53,8 @@ public:
 
     int err = snd_pcm_open(&pcmHandle_, device, SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
-      std::cerr << "Cannot open audio device " << device << ": " << snd_strerror(err) << std::endl;
+      std::cerr << "Cannot open audio device " << device << ": "
+                << snd_strerror(err) << std::endl;
       return false;
     }
 
@@ -58,18 +62,21 @@ public:
     snd_pcm_hw_params_t *hwParams;
     snd_pcm_hw_params_alloca(&hwParams);
     snd_pcm_hw_params_any(pcmHandle_, hwParams);
-    snd_pcm_hw_params_set_access(pcmHandle_, hwParams, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_access(pcmHandle_, hwParams,
+                                 SND_PCM_ACCESS_RW_INTERLEAVED);
     snd_pcm_hw_params_set_format(pcmHandle_, hwParams, SND_PCM_FORMAT_FLOAT_LE);
     snd_pcm_hw_params_set_channels(pcmHandle_, hwParams, 1); // Mono
     unsigned int rate = sampleRate_;
     int dir = 0;
     snd_pcm_hw_params_set_rate_near(pcmHandle_, hwParams, &rate, &dir);
     snd_pcm_uframes_t periodSize = bufferSize_;
-    snd_pcm_hw_params_set_period_size_near(pcmHandle_, hwParams, &periodSize, &dir);
+    snd_pcm_hw_params_set_period_size_near(pcmHandle_, hwParams, &periodSize,
+                                           &dir);
 
     err = snd_pcm_hw_params(pcmHandle_, hwParams);
     if (err < 0) {
-      std::cerr << "Cannot set hardware parameters: " << snd_strerror(err) << std::endl;
+      std::cerr << "Cannot set hardware parameters: " << snd_strerror(err)
+                << std::endl;
       snd_pcm_close(pcmHandle_);
       pcmHandle_ = nullptr;
       return false;
@@ -78,7 +85,8 @@ public:
     // Prepare PCM
     err = snd_pcm_prepare(pcmHandle_);
     if (err < 0) {
-      std::cerr << "Cannot prepare audio interface: " << snd_strerror(err) << std::endl;
+      std::cerr << "Cannot prepare audio interface: " << snd_strerror(err)
+                << std::endl;
       snd_pcm_close(pcmHandle_);
       pcmHandle_ = nullptr;
       return false;
@@ -89,7 +97,8 @@ public:
   }
 
   void start() {
-    if (running_.load()) return;
+    if (running_.load())
+      return;
 
     running_ = true;
     captureThread_ = std::thread(&Impl::captureLoop, this);
@@ -161,27 +170,27 @@ public:
 
   std::vector<std::string> getAvailableDevices() {
     std::vector<std::string> devices;
-    
+
     void **hints, **n;
     char *name, *descr, *io;
-    
+
     if (snd_device_name_hint(-1, "pcm", &hints) >= 0) {
       for (n = hints; *n != nullptr; n++) {
         name = snd_device_name_get_hint(*n, "NAME");
         descr = snd_device_name_get_hint(*n, "DESC");
         io = snd_device_name_get_hint(*n, "IOID");
-        
+
         if (name != nullptr && (io == nullptr || strcmp(io, "Input") == 0)) {
           devices.emplace_back(name);
         }
-        
+
         free(name);
         free(descr);
         free(io);
       }
       snd_device_name_free_hint(hints);
     }
-    
+
     return devices;
   }
 
@@ -230,22 +239,17 @@ private:
 // AudioInput method implementations
 
 AudioInput::AudioInput()
-    : pImpl(std::make_unique<Impl>(this)),
-      sampleRate_(44100),
-      bufferSize_(1024),
-      smoothing_(0.8f),
-      beatThreshold_(0.1f) {
+    : pImpl(std::make_unique<Impl>(this)), sampleRate_(44100),
+      bufferSize_(1024), smoothing_(0.8f), beatThreshold_(0.1f) {
   running_ = false;
 }
 
-AudioInput::~AudioInput() {
-  stop();
-}
+AudioInput::~AudioInput() { stop(); }
 
 bool AudioInput::initialize(int sampleRate, int bufferSize) {
   sampleRate_ = sampleRate;
   bufferSize_ = bufferSize;
-  
+
   if (!pImpl->initialize(sampleRate, bufferSize)) {
     return false;
   }
@@ -254,7 +258,8 @@ bool AudioInput::initialize(int sampleRate, int bufferSize) {
 }
 
 void AudioInput::start() {
-  if (running_.load()) return;
+  if (running_.load())
+    return;
 
   // Open default device if not already open
   if (!pImpl->openDevice("")) {
@@ -271,9 +276,7 @@ void AudioInput::stop() {
   running_ = false;
 }
 
-bool AudioInput::isRunning() const {
-  return running_.load();
-}
+bool AudioInput::isRunning() const { return running_.load(); }
 
 void AudioInput::setCallback(AudioCallback callback) {
   std::lock_guard<std::mutex> lock(dataMutex_);
@@ -306,7 +309,7 @@ bool AudioInput::autoSelectDevice() {
   if (pImpl->openDevice("default")) {
     return true;
   }
-  
+
   // Try hw:0,0
   if (pImpl->openDevice("hw:0,0")) {
     return true;
@@ -345,8 +348,9 @@ void AudioInput::performFFT(const std::vector<float> &samples) {
     if (!currentData_.spectrumSmooth.empty()) {
       for (size_t i = 0; i < newData.spectrumSmooth.size(); ++i) {
         if (i < currentData_.spectrumSmooth.size()) {
-          newData.spectrumSmooth[i] = smoothing_ * currentData_.spectrumSmooth[i] +
-                                      (1.0f - smoothing_) * newData.spectrum[i];
+          newData.spectrumSmooth[i] =
+              smoothing_ * currentData_.spectrumSmooth[i] +
+              (1.0f - smoothing_) * newData.spectrum[i];
         }
       }
     }
@@ -367,7 +371,8 @@ void AudioInput::performFFT(const std::vector<float> &samples) {
 }
 
 void AudioInput::analyzeFrequencyBands(AudioData &data) {
-  if (data.spectrum.empty()) return;
+  if (data.spectrum.empty())
+    return;
 
   int spectrumSize = data.spectrum.size();
   float binSize = sampleRate_ / 2.0f / spectrumSize;
@@ -426,7 +431,8 @@ void AudioInput::detectBeat(AudioData &data) {
 namespace Utils {
 
 void packAudioForShader(const AudioData &audio, float *output, int maxSamples) {
-  if (!output || maxSamples <= 0) return;
+  if (!output || maxSamples <= 0)
+    return;
 
   // Pack audio data into uniform-friendly format
   // First 8 values: frequency bands
@@ -435,21 +441,27 @@ void packAudioForShader(const AudioData &audio, float *output, int maxSamples) {
   }
 
   // Next 4 values: volume, bass, mid, treble
-  if (maxSamples > 8) output[8] = audio.volume;
-  if (maxSamples > 9) output[9] = audio.bass;
-  if (maxSamples > 10) output[10] = audio.mid;
-  if (maxSamples > 11) output[11] = audio.treble;
+  if (maxSamples > 8)
+    output[8] = audio.volume;
+  if (maxSamples > 9)
+    output[9] = audio.bass;
+  if (maxSamples > 10)
+    output[10] = audio.mid;
+  if (maxSamples > 11)
+    output[11] = audio.treble;
 
   // Remaining: spectrum samples (downsampled if needed)
   int spectrumStart = 12;
-  int spectrumSamples = std::min((int)audio.spectrum.size(), maxSamples - spectrumStart);
+  int spectrumSamples =
+      std::min((int)audio.spectrum.size(), maxSamples - spectrumStart);
   for (int i = 0; i < spectrumSamples; ++i) {
     output[spectrumStart + i] = audio.spectrum[i];
   }
 }
 
 float getDominantFrequency(const AudioData &audio) {
-  if (audio.spectrum.empty()) return 0.0f;
+  if (audio.spectrum.empty())
+    return 0.0f;
 
   // Find peak in spectrum
   float maxVal = 0.0f;
@@ -466,7 +478,8 @@ float getDominantFrequency(const AudioData &audio) {
 }
 
 float getSpectralCentroid(const AudioData &audio) {
-  if (audio.spectrum.empty()) return 0.0f;
+  if (audio.spectrum.empty())
+    return 0.0f;
 
   float sum = 0.0f;
   float weightedSum = 0.0f;
@@ -481,7 +494,8 @@ float getSpectralCentroid(const AudioData &audio) {
 }
 
 bool bandHasEnergy(const AudioData &audio, int band, float threshold) {
-  if (band < 0 || band >= AudioData::NUM_BANDS) return false;
+  if (band < 0 || band >= AudioData::NUM_BANDS)
+    return false;
   return audio.bands[band] > threshold;
 }
 

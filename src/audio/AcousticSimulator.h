@@ -21,7 +21,8 @@
 
 + (instancetype _Nonnull)sharedSimulator;
 
-- (BOOL)initializeWithDevice:(id<MTLDevice> _Nonnull)device error:(NSError * _Nullable * _Null_unspecified)error;
+- (BOOL)initializeWithDevice:(id<MTLDevice> _Nonnull)device
+                       error:(NSError *_Nullable *_Null_unspecified)error;
 - (void)shutdown;
 
 - (void)setSceneGeometry:(id<MTLTexture> _Nullable)geometryTexture;

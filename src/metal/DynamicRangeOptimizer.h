@@ -10,10 +10,10 @@
 #import <simd/simd.h>
 
 typedef NS_ENUM(NSInteger, DynamicRangeMode) {
-    DynamicRangeModeOff,
-    DynamicRangeModeConservative,
-    DynamicRangeModeAggressive,
-    DynamicRangeModeAuto
+  DynamicRangeModeOff,
+  DynamicRangeModeConservative,
+  DynamicRangeModeAggressive,
+  DynamicRangeModeAuto
 };
 
 @interface DynamicRangeOptimizer : NSObject
@@ -28,10 +28,13 @@ typedef NS_ENUM(NSInteger, DynamicRangeMode) {
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device;
 
-- (void)analyzeSceneBrightness:(id<MTLTexture>)frame commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
-- (void)applyOptimizationToTexture:(id<MTLTexture>)texture commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
+- (void)analyzeSceneBrightness:(id<MTLTexture>)frame
+                 commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
+- (void)applyOptimizationToTexture:(id<MTLTexture>)texture
+                     commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
 
-- (simd_float3)applyLocalToneMapping:(simd_float3)color localLuminance:(float)luminance;
+- (simd_float3)applyLocalToneMapping:(simd_float3)color
+                      localLuminance:(float)luminance;
 - (float)calculateDynamicExposure:(float)avgLuminance;
 
 - (void)resetAnalysis;

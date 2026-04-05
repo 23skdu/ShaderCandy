@@ -15,8 +15,7 @@ namespace Linux {
 class GLSLWrapper {
 public:
   static std::string getPreamble(bool isGLES = false) {
-    std::string version = isGLES ? "#version 300 es\n"
-                                 : "#version 330 core\n";
+    std::string version = isGLES ? "#version 300 es\n" : "#version 330 core\n";
 
     if (isGLES) {
       version += "precision highp float;\n";

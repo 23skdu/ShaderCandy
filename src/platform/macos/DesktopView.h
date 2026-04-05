@@ -20,10 +20,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, assign, readonly) BOOL isPaused;
 
 - (instancetype)initWithFrame:(NSRect)frame
-                     displayID:(NSString *)displayID
-                        device:(id<MTLDevice>)device;
+                    displayID:(NSString *)displayID
+                       device:(id<MTLDevice>)device;
 
-- (void)setShader:(nullable NSString *)shaderName renderer:(nullable MetalRenderer *)renderer;
+- (void)setShader:(nullable NSString *)shaderName
+         renderer:(nullable MetalRenderer *)renderer;
 - (void)startRendering;
 - (void)stopRendering;
 - (void)pauseRendering;

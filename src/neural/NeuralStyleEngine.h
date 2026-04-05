@@ -5,16 +5,17 @@
 //  CoreML neural style transfer engine
 //
 
+#import <CoreML/CoreML.h>
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
-#import <CoreML/CoreML.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface NeuralStyleEngine : NSObject
 
 @property(nonatomic, strong, readonly, nullable) id<MTLDevice> device;
-@property(nonatomic, strong, readonly, nullable) id<MTLCommandQueue> commandQueue;
+@property(nonatomic, strong, readonly, nullable) id<MTLCommandQueue>
+    commandQueue;
 @property(nonatomic, strong, readonly, nullable) MLModel *currentModel;
 @property(nonatomic, assign) float styleStrength;
 @property(nonatomic, strong, readonly) NSArray<NSString *> *availableStyles;
@@ -32,7 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable id<MTLTexture>)applyStyle:(id<MTLTexture>)inputTexture
                         commandBuffer:(id<MTLCommandBuffer>)commandBuffer
-                                strength:(float)strength;
+                             strength:(float)strength;
 
 - (void)prewarmModel;
 - (void)unloadCurrentModel;

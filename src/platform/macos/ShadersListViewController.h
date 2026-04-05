@@ -13,7 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property(nonatomic, strong) NSArray<NSString *> *shaders;
 @property(nonatomic, strong, nullable) NSString *selectedShader;
-@property(nonatomic, strong) NSDictionary<NSString *, NSArray<NSString *> *> *shaderCategories;
+@property(nonatomic, strong)
+    NSDictionary<NSString *, NSArray<NSString *> *> *shaderCategories;
 
 // Callbacks
 - (void)onShaderSelected:(NSString *)shaderName;
