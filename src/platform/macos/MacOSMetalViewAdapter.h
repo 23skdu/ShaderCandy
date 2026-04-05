@@ -5,9 +5,9 @@
 //  Thin delegation layer between ScreenSaverView and MetalRenderer
 //
 
-#import <ScreenSaver/ScreenSaver.h>
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
+#import <ScreenSaver/ScreenSaver.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

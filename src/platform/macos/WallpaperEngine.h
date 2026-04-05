@@ -13,10 +13,10 @@ NS_ASSUME_NONNULL_BEGIN
 @class MetalRenderer;
 
 // Notification names
-extern NSString * const WallpaperEngineDidStartNotification;
-extern NSString * const WallpaperEngineDidStopNotification;
-extern NSString * const WallpaperEngineDidChangeShaderNotification;
-extern NSString * const WallpaperEngineDidEncounterErrorNotification;
+extern NSString *const WallpaperEngineDidStartNotification;
+extern NSString *const WallpaperEngineDidStopNotification;
+extern NSString *const WallpaperEngineDidChangeShaderNotification;
+extern NSString *const WallpaperEngineDidEncounterErrorNotification;
 
 @interface WallpaperEngine : NSObject
 
@@ -40,7 +40,8 @@ extern NSString * const WallpaperEngineDidEncounterErrorNotification;
 @property(nonatomic, strong, readonly) NSArray<NSString *> *displayIDs;
 
 // Desktop Management
-- (BOOL)setWallpaperForDesktop:(NSString *)desktopID withShader:(NSString *)shaderName;
+- (BOOL)setWallpaperForDesktop:(NSString *)desktopID
+                    withShader:(NSString *)shaderName;
 - (BOOL)setWallpaperForAllDesktops:(NSString *)shaderName;
 - (BOOL)setWallpaperForCurrentSpace:(NSString *)shaderName;
 - (void)clearWallpaper;

@@ -21,7 +21,8 @@
 
 + (instancetype _Nonnull)sharedEngine;
 
-- (BOOL)initializeWithSampleRate:(double)sampleRate error:(NSError * _Nullable * _Null_unspecified)error;
+- (BOOL)initializeWithSampleRate:(double)sampleRate
+                           error:(NSError *_Nullable *_Null_unspecified)error;
 - (void)shutdown;
 
 - (void)start;
@@ -32,8 +33,11 @@
 - (void)setAudioSource:(NSInteger)sourceID gain:(float)gain;
 - (void)removeAudioSource:(NSInteger)sourceID;
 
-- (void)processAudioBuffer:(float * _Nonnull)buffer frameCount:(NSUInteger)frameCount;
-- (void)processStereoBuffer:(float * _Nonnull)leftBuffer right:(float * _Nonnull)rightBuffer frameCount:(NSUInteger)frameCount;
+- (void)processAudioBuffer:(float *_Nonnull)buffer
+                frameCount:(NSUInteger)frameCount;
+- (void)processStereoBuffer:(float *_Nonnull)leftBuffer
+                      right:(float *_Nonnull)rightBuffer
+                 frameCount:(NSUInteger)frameCount;
 
 - (void)setSceneGeometry:(id<MTLTexture> _Nullable)geometryTexture;
 - (void)updateRayTracing;
