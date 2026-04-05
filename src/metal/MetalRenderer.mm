@@ -2478,10 +2478,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
 - (void)captureGPUFrame {
 #if DEBUG
-  // Metal debugger capture is triggered via environment variable or Xcode
-  // This is a placeholder for programmatic capture points
-  NSLog(@"MetalRenderer: GPU frame capture triggered (use Xcode Metal "
-        @"Debugger)");
+  // Metal debugger capture:
+  // - Use MTLCaptureManager in Xcode for detailed GPU frame capture
+  // - Or set environment variable METAL_DEVICE_DEBUG_FLAGS=capture_on_launch
+  // This method reserved for potential future programmatic capture
+  NSLog(@"MetalRenderer: GPU frame capture - use Xcode Metal Debugger");
 #endif
 }
 

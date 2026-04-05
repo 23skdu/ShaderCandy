@@ -21,7 +21,8 @@
 - (NSData *)generateDolbyVisionMetadata;
 - (NSData *)generateHLGMetadata;
 
-- (void)setMasteringDisplayColorVolumeWithPrimaries:(const float *)primaries whitePoint:(const float *)whitePoint;
+- (void)setMasteringDisplayColorVolumeWithPrimaries:(const float *)primaries
+                                         whitePoint:(const float *)whitePoint;
 
 - (NSDictionary *)metadataAsDictionary;
 

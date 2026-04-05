@@ -7,8 +7,10 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol PresetViewControllerDelegate <NSObject>
 
 @optional
-- (void)presetViewController:(id)controller didSelectPreset:(PresetObject *)preset;
-- (void)presetViewController:(id)controller didApplyPreset:(PresetObject *)preset;
+- (void)presetViewController:(id)controller
+             didSelectPreset:(PresetObject *)preset;
+- (void)presetViewController:(id)controller
+              didApplyPreset:(PresetObject *)preset;
 
 @end
 

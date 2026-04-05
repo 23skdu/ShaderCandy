@@ -5,8 +5,8 @@
 //  Individual style transfer model wrapper
 //
 
-#import <Foundation/Foundation.h>
 #import <CoreML/CoreML.h>
+#import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -29,8 +29,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)unload;
 
 - (nullable id<MTLTexture>)transferStyle:(id<MTLTexture>)inputTexture
-                          commandBuffer:(id<MTLCommandBuffer>)commandBuffer
-                                 strength:(float)strength;
+                           commandBuffer:(id<MTLCommandBuffer>)commandBuffer
+                                strength:(float)strength;
 
 - (void)generatePreviewIfNeeded;
 

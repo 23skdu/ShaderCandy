@@ -28,12 +28,16 @@
 - (void)setVisualComplexity:(float)complexity;
 - (void)updateSourcePositionsFromVisuals:(NSArray<NSValue *> *)visualPositions;
 
-- (void)renderStereoOutputLeft:(float *)leftBuffer right:(float *)rightBuffer frameCount:(NSUInteger)frameCount;
+- (void)renderStereoOutputLeft:(float *)leftBuffer
+                         right:(float *)rightBuffer
+                    frameCount:(NSUInteger)frameCount;
 
 - (void)addAmbientDroneWithFrequency:(float)frequency gain:(float)gain;
 - (void)removeAmbientDrone;
 
-- (void)setReverbParameters:(float)roomSize damping:(float)damping intensity:(float)intensity;
+- (void)setReverbParameters:(float)roomSize
+                    damping:(float)damping
+                  intensity:(float)intensity;
 
 @end
 
@@ -43,7 +47,9 @@
 
 - (float)absorptionForMaterial:(NSString *)materialName;
 - (float)scatteringForMaterial:(NSString *)materialName;
-- (void)registerMaterial:(NSString *)name absorption:(float)absorption scattering:(float)scattering;
+- (void)registerMaterial:(NSString *)name
+              absorption:(float)absorption
+              scattering:(float)scattering;
 
 @property(nonatomic, strong, readonly) NSArray<NSString *> *availableMaterials;
 
