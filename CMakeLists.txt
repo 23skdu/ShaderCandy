@@ -46,15 +46,18 @@ set(CORE_SOURCES
 )
 
 # Linux Audio support
-option(BUILD_AUDIO "Build audio support (requires ALSA and FFTW3)" ON)
+option(BUILD_AUDIO "Build audio support (ALSA/PulseAudio/PipeWire + FFTW3)" ON)
 set(BUILD_AUDIO_ACTUAL OFF)
 if(LINUX AND BUILD_AUDIO)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(ALSALIB alsa)
+    
+    # Try PulseAudio first (works with PipeWire via module)
+    pkg_check_modules(PULSELIB libpulse)
     pkg_check_modules(FFTW3 fftw3)
     
-    if(ALSALIB_FOUND AND FFTW3_FOUND)
+    if(PULSELIB_FOUND AND FFTW3_FOUND)
         set(BUILD_AUDIO_ACTUAL ON)
+        set(AUDIO_BACKEND "PulseAudio")
         set(LINUX_AUDIO_SOURCES
             src/audio/AudioInput_Linux.cpp
         )
@@ -62,21 +65,52 @@ if(LINUX AND BUILD_AUDIO)
         add_library(shadercandy_audio_linux STATIC ${LINUX_AUDIO_SOURCES})
         target_include_directories(shadercandy_audio_linux PUBLIC 
             src/audio
-            ${ALSALIB_INCLUDE_DIRS}
+            ${PULSELIB_INCLUDE_DIRS}
             ${FFTW3_INCLUDE_DIRS}
         )
         target_link_libraries(shadercandy_audio_linux PUBLIC
             shadercandy_core
-            ${ALSALIB_LIBRARIES}
+            ${PULSELIB_LIBRARIES}
             ${FFTW3_LIBRARIES}
+            pulse
+            pulse-simple
         )
         target_compile_options(shadercandy_audio_linux PUBLIC
-            ${ALSALIB_CFLAGS_OTHER}
+            ${PULSELIB_CFLAGS_OTHER}
             ${FFTW3_CFLAGS_OTHER}
+            -DHAS_PULSEAUDIO=1
         )
-        message(STATUS "  Audio support: ON")
+        message(STATUS "  Audio support: PulseAudio (PipeWire compatible)")
     else()
-        message(WARNING "Audio dependencies (ALSA and/or FFTW3) not found. Building without audio support.")
+        # Fallback to ALSA
+        pkg_check_modules(ALSALIB alsa)
+        if(ALSALIB_FOUND AND FFTW3_FOUND)
+            set(BUILD_AUDIO_ACTUAL ON)
+            set(AUDIO_BACKEND "ALSA")
+            set(LINUX_AUDIO_SOURCES
+                src/audio/AudioInput_Linux.cpp
+            )
+            
+            add_library(shadercandy_audio_linux STATIC ${LINUX_AUDIO_SOURCES})
+            target_include_directories(shadercandy_audio_linux PUBLIC 
+                src/audio
+                ${ALSALIB_INCLUDE_DIRS}
+                ${FFTW3_INCLUDE_DIRS}
+            )
+            target_link_libraries(shadercandy_audio_linux PUBLIC
+                shadercandy_core
+                ${ALSALIB_LIBRARIES}
+                ${FFTW3_LIBRARIES}
+            )
+            target_compile_options(shadercandy_audio_linux PUBLIC
+                ${ALSALIB_CFLAGS_OTHER}
+                ${FFTW3_CFLAGS_OTHER}
+                -DHAS_ALSA=1
+            )
+            message(STATUS "  Audio support: ALSA")
+        else()
+            message(WARNING "Audio dependencies (PulseAudio/ALSA + FFTW3) not found. Building without audio support.")
+        endif()
     endif()
 endif()
 
