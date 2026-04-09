@@ -25,11 +25,12 @@
 - **Impact**: Faster development workflow
 
 ### 5. Audio Input Device Selection
-- **Status**: Next to implement
+- **Status**: Completed ✅
 - **Description**: UI for selecting audio input source
 - **Impact**: Support USB microphones, multiple devices
 
 ### 6. Frame Rate Cap Option
+- **Status**: Next to implement
 - **Description**: Configurable FPS limit (30/60/unlimited)
 - **Impact**: Power saving on laptops
 
