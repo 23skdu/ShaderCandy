@@ -372,11 +372,95 @@ void GLRenderer::setBloomThreshold(float threshold) {
   bloomConfig_.threshold = threshold;
 }
 
-void GLRenderer::setParticlesEnabled(bool enabled) {}
+void GLRenderer::setParticlesEnabled(bool enabled) {
+  particleConfig_.enabled = enabled;
+  if (enabled && particles_.empty()) {
+    initParticles();
+  }
+}
 
-void GLRenderer::setParticleCount(int count) {}
+void GLRenderer::setParticleCount(int count) {
+  particleConfig_.count = count;
+  if (particleConfig_.enabled) {
+    initParticles();
+  }
+}
 
-void GLRenderer::setParticleGravity(float gravity) {}
+void GLRenderer::setParticleGravity(float gravity) {
+  particleConfig_.gravity = gravity;
+}
+
+void GLRenderer::initParticles() {
+  particles_.clear();
+  particles_.reserve(particleConfig_.count);
+
+  for (int i = 0; i < particleConfig_.count; i++) {
+    Particle p;
+    p.x = (rand() % 2000 / 1000.0f) - 1.0f;
+    p.y = (rand() % 2000 / 1000.0f) - 1.0f;
+    p.vx = (rand() % 100 / 1000.0f) - 0.05f;
+    p.vy = (rand() % 100 / 1000.0f) - 0.05f;
+    p.life = rand() % 100 / 100.0f;
+    p.maxLife = 1.0f + rand() % 100 / 100.0f;
+    particles_.push_back(p);
+  }
+
+  if (particleVAO_ == 0) {
+    glGenVertexArrays(1, &particleVAO_);
+    glGenBuffers(1, &particleVBO_);
+  }
+
+  glBindVertexArray(particleVAO_);
+  glBindBuffer(GL_ARRAY_BUFFER, particleVBO_);
+  glBufferData(GL_ARRAY_BUFFER, particles_.size() * sizeof(Particle),
+               particles_.data(), GL_DYNAMIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Particle),
+                        (void *)offsetof(Particle, x));
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Particle),
+                        (void *)offsetof(Particle, vx));
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(Particle),
+                        (void *)offsetof(Particle, life));
+  glBindVertexArray(0);
+}
+
+void GLRenderer::updateParticles(float deltaTime) {
+  if (!particleConfig_.enabled || particles_.empty())
+    return;
+
+  float gravity = particleConfig_.gravity * deltaTime * 0.1f;
+  float speed = particleConfig_.speed;
+
+  for (auto &p : particles_) {
+    p.vy -= gravity;
+    p.x += p.vx * speed;
+    p.y += p.vy * speed;
+    p.life -= deltaTime;
+
+    if (p.y < -1.0f || p.life <= 0.0f) {
+      p.x = (rand() % 2000 / 1000.0f) - 1.0f;
+      p.y = 1.0f;
+      p.vx = (rand() % 100 / 1000.0f) - 0.05f;
+      p.vy = -(rand() % 100 / 1000.0f) - 0.02f;
+      p.life = p.maxLife;
+    }
+  }
+
+  glBindBuffer(GL_ARRAY_BUFFER, particleVBO_);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, particles_.size() * sizeof(Particle),
+                  particles_.data());
+}
+
+void GLRenderer::renderParticles() {
+  if (!particleConfig_.enabled || particles_.empty())
+    return;
+
+  glBindVertexArray(particleVAO_);
+  glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(particles_.size()));
+  glBindVertexArray(0);
+}
 
 void GLRenderer::setToneMapping(GLToneMapping toneMapping) {
   toneMapping_ = toneMapping;
