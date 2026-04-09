@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -488,6 +489,11 @@ private:
   float timePerShader = 30.0f; // Seconds before auto-switch
   std::chrono::steady_clock::time_point shaderStartTime;
 
+  // OSD notification
+  std::string notificationText;
+  std::chrono::steady_clock::time_point notificationTime;
+  float notificationDuration = 3.0f;
+
   // Shader directories
   std::vector<std::string> shaderPaths;
   std::string shaderDir;
@@ -890,6 +896,89 @@ layout(std140) uniform Uniforms {
     transitionStart = std::chrono::steady_clock::now();
   }
 
+  void takeScreenshot() {
+    std::vector<unsigned char> pixels(width * height * 4);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
+                pixels.data());
+
+    for (int y = 0; y < height / 2; y++) {
+      for (int x = 0; x < width * 4; x++) {
+        int top = (y * width * 4) + x;
+        int bottom = ((height - 1 - y) * width * 4) + x;
+        std::swap(pixels[top], pixels[bottom]);
+      }
+    }
+
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    struct tm *tm = localtime(&time);
+
+    std::stringstream ss;
+    ss << "shadercandy_" << std::put_time(tm, "%Y%m%d_%H%M%S") << ".png"
+       << std::ends;
+    std::string filename = ss.str();
+    filename.pop_back();
+
+    std::ofstream file(filename, std::ios::binary);
+    if (file) {
+      file << "P6\n" << width << " " << height << "\n255\n";
+      file.write(reinterpret_cast<char *>(pixels.data()),
+               width * height * 3);
+      std::cout << "Screenshot saved: " << filename << std::endl;
+    }
+  }
+
+  void showNotification(const std::string &message) {
+    notificationText = message;
+    notificationTime = std::chrono::steady_clock::now();
+  }
+
+  void checkForShaderReload() {
+  }
+
+  void renderNotification() {
+    if (notificationText.empty())
+      return;
+
+    auto now = std::chrono::steady_clock::now();
+    float elapsed =
+        std::chrono::duration<float>(now - notificationTime).count();
+    if (elapsed > notificationDuration) {
+      notificationText.clear();
+      return;
+    }
+
+    float alpha = 1.0f - (elapsed / notificationDuration);
+    if (alpha > 0.0f) {
+      glMatrixMode(GL_PROJECTION);
+      glPushMatrix();
+      glLoadIdentity();
+      glOrtho(0, width, 0, height, -1, 1);
+      glMatrixMode(GL_MODELVIEW);
+      glPushMatrix();
+      glLoadIdentity();
+
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+      glColor4f(0.0f, 0.0f, 0.0f, alpha * 0.5f);
+      glBegin(GL_QUADS);
+      glVertex2f(width * 0.1f, height * 0.9f);
+      glVertex2f(width * 0.9f, height * 0.9f);
+      glVertex2f(width * 0.9f, height * 0.85f);
+      glVertex2f(width * 0.1f, height * 0.85f);
+      glEnd();
+
+      glColor4f(1.0f, 1.0f, 1.0f, alpha);
+      glRasterPos2f(width * 0.15f, height * 0.88f);
+      glDisable(GL_BLEND);
+
+      glPopMatrix();
+      glMatrixMode(GL_PROJECTION);
+      glPopMatrix();
+    }
+  }
+
   void run() {
     XEvent event;
 
@@ -978,6 +1067,12 @@ private:
       if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_Right) {
         goToNextShader();
         shaderStartTime = std::chrono::steady_clock::now();
+      }
+      // F12 or PrintScreen = screenshot
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_F12 ||
+               XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                   XK_Print) {
+        takeScreenshot();
       }
       // ESC or Q = quit
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
