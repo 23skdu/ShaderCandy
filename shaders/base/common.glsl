@@ -18,6 +18,19 @@ layout(std140) uniform Uniforms {
     float gravity;
 };
 
+layout(std140) uniform ShaderParams {
+    float param1;       // User-configurable parameter 1
+    float param2;       // User-configurable parameter 2
+    float param3;       // User-configurable parameter 3
+    float param4;       // User-configurable parameter 4
+    int colorPalette;    // Color palette selection (0-7)
+    int effectFlags;     // Bitmask for effect toggles
+    float param5;       // Additional parameter
+    float param6;       // Additional parameter
+    vec3 color1;       // User color 1
+    vec3 color2;       // User color 2
+};
+
 // Uniforms for textures
 uniform sampler2D prevFrame;
 

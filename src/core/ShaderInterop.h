@@ -80,6 +80,20 @@ struct Uniforms {
   float level;
 };
 
+// Dynamic shader parameters (runtime configurable)
+struct ShaderParams {
+  float param1;
+  float param2;
+  float param3;
+  float param4;
+  int32_t colorPalette;
+  int32_t effectFlags;
+  float param5;
+  float param6;
+  vector_float3 color1;
+  vector_float3 color2;
+};
+
 // Shared vertex input structure
 struct VertexIn {
   vector_float2 position ATTR(0);
