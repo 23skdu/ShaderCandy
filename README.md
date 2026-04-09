@@ -4,10 +4,14 @@ ShaderCandy is a cross-platform screensaver application that renders real-time p
 
 ## Key Features
 
-* **Cross-Platform Native Rendering**: Uses Metal on macOS and OpenGL on Linux for direct hardware access.
+* **Cross-Platform Native Rendering**: Uses Metal on macOS and OpenGL/Wayland/X11 on Linux for direct hardware access.
 * **SIMD Optimizations**: Implements SIMD-accelerated math operations for CPU-side calculations (ARM NEON on Apple Silicon, AVX2 on x86_64).
 * **Modular Shader Architecture**: Provides a shared library of GLSL and Metal shader functions (noise, SDFs, math utilities) to simplify effect creation.
 * **Hot Reloading**: Automatically reloads and recompiles shaders when source files are modified.
+* **Audio Reactivity**: Microphones and system audio input feed directly into FFT spectral analysis for ray-traced audio visualization.
+* **Neural Effects**: Integrated CoreML neural style transfer engine on macOS.
+* **Dynamic Control Systems**: Configurable UI for shader selection, preset save/load, multi-display support, screenshot hotkeys, and OSD notifications.
+* **Advanced Particle Systems**: High-performance compute shader integration for generative multi-million particle simulations.
 
 ## Architecture
 
