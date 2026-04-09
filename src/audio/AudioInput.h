@@ -53,7 +53,7 @@ public:
 
   // Control
   bool initialize(int sampleRate = 44100, int bufferSize = 1024);
-  void start();
+  bool start();
   void stop();
   bool isRunning() const;
 
@@ -71,13 +71,16 @@ public:
 
   // Auto-detect input source
   bool autoSelectDevice();
+  bool openDevice(const std::string &deviceName);
 
   // Internal processing (public for delegate access)
   void performFFT(const std::vector<float> &samples);
 
+  void onAudioData(const AudioData &audioData);
+
 private:
   class Impl;
-  std::unique_ptr<Impl> pImpl;
+  std::unique_ptr<Impl> impl_;
 
   // Configuration
   int sampleRate_;
