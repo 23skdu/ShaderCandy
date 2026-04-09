@@ -21,6 +21,7 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
@@ -144,6 +145,8 @@ public:
   std::chrono::steady_clock::time_point startTime;
   std::chrono::steady_clock::time_point lastFrame;
   std::string name;
+  std::string path;
+  double lastModTime = 0.0;
 
   ~GLShaderProgram() { cleanup(); }
 
@@ -245,6 +248,59 @@ public:
     lastFrame = startTime;
 
     return true;
+  }
+
+  bool reload() {
+    if (path.empty())
+      return false;
+
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0)
+      return false;
+
+    std::string newPath = path;
+    size_t pos = newPath.rfind('/');
+    std::string dir = newPath.substr(0, pos + 1);
+
+    std::vector<char> vertSource;
+    std::vector<char> fragSource;
+
+    std::string vertPath = dir + "vertex.glsl";
+    std::string fragPath = path;
+
+    std::ifstream vf(vertPath);
+    if (vf) {
+      vf.seekg(0, std::ios::end);
+      vertSource.resize(vf.tellg());
+      vf.seekg(0, std::ios::beg);
+      vf.read(vertSource.data(), vertSource.size());
+      vf.close();
+    }
+
+    std::ifstream ff(fragPath);
+    if (ff) {
+      ff.seekg(0, std::ios::end);
+      fragSource.resize(ff.tellg());
+      ff.seekg(0, std::ios::beg);
+      ff.read(fragSource.data(), fragSource.size());
+      ff.close();
+    }
+
+    if (!fragSource.empty()) {
+      std::string included =
+          loadShaderWithIncludes(fragPath.c_str(), 0);
+      if (!included.empty()) {
+        cleanup();
+        loadShader("#version 450\nin vec2 position;\nvoid main() { "
+                  "gl_Position = vec4(position, 0.0, 1.0); }\n",
+                  included.c_str());
+        startTime = std::chrono::steady_clock::now();
+        lastFrame = startTime;
+        lastModTime = st.st_mtime;
+        return true;
+      }
+    }
+    return false;
   }
 
   std::string loadShaderWithIncludes(const char *path, int depth = 0) {
@@ -558,10 +614,32 @@ private:
   // Shader directories
   std::vector<std::string> shaderPaths;
   std::string shaderDir;
+  std::unordered_map<std::string, double> shaderModTimes;
 
   // Audio input
   AudioInput *audioInput = nullptr;
   bool enableAudio = false;
+
+  bool hotReloadEnabled = true;
+
+  void checkForShaderChanges() {
+    if (!hotReloadEnabled || !currentShader)
+      return;
+    if (currentShader->path.empty())
+      return;
+    struct stat st;
+    if (stat(currentShader->path.c_str(), &st) == 0) {
+      double modTime = st.st_mtime;
+      auto it = shaderModTimes.find(currentShader->path);
+      if (it != shaderModTimes.end() && modTime > it->second) {
+        currentShader->reload();
+        shaderModTimes[currentShader->path] = modTime;
+        showNotification("Reloaded: " + currentShader->name);
+      } else if (it == shaderModTimes.end()) {
+        shaderModTimes[currentShader->path] = modTime;
+      }
+    }
+  }
 
 public:
   X11Screensaver() = default;
