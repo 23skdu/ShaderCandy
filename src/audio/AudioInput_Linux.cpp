@@ -2,6 +2,7 @@
 // Supports: PipeWire (via PulseAudio) > PulseAudio > ALSA
 
 #include "AudioInput.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <fftw3.h>
@@ -250,3 +251,57 @@ AudioData AudioInput::getCurrentData() const { return impl_->audioData_; }
 
 } // namespace Audio
 } // namespace ShaderCandy
+
+// Static method implementation for AudioInput
+std::vector<std::string> ShaderCandy::Audio::AudioInput::getAvailableDevices() {
+    std::vector<std::string> devices;
+    
+    // Add default device
+    devices.push_back("default");
+    
+    // Enumerate ALSA devices
+    void **hints;
+    if (snd_device_name_hint(-1, "pcm", &hints) >= 0) {
+        void **n = hints;
+        while (*n != nullptr) {
+            char *name = snd_device_name_get_hint(*n, "NAME");
+            if (name != nullptr) {
+                devices.push_back(std::string(name));
+                free(name);
+            }
+            n++;
+        }
+        snd_device_name_free_hint(hints);
+    }
+    
+    // Remove duplicates and sort
+    std::sort(devices.begin(), devices.end());
+    auto last = std::unique(devices.begin(), devices.end());
+    devices.erase(last, devices.end());
+    
+    return devices;
+}
+
+bool ShaderCandy::Audio::AudioInput::selectDevice(const std::string &deviceName) {
+    // Stop if currently running
+    bool wasRunning = impl_->running_.load();
+    if (wasRunning) {
+        stop();
+    }
+    
+    // Close current device if open
+    if (impl_->pcmHandle_) {
+        snd_pcm_close(impl_->pcmHandle_);
+        impl_->pcmHandle_ = nullptr;
+    }
+    
+    // Open the selected device
+    bool success = impl_->openDevice(deviceName);
+    
+    // Restart if was running
+    if (success && wasRunning) {
+        start();
+    }
+    
+    return success;
+}
