@@ -43,6 +43,7 @@ using namespace ShaderCandy::Platform::Linux;
 
 // Audio support
 #include "../../audio/AudioInput.h"
+#include "../../config/ConfigurationManager.h"
 using namespace ShaderCandy::Audio;
 
 // Forward declarations
@@ -1002,15 +1003,19 @@ int main(int argc, char *argv[]) {
        goToNextShader();
      }
 
-     // Render
-     renderFrame();
+      // Render
+      renderFrame();
 
-     // Swap buffers
-     eglSwapBuffers(g_eglDisplay, g_eglSurface);
+      // Swap buffers
+      eglSwapBuffers(g_eglDisplay, g_eglSurface);
 
-     // Frame rate limiting (~60fps)
-     std::this_thread::sleep_for(std::chrono::milliseconds(16));
-   }
+      // Frame rate limiting based on target FPS
+      auto& config = ShaderCandy::Config::ConfigurationManager::getInstance();
+      int targetFPS = config.getSettings().targetFPS;
+      if (targetFPS <= 0) targetFPS = 60; // Safety fallback
+      uint32_t frameDelayMs = 1000 / targetFPS;
+      std::this_thread::sleep_for(std::chrono::milliseconds(frameDelayMs));
+    }
 
   // Cleanup
   if (g_shader) {
