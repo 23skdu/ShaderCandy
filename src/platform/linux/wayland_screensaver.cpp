@@ -20,6 +20,7 @@
 #include <iostream>
 #include <sys/mman.h>
 #include <thread>
+#include <time.h>
 
 using namespace ShaderCandy::Platform::Linux;
 
@@ -350,6 +351,7 @@ static void goToNextShader();
 static void goToPreviousShader();
 
 static uint32_t g_keyboardMods = 0;
+static void takeScreenshot();
 
 static void handleKeyboardKeymap(void *data, struct wl_keyboard *keyboard,
                                   uint32_t format, int fd, uint32_t size) {
@@ -404,6 +406,8 @@ static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
     goToPreviousShader();
   else if (key == 1)
     g_running = false;
+  else if (key == 88)
+    takeScreenshot();
 }
 static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
                                     uint32_t serial, uint32_t modsDepressed,
@@ -757,6 +761,37 @@ static void goToPreviousShader() {
   size_t prevIndex =
       (g_currentShaderIndex + g_shaderList.size() - 1) % g_shaderList.size();
   loadShaderByIndex(prevIndex);
+}
+
+static void takeScreenshot() {
+  if (!g_width || !g_height)
+    return;
+
+  std::vector<unsigned char> pixels(g_width * g_height * 4);
+  glReadPixels(0, 0, g_width, g_height, GL_RGBA, GL_UNSIGNED_BYTE,
+              pixels.data());
+
+  for (int y = 0; y < g_height / 2; y++) {
+    for (int x = 0; x < g_width * 4; x++) {
+      int top = (y * g_width * 4) + x;
+      int bottom = ((g_height - 1 - y) * g_width * 4) + x;
+      std::swap(pixels[top], pixels[bottom]);
+    }
+  }
+
+  auto now = std::chrono::system_clock::now();
+  auto time = std::chrono::system_clock::to_time_t(now);
+  struct tm *tm = localtime(&time);
+
+  char filename[256];
+  strftime(filename, sizeof(filename), "shadercandy_%Y%m%d_%H%M%S.ppm", tm);
+
+  std::ofstream file(filename, std::ios::binary);
+  if (file) {
+    file << "P6\n" << g_width << " " << g_height << "\n255\n";
+    file.write(reinterpret_cast<char *>(pixels.data()), g_width * g_height * 3);
+    std::cout << "Screenshot saved: " << filename << std::endl;
+  }
 }
 
 static bool loadShader(const std::string &path) {
