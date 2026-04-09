@@ -20,11 +20,12 @@
 ## Next Steps (P1 - Medium Priority)
 
 ### 4. Shader Hot-Reload with File Watching ⚙️
-- **Status**: Next to implement
+- **Status**: Completed ✅
 - **Description**: Auto-reload shaders when source files change
 - **Impact**: Faster development workflow
 
 ### 5. Audio Input Device Selection
+- **Status**: Next to implement
 - **Description**: UI for selecting audio input source
 - **Impact**: Support USB microphones, multiple devices
 
