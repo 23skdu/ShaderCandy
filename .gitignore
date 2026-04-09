@@ -101,3 +101,7 @@ osx/installer/ShaderCandyInstaller.xcodeproj/
 # Test artifacts
 test_results*.txt
 testing/
+node_modules/
+bun.lock
+test/**/*.o
+build/

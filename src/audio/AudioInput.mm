@@ -181,25 +181,26 @@ private:
 };
 
 AudioInput::AudioInput()
-    : pImpl(std::make_unique<Impl>(this)), sampleRate_(44100),
-      bufferSize_(1024), smoothing_(0.8f), beatThreshold_(0.1f) {
-  running_ = false;
+     : impl_(std::make_unique<Impl>(this)), sampleRate_(44100),
+       bufferSize_(1024), smoothing_(0.8f), beatThreshold_(0.1f) {
+   running_ = false;
 }
 
 AudioInput::~AudioInput() { stop(); }
 
 bool AudioInput::initialize(int sampleRate, int bufferSize) {
-  return pImpl->initialize(sampleRate, bufferSize);
+   return impl_->initialize(sampleRate, bufferSize);
 }
 
-void AudioInput::start() {
-  pImpl->start();
-  running_ = true;
+bool AudioInput::start() {
+    impl_->start();
+    running_ = true;
+    return true;
 }
 
 void AudioInput::stop() {
-  pImpl->stop();
-  running_ = false;
+   impl_->stop();
+   running_ = false;
 }
 
 bool AudioInput::isRunning() const { return running_; }
@@ -220,7 +221,7 @@ void AudioInput::performFFT(const std::vector<float> &samples) {
   currentData_.volumeSmoothed =
       currentData_.volumeSmoothed * smoothing_ + rms * (1.0f - smoothing_);
 
-  pImpl->handleFFT(samples, currentData_);
+   impl_->handleFFT(samples, currentData_);
   analyzeFrequencyBands();
   detectBeat();
 
