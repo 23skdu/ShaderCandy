@@ -4,8 +4,8 @@
 #ifdef __linux__
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
+#include <GLES3/gl3.h>
+#include <GLES3/gl3ext.h>
 #include <wayland-client.h>
 #include <wayland-egl.h>
 #endif
@@ -18,6 +18,8 @@
 #include <cstring>
 #include <dirent.h>
 #include <iostream>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <sys/mman.h>
 #include <thread>
 #include <time.h>
@@ -42,6 +44,12 @@ using namespace ShaderCandy::Platform::Linux;
 // Audio support
 #include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
+
+// Forward declarations
+struct GLShaderProgram;
+
+// Shader hot-reload functionality
+void checkForShaderChanges();
 
 // Uniforms matching ShaderInterop.h
 struct Uniforms {
@@ -70,16 +78,20 @@ struct Uniforms {
 // Shader program with OpenGL ES support
 class GLESShaderProgram {
 public:
-  GLuint program = 0;
-  GLuint vertexShader = 0;
-  GLuint fragmentShader = 0;
-  GLuint ubo = 0;
-
-  Uniforms uniforms;
-  int frameCount = 0;
-  std::chrono::steady_clock::time_point startTime;
-  std::chrono::steady_clock::time_point lastFrame;
-  std::string name;
+   GLuint program = 0;
+   GLuint vertexShader = 0;
+   GLuint fragmentShader = 0;
+   GLuint ubo = 0;
+   
+   // Store original sources for reloading
+   std::string vertexSourceStr;
+   std::string fragmentSourceStr;
+   
+   Uniforms uniforms;
+   int frameCount = 0;
+   std::chrono::steady_clock::time_point startTime;
+   std::chrono::steady_clock::time_point lastFrame;
+   std::string name;
 
   ~GLESShaderProgram() { cleanup(); }
 
@@ -102,53 +114,71 @@ public:
     }
   }
 
-  bool loadShader(const char *vertexSource, const char *fragmentSource) {
-    vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-    if (!vertexShader)
-      return false;
+   bool loadShader(const char *vertexSource, const char *fragmentSource) {
+     // Store sources for potential reload
+     vertexSourceStr = vertexSource ? std::string(vertexSource) : "";
+     fragmentSourceStr = fragmentSource ? std::string(fragmentSource) : "";
+     
+     vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+     if (!vertexShader)
+       return false;
 
-    fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-    if (!fragmentShader) {
-      glDeleteShader(vertexShader);
-      vertexShader = 0;
-      return false;
-    }
+     fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+     if (!fragmentShader) {
+       glDeleteShader(vertexShader);
+       vertexShader = 0;
+       return false;
+     }
 
-    program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
+     program = glCreateProgram();
+     glAttachShader(program, vertexShader);
+     glAttachShader(program, fragmentShader);
+     glLinkProgram(program);
 
-    GLint success;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
-      char infoLog[512];
-      glGetProgramInfoLog(program, 512, nullptr, infoLog);
-      std::cerr << "Shader link error: " << infoLog << std::endl;
-      cleanup();
-      return false;
-    }
+     GLint success;
+     glGetProgramiv(program, GL_LINK_STATUS, &success);
+     if (!success) {
+       char infoLog[512];
+       glGetProgramInfoLog(program, 512, nullptr, infoLog);
+       std::cerr << "Shader link error: " << infoLog << std::endl;
+       cleanup();
+       return false;
+     }
 
-    glGenBuffers(1, &ubo);
-    glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
+     glGenBuffers(1, &ubo);
+     glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
 
-    GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
-    if (blockIndex != GL_INVALID_INDEX) {
-      glUniformBlockBinding(program, blockIndex, 0);
-    }
+     GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
+     if (blockIndex != GL_INVALID_INDEX) {
+       glUniformBlockBinding(program, blockIndex, 0);
+     }
 
-    uniforms.speed = 1.0f;
-    uniforms.intensity = 1.0f;
-    uniforms.alpha = 1.0f;
-    uniforms.gravity = 1.0f;
-    uniforms.mouseButtons = 0.0f;
+     uniforms.speed = 1.0f;
+     uniforms.intensity = 1.0f;
+     uniforms.alpha = 1.0f;
+     uniforms.gravity = 1.0f;
+     uniforms.mouseButtons = 0.0f;
 
-    startTime = std::chrono::steady_clock::now();
-    lastFrame = startTime;
+     startTime = std::chrono::steady_clock::now();
+     lastFrame = startTime;
 
-    return true;
-  }
+     return true;
+   }
+   
+   // Reload shader from stored sources
+   bool reload() {
+     if (vertexSourceStr.empty() || fragmentSourceStr.empty()) {
+       std::cerr << "Cannot reload shader: source not available" << std::endl;
+       return false;
+     }
+     
+     // Clean up old shader
+     cleanup();
+     
+     // Reload with stored sources
+     return loadShader(vertexSourceStr.c_str(), fragmentSourceStr.c_str());
+   }
 
   std::string loadShaderWithIncludes(const char *path, int depth = 0) {
     if (depth > 10)
@@ -291,6 +321,30 @@ private:
 static std::atomic<bool> g_running{true};
 static std::string g_currentShader;
 static GLESShaderProgram *g_shader = nullptr;
+static std::unordered_map<std::string, double> g_shaderModTimes;
+static bool g_hotReloadEnabled = true;
+
+// Shader hot-reload functionality
+void checkForShaderChanges() {
+    if (!g_hotReloadEnabled || !g_shader)
+        return;
+    if (g_currentShader.empty())
+        return;
+    struct stat st;
+    if (stat(g_currentShader.c_str(), &st) == 0) {
+        double modTime = st.st_mtime;
+        auto it = g_shaderModTimes.find(g_currentShader);
+        if (it != g_shaderModTimes.end() && modTime > it->second) {
+            if (g_shader->reload()) {
+                g_shaderModTimes[g_currentShader] = modTime;
+                // Show notification would go here - simplified for now
+                std::cout << "Reloaded shader: " << g_currentShader << std::endl;
+            }
+        } else if (it == g_shaderModTimes.end()) {
+            g_shaderModTimes[g_currentShader] = modTime;
+        }
+    }
+}
 static std::vector<std::string> g_shaderList;
 static size_t g_currentShaderIndex = 0;
 static std::chrono::steady_clock::time_point g_shaderStartTime;
@@ -932,28 +986,31 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Main event loop
-  while (g_running) {
-    // Handle Wayland events (blocking with timeout)
-    wl_display_dispatch(g_wlDisplay);
+   // Main event loop
+   while (g_running) {
+     // Handle Wayland events (blocking with timeout)
+     wl_display_dispatch(g_wlDisplay);
 
-    // Check for shader auto-switch
-    auto now = std::chrono::steady_clock::now();
-    float shaderTime =
-        std::chrono::duration<float>(now - g_shaderStartTime).count();
-    if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1) {
-      goToNextShader();
-    }
+     // Check for shader hot-reload
+     checkForShaderChanges();
 
-    // Render
-    renderFrame();
+     // Check for shader auto-switch
+     auto now = std::chrono::steady_clock::now();
+     float shaderTime =
+         std::chrono::duration<float>(now - g_shaderStartTime).count();
+     if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1) {
+       goToNextShader();
+     }
 
-    // Swap buffers
-    eglSwapBuffers(g_eglDisplay, g_eglSurface);
+     // Render
+     renderFrame();
 
-    // Frame rate limiting (~60fps)
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
-  }
+     // Swap buffers
+     eglSwapBuffers(g_eglDisplay, g_eglSurface);
+
+     // Frame rate limiting (~60fps)
+     std::this_thread::sleep_for(std::chrono::milliseconds(16));
+   }
 
   // Cleanup
   if (g_shader) {
