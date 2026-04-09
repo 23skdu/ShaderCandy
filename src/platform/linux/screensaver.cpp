@@ -21,6 +21,7 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <vector>
 
@@ -112,8 +113,23 @@ struct AudioUniforms {
   float audioSpectrum[64];
 };
 
+struct ShaderParams {
+  float param1 = 0.5f;
+  float param2 = 0.5f;
+  float param3 = 0.5f;
+  float param4 = 0.5f;
+  int colorPalette = 0;
+  int effectFlags = 0;
+  float param5 = 0.5f;
+  float param6 = 0.5f;
+  float color1[3] = {1.0f, 0.5f, 0.2f};
+  float color2[3] = {0.2f, 0.5f, 1.0f};
+};
+
 GLuint audioUbo = 0;
+GLuint paramsUbo = 0;
 AudioUniforms audioUniforms;
+ShaderParams shaderParams;
 
 // Shader program with full UBO support
 class GLShaderProgram {
@@ -476,6 +492,51 @@ private:
   bool running = true;
   int width = 1920;
   int height = 1080;
+
+  // Multi-display support
+  struct DisplayInfo {
+    int screen;
+    int x, y;
+    int width, height;
+  };
+  std::vector<DisplayInfo> displays;
+  int currentDisplay = 0;
+
+  void initMultiDisplay() {
+    if (!display)
+      return;
+    int screenCount = ScreenCount(display);
+    displays.clear();
+    for (int i = 0; i < screenCount; i++) {
+      Screen *screen = ScreenOfDisplay(display, i);
+      DisplayInfo info;
+      info.screen = i;
+      info.x = 0;
+      info.y = 0;
+      info.width = WidthOfScreen(screen);
+      info.height = HeightOfScreen(screen);
+      displays.push_back(info);
+    }
+    if (displays.empty()) {
+      DisplayInfo info;
+      info.screen = 0;
+      info.x = 0;
+      info.y = 0;
+      info.width = width;
+      info.height = height;
+      displays.push_back(info);
+    }
+  }
+
+  void goToNextDisplay() {
+    if (displays.size() <= 1)
+      return;
+    currentDisplay = (currentDisplay + 1) % displays.size();
+    width = displays[currentDisplay].width;
+    height = displays[currentDisplay].height;
+    showNotification("Display " + std::to_string(currentDisplay + 1) + "/" +
+                   std::to_string(displays.size()));
+  }
 
   float mouseX = 0.0f;
   float mouseY = 0.0f;
@@ -933,6 +994,70 @@ layout(std140) uniform Uniforms {
     notificationTime = std::chrono::steady_clock::now();
   }
 
+  void savePreset(const std::string &name) {
+    std::string presetDir = std::string(getenv("HOME")) + "/.config/shadercandy";
+    mkdir(presetDir.c_str(), 0755);
+    std::string presetFile = presetDir + "/" + name + ".cfg";
+
+    std::ofstream out(presetFile);
+    if (out && currentShader) {
+      out << "# ShaderCandy Preset\n";
+      out << "shader=" << currentShader->name << "\n";
+      out << "speed=" << currentShader->uniforms.speed << "\n";
+      out << "intensity=" << currentShader->uniforms.intensity << "\n";
+      out << "param1=" << shaderParams.param1 << "\n";
+      out << "param2=" << shaderParams.param2 << "\n";
+      out << "param3=" << shaderParams.param3 << "\n";
+      out << "param4=" << shaderParams.param4 << "\n";
+      out << "colorPalette=" << shaderParams.colorPalette << "\n";
+      std::cout << "Preset saved: " << presetFile << std::endl;
+      showNotification("Saved: " + name);
+    }
+  }
+
+  bool loadPreset(const std::string &name) {
+    std::string presetDir = std::string(getenv("HOME")) + "/.config/shadercandy";
+    std::string presetFile = presetDir + "/" + name + ".cfg";
+
+    std::ifstream in(presetFile);
+    if (!in) {
+      showNotification("Preset not found: " + name);
+      return false;
+    }
+
+    std::string line;
+    while (std::getline(in, line)) {
+      if (line.empty() || line[0] == '#')
+        continue;
+      size_t eq = line.find('=');
+      if (eq == std::string::npos)
+        continue;
+      std::string key = line.substr(0, eq);
+      std::string val = line.substr(eq + 1);
+
+      if (key == "shader" && !val.empty()) {
+        loadShader(val);
+      } else if (key == "speed" && currentShader) {
+        currentShader->uniforms.speed = std::stof(val);
+      } else if (key == "intensity" && currentShader) {
+        currentShader->uniforms.intensity = std::stof(val);
+      } else if (key == "param1") {
+        shaderParams.param1 = std::stof(val);
+      } else if (key == "param2") {
+        shaderParams.param2 = std::stof(val);
+      } else if (key == "param3") {
+        shaderParams.param3 = std::stof(val);
+      } else if (key == "param4") {
+        shaderParams.param4 = std::stof(val);
+      } else if (key == "colorPalette") {
+        shaderParams.colorPalette = std::stoi(val);
+      }
+    }
+    std::cout << "Preset loaded: " << presetFile << std::endl;
+    showNotification("Loaded: " + name);
+    return true;
+  }
+
   void checkForShaderReload() {
   }
 
@@ -1073,6 +1198,63 @@ private:
                XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
                    XK_Print) {
         takeScreenshot();
+      }
+      // 1-4: Adjust params
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_1) {
+        shaderParams.param1 = std::max(0.0f, shaderParams.param1 - 0.1f);
+        showNotification("param1: " + std::to_string(shaderParams.param1));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_exclam) {
+        shaderParams.param1 = std::min(1.0f, shaderParams.param1 + 0.1f);
+        showNotification("param1: " + std::to_string(shaderParams.param1));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_2) {
+        shaderParams.param2 = std::max(0.0f, shaderParams.param2 - 0.1f);
+        showNotification("param2: " + std::to_string(shaderParams.param2));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_at) {
+        shaderParams.param2 = std::min(1.0f, shaderParams.param2 + 0.1f);
+        showNotification("param2: " + std::to_string(shaderParams.param2));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_3) {
+        shaderParams.param3 = std::max(0.0f, shaderParams.param3 - 0.1f);
+        showNotification("param3: " + std::to_string(shaderParams.param3));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_numbersign) {
+        shaderParams.param3 = std::min(1.0f, shaderParams.param3 + 0.1f);
+        showNotification("param3: " + std::to_string(shaderParams.param3));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_4) {
+        shaderParams.param4 = std::max(0.0f, shaderParams.param4 - 0.1f);
+        showNotification("param4: " + std::to_string(shaderParams.param4));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_dollar) {
+        shaderParams.param4 = std::min(1.0f, shaderParams.param4 + 0.1f);
+        showNotification("param4: " + std::to_string(shaderParams.param4));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_5) {
+        shaderParams.colorPalette = (shaderParams.colorPalette + 1) % 8;
+        showNotification("palette: " + std::to_string(shaderParams.colorPalette));
+      }
+      // Ctrl+S = save preset
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_s &&
+               event.xkey.state & ControlMask) {
+        savePreset("default");
+      }
+      // Ctrl+O = load preset
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_o &&
+               event.xkey.state & ControlMask) {
+        loadPreset("default");
+      }
+      // Ctrl+Plus/Minus = intensity
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_equal &&
+               event.xkey.state & ControlMask && currentShader) {
+        currentShader->uniforms.intensity =
+            std::min(2.0f, currentShader->uniforms.intensity + 0.1f);
+        showNotification("intensity: " +
+                       std::to_string(currentShader->uniforms.intensity));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_minus &&
+               event.xkey.state & ControlMask && currentShader) {
+        currentShader->uniforms.intensity =
+            std::max(0.0f, currentShader->uniforms.intensity - 0.1f);
+        showNotification("intensity: " +
+                       std::to_string(currentShader->uniforms.intensity));
+      }
+      // Tab = switch display
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_Tab) {
+        goToNextDisplay();
       }
       // ESC or Q = quit
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
