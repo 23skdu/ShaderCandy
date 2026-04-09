@@ -30,7 +30,7 @@
 - **Impact**: Support USB microphones, multiple devices
 
 ### 6. Frame Rate Cap Option
-- **Status**: Next to implement
+- **Status**: Completed ✅
 - **Description**: Configurable FPS limit (30/60/unlimited)
 - **Impact**: Power saving on laptops
 
