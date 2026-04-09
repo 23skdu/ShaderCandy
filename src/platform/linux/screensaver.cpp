@@ -1182,43 +1182,46 @@ layout(std140) uniform Uniforms {
     }
   }
 
-  void run() {
-    XEvent event;
+   void run() {
+     XEvent event;
 
-    while (running) {
-      // Handle events (non-blocking)
-      while (XPending(display) > 0) {
-        XNextEvent(display, &event);
-        handleEvent(event);
-      }
+     while (running) {
+       // Handle events (non-blocking)
+       while (XPending(display) > 0) {
+         XNextEvent(display, &event);
+         handleEvent(event);
+       }
 
-      // Check for auto-switch
-      auto now = std::chrono::steady_clock::now();
-      float shaderTime =
-          std::chrono::duration<float>(now - shaderStartTime).count();
+       // Check for shader hot-reload
+       checkForShaderChanges();
 
-      if (shaderTime > timePerShader && !inTransition) {
-        goToNextShader();
-        shaderStartTime = now;
-      }
+       // Check for auto-switch
+       auto now = std::chrono::steady_clock::now();
+       float shaderTime =
+           std::chrono::duration<float>(now - shaderStartTime).count();
 
-      // Update transition
-      if (inTransition) {
-        transitionProgress =
-            std::chrono::duration<float>(now - transitionStart).count() /
-            transitionDuration;
-        if (transitionProgress >= 1.0f) {
-          currentShader = nextShader;
-          nextShader = nullptr;
-          inTransition = false;
-          transitionProgress = 0.0f;
-        }
-      }
+       if (shaderTime > timePerShader && !inTransition) {
+         goToNextShader();
+         shaderStartTime = now;
+       }
 
-      render();
-      usleep(16000); // ~60fps
-    }
-  }
+       // Update transition
+       if (inTransition) {
+         transitionProgress =
+             std::chrono::duration<float>(now - transitionStart).count() /
+             transitionDuration;
+         if (transitionProgress >= 1.0f) {
+           currentShader = nextShader;
+           nextShader = nullptr;
+           inTransition = false;
+           transitionProgress = 0.0f;
+         }
+       }
+
+       render();
+       usleep(16000); // ~60fps
+     }
+   }
 
   void cleanup() {
     for (auto *shader : shaders) {
