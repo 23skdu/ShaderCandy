@@ -1,29 +1,16 @@
 #include "GLLoader.h"
 #include "GLSLWrapper.h"
 #include "LinuxStubs.h"
-#ifdef __linux__
-#include <GL/gl.h>
-#include <GL/glext.h>
-#include <GL/glx.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/keysym.h>
-#endif
-
-#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <iomanip>
+#include <dirent.h>
 #include <iostream>
-#include <sstream>
-#include <string>
 #include <sys/stat.h>
-#include <unordered_map>
-#include <sys/types.h>
 #include <unistd.h>
+#include "../../config/ConfigurationManager.h"
 #include <vector>
 
 struct vec2 {
@@ -611,16 +598,20 @@ private:
   std::chrono::steady_clock::time_point notificationTime;
   float notificationDuration = 3.0f;
 
-  // Shader directories
-  std::vector<std::string> shaderPaths;
-  std::string shaderDir;
-  std::unordered_map<std::string, double> shaderModTimes;
+   // Shader directories
+   std::vector<std::string> shaderPaths;
+   std::string shaderDir;
+   std::unordered_map<std::string, double> shaderModTimes;
 
-  // Audio input
-  AudioInput *audioInput = nullptr;
-  bool enableAudio = false;
+   // Audio input
+   AudioInput *audioInput = nullptr;
+   bool enableAudio = false;
 
-  bool hotReloadEnabled = true;
+   bool hotReloadEnabled = true;
+   
+   // Frame rate limiting
+   int targetFPS = 60;
+   uint32_t frameDelayMs = 16; // Default to ~60 FPS
 
   void checkForShaderChanges() {
     if (!hotReloadEnabled || !currentShader)
@@ -1219,7 +1210,13 @@ layout(std140) uniform Uniforms {
        }
 
        render();
-       usleep(16000); // ~60fps
+       
+       // Frame rate limiting based on target FPS
+       auto& config = ShaderCandy::Config::ConfigurationManager::getInstance();
+       int targetFPS = config.getSettings().targetFPS;
+       if (targetFPS <= 0) targetFPS = 60; // Safety fallback
+       uint32_t frameDelayMs = 1000 / targetFPS;
+       usleep(frameDelayMs * 1000); // Convert milliseconds to microseconds
      }
    }
 
