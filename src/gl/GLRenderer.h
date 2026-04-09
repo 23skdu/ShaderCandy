@@ -184,6 +184,22 @@ private:
   bool hdrEnabled_ = false;
   GLToneMapping toneMapping_ = GLToneMapping::ACES;
 
+  // Particles
+  struct Particle {
+    float x, y;
+    float vx, vy;
+    float life;
+    float maxLife;
+  };
+  std::vector<Particle> particles_;
+  unsigned int particleVBO_ = 0;
+  unsigned int particleVAO_ = 0;
+  GLParticleConfig particleConfig_;
+
+  void initParticles();
+  void updateParticles(float deltaTime);
+  void renderParticles();
+
   // Performance tracking
   GLPerformanceMetrics metrics_;
   double lastFrameTime_ = 0.0;

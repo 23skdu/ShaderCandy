@@ -18,6 +18,7 @@
 #include <cstring>
 #include <dirent.h>
 #include <iostream>
+#include <sys/mman.h>
 #include <thread>
 
 using namespace ShaderCandy::Platform::Linux;
@@ -348,37 +349,79 @@ static const struct wl_registry_listener registryListener = {
 static void goToNextShader();
 static void goToPreviousShader();
 
+static uint32_t g_keyboardMods = 0;
+
 static void handleKeyboardKeymap(void *data, struct wl_keyboard *keyboard,
-                                 uint32_t format, int fd, uint32_t size) {}
+                                  uint32_t format, int fd, uint32_t size) {
+  (void)data;
+  (void)keyboard;
+  if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1)
+    return;
+
+  void *map = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+  if (map == MAP_FAILED)
+    return;
+
+  munmap(map, size);
+  close(fd);
+}
 static void handleKeyboardEnter(void *data, struct wl_keyboard *keyboard,
                                 uint32_t serial, struct wl_surface *surface,
-                                struct wl_array *keys) {}
+                                struct wl_array *keys) {
+  (void)data;
+  (void)keyboard;
+  (void)serial;
+  (void)surface;
+  (void)keys;
+}
 static void handleKeyboardLeave(void *data, struct wl_keyboard *keyboard,
-                                uint32_t serial, struct wl_surface *surface) {}
+                                uint32_t serial, struct wl_surface *surface) {
+  (void)data;
+  (void)keyboard;
+  (void)serial;
+  (void)surface;
+}
 static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
                               uint32_t serial, uint32_t time, uint32_t key,
                               uint32_t state) {
   if (state == 0)
     return;
 
-  switch (key) {
-  case 1:
+  bool ctrl = g_keyboardMods & (1 << 2);
+  bool shift = g_keyboardMods & (1 << 0);
+
+  if (ctrl && key == 23)
     g_running = false;
-    break;
-  case 57:
+  else if (ctrl && shift && key == 23)
+    g_running = false;
+  else if (key == 57)
     goToNextShader();
-    break;
-  case 48:
+  else if (key == 48)
     goToPreviousShader();
-    break;
-  }
+  else if (key == 45)
+    goToNextShader();
+  else if (key == 33)
+    goToPreviousShader();
+  else if (key == 1)
+    g_running = false;
 }
 static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
                                     uint32_t serial, uint32_t modsDepressed,
                                     uint32_t modsLatched, uint32_t modsLocked,
-                                    uint32_t group) {}
+                                    uint32_t group) {
+  (void)data;
+  (void)keyboard;
+  (void)serial;
+  (void)group;
+  g_keyboardMods = modsDepressed | modsLatched | modsLocked;
+}
 static void handleKeyboardRepeatInfo(void *data, struct wl_keyboard *keyboard,
-                                     int32_t rate, int32_t delay) {}
+                                      int32_t rate, int32_t delay) {
+  (void)data;
+  (void)keyboard;
+  (void)rate;
+  (void)delay;
+}
 
 static const struct wl_keyboard_listener keyboardListener = {
     .keymap = handleKeyboardKeymap,
