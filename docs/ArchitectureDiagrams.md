@@ -17,13 +17,13 @@ flowchart TD
     G --> H[Frame Rendered]
 
     subgraph "Shader Pipeline"
-        I[Shader Source (.metal)] --> J[Runtime Compilation]
+        I["Shader Source (.metal)"] --> J[Runtime Compilation]
         J --> K[Function Library]
         K --> L[Pipeline Cache]
     end
 
     subgraph "Uniform Management"
-        M[Uniform Buffer] --> N[CPU -> GPU Upload]
+        M[Uniform Buffer] --> N["CPU -> GPU Upload"]
         N --> O[Shader Uniforms]
     end
 
@@ -45,13 +45,13 @@ flowchart TD
     G --> H[Frame Rendered]
 
     subgraph "Shader Pipeline"
-        I[Shader Source (.frag/.glsl)] --> J[GLSL Compilation]
+        I["Shader Source (.frag/.glsl)"] --> J[GLSL Compilation]
         J --> K[Program Object]
         K --> L[Program Cache]
     end
 
     subgraph "Uniform Management"
-        M[Uniform Variables] --> N[CPU -> GPU Upload]
+        M[Uniform Variables] --> N["CPU -> GPU Upload"]
         N --> O[Shader Uniforms]
     end
 
@@ -108,7 +108,7 @@ flowchart TD
     F --> G[Output Frame]
 
     subgraph "Model Management"
-        H[.mlmodel Files] --> I[Model Library]
+        H[".mlmodel Files"] --> I[Model Library]
         I --> J[Model Cache]
         J --> D
     end
@@ -225,9 +225,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[Frame Start] --> B[PerformanceMonitor.beginFrame]
+    A[Frame Start] --> B["PerformanceMonitor.beginFrame"]
     B --> C[Render Pass]
-    C --> D[PerformanceMonitor.endFrame]
+    C --> D["PerformanceMonitor.endFrame"]
     D --> E[Calculate Metrics]
     E --> F[Update History]
     F --> G[Generate Reports]
@@ -295,9 +295,9 @@ graph TD
 ```mermaid
 flowchart TD
     A[File Watcher] --> B[Subject]
-    B --> C[Shader Manager (Observer)]
-    B --> D[Renderer (Observer)]
-    B --> E[UI (Observer)]
+    B --> C["Shader Manager (Observer)"]
+    B --> D["Renderer (Observer)"]
+    B --> E["UI (Observer)"]
 
     C --> F[Recompile Shaders]
     D --> G[Update Pipeline]
