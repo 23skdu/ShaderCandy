@@ -37,12 +37,12 @@ ShaderCandy is a high-performance, cross-platform shader engine and screensaver 
 | **Core Rendering** | ✅ | ✅ | Production Ready |
 | **Shader Library (98+ Shaders)** | ✅ | ✅ | Production Ready (3D Overhaul Complete) |
 | **Hot-Reloading** | ✅ | ✅ | Production Ready |
-| **Screensaver Integration** | ✅ | ✅ | Production Ready |
-| **Standalone Player** | ✅ | ✅ | Production Ready |
+| **Screensaver Integration** | ✅ | ✅ | Production Ready (Wayland & X11) |
+| **Standalone Player** | ✅ | ✅ | Production Ready (multi-display aware) |
 | **Wallpaper Mode** | ✅ | ✅ | Production Ready |
-| **Audio Reactivity** | ✅ | ✅ | Production Ready |
-| **JSON Configuration** | ✅ | ✅ | Production Ready |
-| **Screenshot Capture** | ✅ | ✅ | Production Ready |
+| **Audio Reactivity** | ✅ | ✅ | Production Ready (waveform visualized) |
+| **JSON Configuration** | ✅ | ✅ | Production Ready (dynamic presets) |
+| **Screenshot Capture** | ✅ | ✅ | Production Ready (hotkey enabled) |
 | **HDR (10-bit/EDR)** | ✅ | ❌ | macOS-Only |
 | **Neural Effects (CoreML)** | ✅ | ❌ | macOS-Only |
 | **Ray-Traced Audio** | ✅ | ❌ | macOS-Only |
@@ -51,6 +51,11 @@ ShaderCandy is a high-performance, cross-platform shader engine and screensaver 
 
 ## ✅ Recently Completed
 
+- **Linux Wayland Integration**: Complete Wayland screensaver event support alongside X11.
+- **Particle System**: Integrated high-performance compute shaders for advanced procedural particle rendering.
+- **Audio Workflows**: Interactive microphone and system audio capture translated directly to shader outputs with waveform visualizations.
+- **Dynamic Control**: In-app UI for dynamic shader modification, multi-display target switching, preset save/load system, and screenshot hotkeys.
+- **On-Screen Display**: OSD notification system mapped to crucial keyboard control behaviors.
 - **Linux OpenGL Backend**: Full implementation with HDR tone mapping (ACES, Reinhard, Filmic, Hable)
 - **JSON Configuration**: Complete serialization/deserialization with file-based persistence
 - **CI/CD Integration**: Test result validation and documentation checks
