@@ -49,7 +49,7 @@
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
   [defaults registerDefaults:@{
-    @"selectedShader" : @"default",
+    @"selectedShader" : @"spiral",
     @"preferredFPS" : @60,
     @"enableBloom" : @YES,
     @"speed" : @1.0,
@@ -183,10 +183,10 @@
 
   [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
 
-  // Always ensure we have at least one shader
+  // Always ensure we have at least one valid shader (note: "default" shader doesn't exist)
   if (shaders.count == 0) {
     shaders = [@[
-      @"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb",
+      @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb",
       @"mandelbrot", @"julia_set", @"reaction_diffusion", @"starfield_warp"
     ] mutableCopy];
   }
@@ -223,6 +223,13 @@
 
 - (void)viewDidMoveToWindow {
   [super viewDidMoveToWindow];
+  
+  // Ensure proper frame when moving to window
+  if (self.window && (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0)) {
+    NSScreen *screen = self.window.screen ?: [NSScreen mainScreen];
+    [self setFrame:screen.frame];
+  }
+  
   if (!self.mtkView) {
     [self setupMetal];
   }
@@ -232,10 +239,17 @@
   if (self.mtkView)
     return;
 
-  // For zero bounds, always defer
-  if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
-    // For preview mode with tiny but non-zero bounds, try anyway
-    if (!self.isPreview || NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0) {
+  // Check bounds - skip initialization only if both dimensions are exactly zero
+  // Small but non-zero bounds (preview) should still initialize Metal
+  CGFloat width = NSWidth(self.bounds);
+  CGFloat height = NSHeight(self.bounds);
+  
+  // Allow initialization for preview mode with even tiny bounds, or full-screen mode
+  // Only skip if literally zero dimensions
+  BOOL hasValidBounds = (width > 0 && height > 0) || self.isPreview;
+  if (!hasValidBounds && (width < 1.0 || height < 1.0)) {
+    // For preview mode, we actually still want to try with tiny bounds
+    if (!self.isPreview) {
       NSLog(@"MacOSMetalViewAdapter: Frame too small (%@), deferring Metal setup",
             NSStringFromRect(self.bounds));
       return;
@@ -254,6 +268,7 @@
   self.mtkView.enableSetNeedsDisplay = NO; // Driven by display link
   self.mtkView.paused = NO;
   self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  self.mtkView.clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
 
   [self addSubview:self.mtkView];
 
@@ -287,11 +302,14 @@
   if (rendererShaders.count > 0) {
     _availableShaders = rendererShaders;
   } else if (_availableShaders.count == 0) {
-    // If neither discovery worked, use defaults
-    _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb"];
+    // Use actual known working shaders - NOT "default" which doesn't exist
+    _availableShaders = @[@"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb", @"aurora", @"starfield"];
     NSLog(@"MacOSMetalViewAdapter: Using default shader list");
   }
   NSLog(@"MacOSMetalViewAdapter: Final shader list: %@", _availableShaders);
+
+  // Set device before loading shaders
+  self.mtkView.device = _renderer.device;
 
   // Load default/saved shader
   if (_availableShaders.count > 0) {
@@ -304,8 +322,6 @@
     }
     [self loadShaders];
   }
-
-  self.mtkView.device = _renderer.device;
   _startTime = [NSDate date];
 
   NSLog(@"MacOSMetalViewAdapter: Metal setup complete");
