@@ -259,8 +259,14 @@
   NSLog(@"MacOSMetalViewAdapter: Setting up Metal for %@ view...",
         self.isPreview ? @"preview" : @"main");
 
-  // Create MTKView
-  self.mtkView = [[MTKView alloc] initWithFrame:self.bounds device:nil];
+  id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
+  if (!metalDevice) {
+    NSLog(@"MacOSMetalViewAdapter: Failed to create Metal device");
+    return;
+  }
+
+  // Create MTKView with valid device
+  self.mtkView = [[MTKView alloc] initWithFrame:self.bounds device:metalDevice];
   self.mtkView.delegate = self;
   self.mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
   self.mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
