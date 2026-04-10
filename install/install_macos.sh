@@ -19,8 +19,8 @@ echo "macOS Version: $MACOS_VERSION"
 check_prerequisites() {
     echo "Checking prerequisites..."
     
-    # Check for Xcode Command Line Tools
-    if ! command -v clang &> /dev/null; then
+    # Check for Xcode Command Line Tools with better detection
+    if ! check_xcode_tools; then
         echo "Error: Xcode Command Line Tools not found"
         echo "Please install with: xcode-select --install"
         exit 1
@@ -52,27 +52,18 @@ build_project() {
     cd build
     
     # Configure with CMake
+    # Use "Unix Makefiles" generator - works without full Xcode, just needs Command Line Tools
     echo "Configuring build..."
-    cmake .. -G Xcode \
+    CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake .. -G "Unix Makefiles" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
         -DBUILD_METAL=ON \
         -DBUILD_OPENGL=OFF \
         -DBUILD_SCREENSAVER_MACOS=ON \
         -DBUILD_STANDALONE_APP=ON
     
-    # Build Screensaver
-    echo "Compiling Screensaver..."
-    xcodebuild -project ShaderCandy.xcodeproj \
-               -scheme ShaderCandy \
-               -configuration Release \
-               -derivedDataPath ./DerivedData
-
-    # Build Player
-    echo "Compiling Player..."
-    xcodebuild -project ShaderCandy.xcodeproj \
-               -scheme ShaderCandyPlayer \
-               -configuration Release \
-               -derivedDataPath ./DerivedData
+    # Build with make (works with Command Line Tools)
+    echo "Compiling..."
+    make -j$(sysctl -n hw.ncpu)
     
     echo "Build completed!"
     echo ""
@@ -81,6 +72,26 @@ build_project() {
 # Explicitly set compiler to system clang to avoid CMake detection issues
 export CC=/usr/bin/clang
 export CXX=/usr/bin/clang++
+
+# Check for Xcode Command Line Tools with better detection
+check_xcode_tools() {
+    if ! command -v xcode-select &> /dev/null; then
+        return 1
+    fi
+    
+    local xcode_path
+    xcode_path=$(xcode-select -p 2>/dev/null)
+    if [ -z "$xcode_path" ] || [ ! -d "$xcode_path" ]; then
+        return 1
+    fi
+    
+    # Check for clang
+    if ! command -v clang &> /dev/null; then
+        return 1
+    fi
+    
+    return 0
+}
 
 # Alternative build using make
 build_with_make() {
@@ -92,6 +103,8 @@ build_with_make() {
     cd build-make
     
     cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_COMPILER=/usr/bin/clang \
+        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
         -DBUILD_METAL=ON \
         -DBUILD_OPENGL=OFF \
@@ -123,6 +136,12 @@ install_screensaver() {
     # Check Xcode build directory
     elif [ -d "$PROJECT_ROOT/build/Build/Products/Release/ShaderCandy.saver" ]; then
         SAVER_BUNDLE="$PROJECT_ROOT/build/Build/Products/Release/ShaderCandy.saver"
+    # Check for Makefile build output (might be in source tree or different location)
+    elif [ -f "$PROJECT_ROOT/build/ShaderCandy" ]; then
+        echo "Note: Make build produces a binary, not a .saver bundle"
+        echo "Binary found at: $PROJECT_ROOT/build/ShaderCandy"
+        echo "For macOS screensaver, you need to use the Xcode generator or build manually"
+        return 1
     else
         echo "Error: Could not find built screensaver bundle"
         echo "Searched in:"
