@@ -182,7 +182,7 @@ NS_ASSUME_NONNULL_BEGIN
                 error:&error];
 
     if (!error) {
-      [[StyleLibrary sharedLibrary] reloadFromDisk];
+      [[StyleLibrary sharedLibrary] reloadLibrary];
       [self reloadStyles];
       NSLog(@"Imported user model: %@", destPath);
     } else {
