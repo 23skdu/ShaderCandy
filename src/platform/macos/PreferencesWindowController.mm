@@ -41,6 +41,10 @@
 @property(nonatomic, strong) NSButton *hotReloadCheckbox;
 @property(nonatomic, strong) NSPopUpButton *defaultShaderPopup;
 
+// Calibration controls
+@property(nonatomic, strong) NSTextField *peakBrightnessField;
+@property(nonatomic, strong) NSTextField *whitePointField;
+
 // Buttons
 @property(nonatomic, strong) NSButton *saveButton;
 @property(nonatomic, strong) NSButton *cancelButton;
@@ -421,6 +425,11 @@
   _roomSize = settings.roomSize;
   _reverbDamping = settings.reverbDamping;
 
+  _calibrationModeEnabled = NO;
+  _calibrationPeakBrightness = 1000.0f;
+  _calibrationWhitePoint = 6500.0f;
+  _calibrationType = 0;
+
   // Update UI
   [_fpsPopup
       selectItemWithTitle:[NSString stringWithFormat:@"%ld", (long)_targetFPS]];
@@ -598,6 +607,72 @@
   roomSlider.target = self;
   roomSlider.action = @selector(roomSizeChanged:);
   [content addSubview:roomSlider];
+
+  // HDR Calibration Section
+  NSTextField *calibHeader =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(20, 120, 200, 20)];
+  calibHeader.stringValue = @"HDR Calibration";
+  calibHeader.editable = NO;
+  calibHeader.bordered = NO;
+  calibHeader.font = [NSFont boldSystemFontOfSize:13];
+  [content addSubview:calibHeader];
+
+  NSButton *calibCheck =
+      [[NSButton alloc] initWithFrame:NSMakeRect(20, 95, 250, 24)];
+  calibCheck.buttonType = NSButtonTypeSwitch;
+  calibCheck.title = @"Show SMPTE Color Bars";
+  calibCheck.state = self.calibrationModeEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+  calibCheck.target = self;
+  calibCheck.action = @selector(toggleCalibrationMode:);
+  [content addSubview:calibCheck];
+
+  // Peak Brightness
+  NSTextField *brightLabel =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(20, 65, 100, 20)];
+  brightLabel.stringValue = @"Peak (nits):";
+  brightLabel.editable = NO;
+  brightLabel.bordered = NO;
+  [content addSubview:brightLabel];
+
+  NSSlider *brightSlider =
+      [[NSSlider alloc] initWithFrame:NSMakeRect(120, 65, 150, 24)];
+  brightSlider.minValue = 100;
+  brightSlider.maxValue = 4000;
+  brightSlider.floatValue = self.calibrationPeakBrightness;
+  brightSlider.target = self;
+  brightSlider.action = @selector(calibrationBrightnessChanged:);
+  [content addSubview:brightSlider];
+
+  _peakBrightnessField =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(280, 65, 60, 20)];
+  _peakBrightnessField.intValue = (NSInteger)self.calibrationPeakBrightness;
+  _peakBrightnessField.editable = NO;
+  _peakBrightnessField.bordered = YES;
+  [content addSubview:_peakBrightnessField];
+
+  // White Point
+  NSTextField *whiteLabel =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(20, 30, 100, 20)];
+  whiteLabel.stringValue = @"White Point:";
+  whiteLabel.editable = NO;
+  whiteLabel.bordered = NO;
+  [content addSubview:whiteLabel];
+
+  NSSlider *whiteSlider =
+      [[NSSlider alloc] initWithFrame:NSMakeRect(120, 30, 150, 24)];
+  whiteSlider.minValue = 4000;
+  whiteSlider.maxValue = 10000;
+  whiteSlider.floatValue = self.calibrationWhitePoint;
+  whiteSlider.target = self;
+  whiteSlider.action = @selector(calibrationWhitePointChanged:);
+  [content addSubview:whiteSlider];
+
+  _whitePointField =
+      [[NSTextField alloc] initWithFrame:NSMakeRect(280, 30, 60, 20)];
+  _whitePointField.intValue = (NSInteger)self.calibrationWhitePoint;
+  _whitePointField.editable = NO;
+  _whitePointField.bordered = YES;
+  [content addSubview:_whitePointField];
 }
 
 - (void)neuralToggled:(NSButton *)sender {
@@ -645,6 +720,24 @@
       [_defaultShaderPopup selectItemWithTitle:_defaultShader];
     }
   }
+}
+
+- (void)toggleCalibrationMode:(NSButton *)sender {
+  self.calibrationModeEnabled = sender.state == NSControlStateValueOn;
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"ShaderCandyCalibrationModeChanged"
+      object:self
+      userInfo:@{@"enabled": @(self.calibrationModeEnabled)}];
+}
+
+- (void)calibrationBrightnessChanged:(NSSlider *)sender {
+  self.calibrationPeakBrightness = sender.floatValue;
+  _peakBrightnessField.intValue = (NSInteger)self.calibrationPeakBrightness;
+}
+
+- (void)calibrationWhitePointChanged:(NSSlider *)sender {
+  self.calibrationWhitePoint = sender.floatValue;
+  _whitePointField.intValue = (NSInteger)self.calibrationWhitePoint;
 }
 
 @end
