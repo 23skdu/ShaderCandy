@@ -801,6 +801,17 @@ install(FILES
                 WORLD_READ WORLD_EXECUTE
 )
 
+# Documentation
+find_package(Doxygen)
+if(Doxygen_FOUND)
+  add_custom_target(docs
+    COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_SOURCE_DIR}/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Generating API documentation"
+    VERBATIM
+  )
+endif()
+
 # Screenshot Generator Tool (macOS)
 if(MACOS AND BUILD_METAL)
     add_executable(shadercandy-screenshot src/tools/ShaderScreenshotGenerator.mm)
