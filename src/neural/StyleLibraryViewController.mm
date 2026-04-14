@@ -54,6 +54,15 @@ NS_ASSUME_NONNULL_BEGIN
   [_favoritesButton setAction:@selector(showFavorites)];
   [self.view addSubview:_favoritesButton];
 
+  // Import button
+  NSButton *importButton = [[NSButton alloc]
+      initWithFrame:NSMakeRect(290, self.view.bounds.size.height - 40, 80, 28)];
+  importButton.title = @"Import";
+  importButton.bezelStyle = NSBezelStyleRounded;
+  [importButton setTarget:self];
+  [importButton setAction:@selector(importUserModel:)];
+  [self.view addSubview:importButton];
+
   // Strength slider
   _strengthSlider = [[NSSlider alloc]
       initWithFrame:NSMakeRect(300, self.view.bounds.size.height - 40, 200,
@@ -140,6 +149,47 @@ NS_ASSUME_NONNULL_BEGIN
   StyleLibrary *library = [StyleLibrary sharedLibrary];
   _displayedStyles = library.favoriteStyles;
   [_collectionView reloadData];
+}
+
+- (void)importUserModel:(nullable id)sender {
+  NSOpenPanel *panel = [NSOpenPanel openPanel];
+  panel.allowedFileTypes = @[ @"mlmodel", @"mlpackage" ];
+  panel.canChooseFiles = YES;
+  panel.allowsMultipleSelection = NO;
+  panel.message = @"Select a CoreML model to import";
+
+  if ([panel runModal] == NSModalResponseOK && panel.URL) {
+    NSURL *modelURL = panel.URL;
+    NSError *error = nil;
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
+                                                   NSUserDomainMask, YES);
+    NSString *appSupport = paths.firstObject;
+    NSString *stylesDir = [appSupport stringByAppendingPathComponent:
+                           @"ShaderCandy/styles"];
+
+    if (![fm fileExistsAtPath:stylesDir]) {
+      [fm createDirectoryAtPath:stylesDir
+          withIntermediateDirectories:YES
+                   attributes:nil
+                        error:nil];
+    }
+
+    NSString *destPath = [stylesDir stringByAppendingPathComponent:
+                            modelURL.lastPathComponent];
+    [fm copyItemAtURL:modelURL toURL:[NSURL fileURLWithPath:destPath]
+                error:&error];
+
+    if (!error) {
+      [[StyleLibrary sharedLibrary] reloadFromDisk];
+      [self reloadStyles];
+      NSLog(@"Imported user model: %@", destPath);
+    } else {
+      NSAlert *alert = [NSAlert alertWithError:error];
+      [alert runModal];
+    }
+  }
 }
 
 - (void)categoryChanged:(NSPopUpButton *)sender {

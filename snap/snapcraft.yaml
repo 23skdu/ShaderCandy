@@ -1,0 +1,32 @@
+name: shadercandy
+version: '1.0'
+summary: GPU-accelerated visual shaders for screensaver and wallpaper
+description: |
+  ShaderCandy renders real-time GPU shaders for macOS screensaver,
+  Linux screensaver, and wallpaper mode with audio reactivity.
+grade: stable
+confinement: strict
+base: core22
+apps:
+  shadercandy-player:
+    command: shadercandy-player
+    desktop: shadercandy-player.desktop
+  shadercandy-screenshot:
+    command: shadercandy-screenshot
+  shadercandy-test:
+    command: shadercandy-test
+parts:
+  shadercandy:
+    plugin: cmake
+    source: .
+    build-packages:
+      - libgl1-mesa-dev
+      - libegl1-mesa-dev
+      - libwayland-dev
+      - wayland-protocols
+    stage-packages:
+      - libgl1-mesa-dev
+      - libegl1-mesa-dev
+      - libwayland-egl1
+    desktop-file_paths:
+      - - shadercandy-player.desktop

@@ -30,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadStyles;
 - (void)showCategory:(nullable NSString *)category;
 - (void)showFavorites;
+- (void)importUserModel:(nullable id)sender;
 
 @end
 
