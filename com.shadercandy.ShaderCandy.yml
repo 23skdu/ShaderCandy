@@ -1,0 +1,27 @@
+app-id: com.shadercandy.ShaderCandy
+runtime: org.freedesktop.Sdk//23.08
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk//23.08
+command: shadercandy-player
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=home:ro
+  - --filesystem=xdg-config/shadercandy:create
+  - --filesystem=xdg-data/shadercandy:create
+
+modules:
+  - name: shadercandy
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 shadercandy-player /app/bin/shadercandy-player
+      - install -Dm755 shadercandy-screenshot /app/bin/shadercandy-screenshot
+      - install -Dm755 shadercandy-test /app/bin/shadercandy-test
+      - install -Dm755 shaders /app/share/shadercandy/shaders
+      - install -Dm644 com.shadercandy.ShaderCandy.desktop /app/share/applications/com.shadercandy.ShaderCandy.desktop
+      - install -Dm644 com.shadercandy.ShaderCandy.metainfo.xml /app/share/metainfo/com.shadercandy.ShaderCandy.metainfo.xml
+    sources:
+      - type: dir
+        path: package

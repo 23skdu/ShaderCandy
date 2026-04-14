@@ -178,7 +178,6 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     needs: build-linux
-    if: github.event_name == 'pull_request'
     
     steps:
     - uses: actions/checkout@v3
@@ -194,21 +193,23 @@ jobs:
         Xvfb :99 -screen 0 1920x1080x24 &
         export DISPLAY=:99
     
-    - name: Run performance tests
+    - name: Run performance benchmarks
       run: |
         export DISPLAY=:99
         tar xzf shadercandy-linux.tar.gz
-        # Run screensaver for 60 seconds and check performance
-        timeout 60 ./shadercandy-screensaver &
-        PID=$!
-        sleep 5
-        if ps -p $PID > /dev/null; then
-          echo "Performance test: PASSED (running stable)"
-          kill $PID
-        else
-          echo "Performance test: FAILED (crashed)"
+        # Run benchmark suite
+        ./shadercandy-test --benchmark 2>&1 | tee benchmark_results.txt
+        # Check for regressions (baseline: 10% tolerance)
+        if grep -q "regression" benchmark_results.txt; then
+          echo "Performance regression detected!"
           exit 1
         fi
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: benchmark_results.txt
 
   # Release
   release:

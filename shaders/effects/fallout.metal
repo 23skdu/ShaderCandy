@@ -1,4 +1,7 @@
 // Fallout 3D - Vault-Tec Terminal V2
+// @param float speed 0.1 3.0
+// @param float bloomThreshold 0.0 1.0
+// @param int colorPalette 0 7
 #include "ShaderInterop.h"
 #include "utils.metal"
 
