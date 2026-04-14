@@ -123,6 +123,8 @@ public:
   bool isHDREnabled() const { return hdrEnabled_; }
   void setToneMapping(GLToneMapping toneMapping);
   GLToneMapping getToneMapping() const { return toneMapping_; }
+  bool initToneMapping();
+  void renderToneMap();
 
   // Performance
   GLPerformanceMetrics getMetrics();
@@ -164,6 +166,13 @@ private:
   unsigned int bloomTexture_[2] = {0, 0};
   unsigned int bloomProgram_ = 0;
   GLBloomConfig bloomConfig_;
+
+  // Tone mapping (HDR -> SDR)
+  unsigned int toneMapFBO_ = 0;
+  unsigned int toneMapTexture_ = 0;
+  unsigned int toneMapProgram_ = 0;
+  unsigned int toneMapQuadVAO_ = 0;
+  unsigned int toneMapQuadVBO_ = 0;
 
   // Quad VAO/VBO
   void setupQuad();
