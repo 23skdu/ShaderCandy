@@ -103,7 +103,8 @@
   if (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0)
     return;
 
-  _mtkView = [[MTKView alloc] initWithFrame:self.bounds device:nil];
+  id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
+  _mtkView = [[MTKView alloc] initWithFrame:self.bounds device:metalDevice];
   _mtkView.delegate = self;
   _mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
   _mtkView.preferredFramesPerSecond = _preferredFPS;
