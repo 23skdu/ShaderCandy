@@ -236,6 +236,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 @property(nonatomic, assign) NSTimeInterval transitionDuration;
 @property(nonatomic, strong, nullable) NSDate *transitionStartTime;
 @property(nonatomic, strong, nullable) NSString *previousShaderName;
+@property(nonatomic, strong, nullable) id<MTLRenderPipelineState> crossfadePipeline;
 
 @end
 
@@ -785,6 +786,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   if (_resources.sceneTexture)
     [_resourcePool returnTexture:_resources.sceneTexture];
   _resources.sceneTexture = [_resourcePool getTextureWithDescriptor:texDesc];
+
+  // Transition texture - same size as scene texture, used for crossfade render
+  if (_resources.transitionTexture)
+    [_resourcePool returnTexture:_resources.transitionTexture];
+  _resources.transitionTexture = [_resourcePool getTextureWithDescriptor:texDesc];
 
   // Simulation textures - always at fixed resolution for consistency
   NSInteger simSize = _resources.simulationTextureSize;
@@ -1820,10 +1826,78 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     }
 
     // 2b. Transition cross-fade
-    if (_isTransitioning && _previousPipeline) {
-      // ... abbreviated for brevity, but let's keep it simple for now ...
-      // (Removing complex transition logic briefly to ensure fundamental
-      // rendering works)
+    // When _isTransitioning the render above has drawn the CURRENT pipeline
+    // into sceneTexture. We now render the PREVIOUS pipeline into
+    // transitionTexture, then composite them using the smoothstep crossfade
+    // pipeline onto the drawable.
+    if (_isTransitioning && _previousPipeline && _resources.transitionTexture) {
+      // --- Advance alpha ---
+      NSTimeInterval elapsed =
+          [[NSDate date] timeIntervalSinceDate:_transitionStartTime];
+      float t = (float)(elapsed / _transitionDuration);
+      // Smoothstep: t = 3t² - 2t³
+      t = MAX(0.0f, MIN(1.0f, t));
+      _transitionAlpha = t * t * (3.0f - 2.0f * t);
+
+      // --- Render previous shader into transitionTexture ---
+      MetalPipelineState *savedCurrent = _currentPipeline;
+      _currentPipeline = _previousPipeline;
+
+      MTLRenderPassDescriptor *prevPassDesc =
+          [MTLRenderPassDescriptor renderPassDescriptor];
+      prevPassDesc.colorAttachments[0].texture = _resources.transitionTexture;
+      prevPassDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
+      prevPassDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+      prevPassDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+
+      [self renderSimpleToDrawable:nil
+                     commandBuffer:commandBuffer
+                  renderDescriptor:prevPassDesc
+                          uniforms:uniforms
+                       bufferIndex:bufferIndex];
+
+      _currentPipeline = savedCurrent;
+
+      // --- Composite: mix(transitionTexture, sceneTexture, alpha) → drawable ---
+      // transitionTexture = outgoing (alpha = 1 - _transitionAlpha)
+      // sceneTexture      = incoming (alpha = _transitionAlpha)
+      id<MTLRenderPipelineState> crossfade = [self crossfadePipeline];
+      if (crossfade) {
+        MTLRenderPassDescriptor *compositeDesc =
+            [MTLRenderPassDescriptor renderPassDescriptor];
+        compositeDesc.colorAttachments[0].texture = drawable.texture;
+        compositeDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
+        compositeDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+        compositeDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+
+        float alpha = _transitionAlpha;
+        id<MTLRenderCommandEncoder> crossfadeEncoder =
+            [commandBuffer renderCommandEncoderWithDescriptor:compositeDesc];
+        [crossfadeEncoder setRenderPipelineState:crossfade];
+        [crossfadeEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
+        // texture(0) = outgoing (previous), texture(1) = incoming (current)
+        [crossfadeEncoder setFragmentTexture:_resources.transitionTexture atIndex:0];
+        [crossfadeEncoder setFragmentTexture:_resources.sceneTexture atIndex:1];
+        [crossfadeEncoder setFragmentSamplerState:_resources.samplerState atIndex:0];
+        [crossfadeEncoder setFragmentBytes:&alpha length:sizeof(float) atIndex:1];
+        [crossfadeEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                     indexCount:6
+                                      indexType:MTLIndexTypeUInt16
+                                    indexBuffer:_resources.indexBuffer
+                              indexBufferOffset:0];
+        [crossfadeEncoder endEncoding];
+      }
+
+      // --- End transition when alpha reaches 1 ---
+      if (_transitionAlpha >= 1.0f) {
+        _isTransitioning = NO;
+        _previousPipeline = nil;
+        _previousShaderName = nil;
+        _transitionStartTime = nil;
+      }
+
+      // Skip the HDR tone-map below; we already wrote to drawable.texture
+      goto transition_complete;
     }
 
     id<MTLTexture> currentSource = _resources.sceneTexture;
@@ -1844,6 +1918,8 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                                        toSDRTexture:drawable.texture
                                       commandBuffer:commandBuffer];
   }
+
+transition_complete:;
 
   // 5. Particles (overlaid on top)
   if (_particleConfig.enabled && _currentPipeline.computePipeline) {
@@ -2226,12 +2302,72 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 }
 
 - (id<MTLFunction>)loadSystemShaderWithName:(NSString *)functionName {
-  // Standard system shaders are usually in common.metal or similar
-  // For now, look in the pipeline definition logic or just load a standard
-  // library
   return [_device newDefaultLibrary]
              ? [[_device newDefaultLibrary] newFunctionWithName:functionName]
              : nil;
+}
+
+// ---------------------------------------------------------------------------
+// Crossfade pipeline — compiled once, cached in an ivar.
+// Fragment function: mix(outgoing, incoming, alpha)
+//   texture(0) = outgoing (previous shader)
+//   texture(1) = incoming (current shader)
+//   buffer(1)  = float alpha
+// ---------------------------------------------------------------------------
+- (id<MTLRenderPipelineState>)crossfadePipeline {
+  if (_crossfadePipeline)
+    return _crossfadePipeline;
+
+  NSString *source =
+    @"#include <metal_stdlib>\n"
+     "using namespace metal;\n"
+     "struct VertexIn  { float2 position [[attribute(0)]]; float2 texCoord [[attribute(1)]]; };\n"
+     "struct VertexOut { float4 position [[position]]; float2 texCoord; };\n"
+     "vertex VertexOut crossfade_vertex(VertexIn in [[stage_in]]) {\n"
+     "    VertexOut out;\n"
+     "    out.position = float4(in.position, 0.0, 1.0);\n"
+     "    out.texCoord = in.texCoord;\n"
+     "    return out;\n"
+     "}\n"
+     "fragment float4 crossfade_fragment(VertexOut in [[stage_in]],\n"
+     "    texture2d<float> outgoing [[texture(0)]],\n"
+     "    texture2d<float> incoming [[texture(1)]],\n"
+     "    sampler samp             [[sampler(0)]],\n"
+     "    constant float& alpha    [[buffer(1)]]) {\n"
+     "    float4 a = outgoing.sample(samp, in.texCoord);\n"
+     "    float4 b = incoming.sample(samp, in.texCoord);\n"
+     "    return mix(a, b, alpha);\n"
+     "}\n";
+
+  NSError *err = nil;
+  id<MTLLibrary> lib = [_device newLibraryWithSource:source options:nil error:&err];
+  if (!lib) {
+    NSLog(@"MetalRenderer: crossfade shader compile failed: %@", err);
+    return nil;
+  }
+
+  MTLRenderPipelineDescriptor *desc = [[MTLRenderPipelineDescriptor alloc] init];
+  desc.vertexFunction   = [lib newFunctionWithName:@"crossfade_vertex"];
+  desc.fragmentFunction = [lib newFunctionWithName:@"crossfade_fragment"];
+  desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+  MTLVertexDescriptor *vd = [MTLVertexDescriptor vertexDescriptor];
+  vd.attributes[0].format      = MTLVertexFormatFloat2;
+  vd.attributes[0].offset      = 0;
+  vd.attributes[0].bufferIndex = 0;
+  vd.attributes[1].format      = MTLVertexFormatFloat2;
+  vd.attributes[1].offset      = 8;
+  vd.attributes[1].bufferIndex = 0;
+  vd.layouts[0].stride         = 16;
+  desc.vertexDescriptor = vd;
+
+  NSError *pipeErr = nil;
+  _crossfadePipeline = [_device newRenderPipelineStateWithDescriptor:desc
+                                                               error:&pipeErr];
+  if (pipeErr)
+    NSLog(@"MetalRenderer: crossfade pipeline creation failed: %@", pipeErr);
+
+  return _crossfadePipeline;
 }
 
 - (id<MTLRenderPipelineState>)bloomPipeline:(NSString *)functionName {

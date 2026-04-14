@@ -121,6 +121,7 @@ typedef NS_ENUM(NSInteger, MetalGPUFamily) {
 @property(nonatomic, strong) id<MTLBuffer> indexBuffer;
 @property(nonatomic, strong) id<MTLBuffer> uniformBuffer;
 @property(nonatomic, strong) id<MTLTexture> sceneTexture;
+@property(nonatomic, strong, nullable) id<MTLTexture> transitionTexture;
 @property(nonatomic, strong) id<MTLTexture> simulationTextureA;
 @property(nonatomic, strong) id<MTLTexture> simulationTextureB;
 @property(nonatomic, strong) id<MTLTexture> bloomTextureA;

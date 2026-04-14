@@ -42,12 +42,21 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, assign) float roomSize;
 @property(nonatomic, assign) float reverbDamping;
 
+// HDR Calibration Settings
+@property(nonatomic, assign) BOOL calibrationModeEnabled;
+@property(nonatomic, assign) float calibrationPeakBrightness;
+@property(nonatomic, assign) float calibrationWhitePoint;
+@property(nonatomic, assign) NSInteger calibrationType; // 0 = SMPTE 75%, 1 = SMPTE 100%
+
 // Initialization
 - (instancetype)init;
 
 // Actions
 - (void)savePreferences;
 - (void)resetToDefaults;
+- (void)toggleCalibrationMode:(id)sender;
+- (void)calibrationBrightnessChanged:(id)sender;
+- (void)calibrationWhitePointChanged:(id)sender;
 
 @end
 
