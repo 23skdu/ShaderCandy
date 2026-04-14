@@ -81,8 +81,11 @@
 - (void)setShader:(NSString *)shaderName renderer:(MetalRenderer *)renderer {
     if (!renderer) {
         _shaderName = nil;
+        _renderer = nil;
         return;
     }
+    
+    _renderer = renderer;
     
     // Load the shader if different
     if (!shaderName || ![shaderName isEqualToString:_shaderName]) {
@@ -103,7 +106,7 @@
 #pragma mark - Rendering Control
 
 - (void)startRendering {
-    if (_isRendering || !_device) return;
+    if (_isRendering || !_device || !_renderer) return;
     
     _isRendering = YES;
     _isPaused = NO;

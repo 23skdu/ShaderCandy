@@ -867,9 +867,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   __block BOOL alreadyLoaded = NO;
   __block NSError *localError = nil;
 
-#ifdef DEBUG
-  NSLog(@"[SHADER DEBUG] Attempting to load shader: '%@'", name);
-#endif
+  // Simple log to confirm function called
+  fprintf(stderr, "SC_DEBUG: _loadShaderWithNameInternal called for %s\n", [name UTF8String]);
+  fflush(stderr);
+  
+  NSLog(@">>>>>>>>> _loadShaderWithNameInternal CALLED FOR: %@", name);
 
   // Logic from former loadShaderWithName:
   // Check for shader file
@@ -922,31 +924,61 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSLog(@"[SHADER DEBUG] Preparing shader source...");
   NSString *fullSource = [self prepareShaderSource:source forShader:name];
   NSLog(@"[SHADER DEBUG] Prepared source size: %lu bytes", (unsigned long)fullSource.length);
+  NSLog(@"[SHADER DEBUG] First 200 chars of source: %@", [fullSource substringToIndex:MIN(200, fullSource.length)]);
   
-  NSLog(@"[SHADER DEBUG] Creating Metal library...");
+  // Also write to file
+  NSString *logLine = [NSString stringWithFormat:@"[SHADER] Loading shader: %@\n", name];
+  NSData *logData = [logLine dataUsingEncoding:NSUTF8StringEncoding];
+  NSFileManager *fm = [NSFileManager defaultManager];
+  NSString *debugLogPath = @"/tmp/shadercandy_debug.log";
+  if (![fm fileExistsAtPath:debugLogPath]) {
+    [logData writeToFile:debugLogPath atomically:YES];
+  } else {
+    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:debugLogPath];
+    if (handle) {
+      [handle seekToEndOfFile];
+      [handle writeData:logData];
+      [handle closeFile];
+    }
+  }
+  
+  NSLog(@"[SHADER DEBUG] Creating Metal library for shader '%@'...", name);
   id<MTLLibrary> library = [self.device newLibraryWithSource:fullSource
                                                      options:nil
                                                        error:&compileError];
-  if (compileError) {
-    NSLog(@"[SHADER DEBUG] FAILED: Metal library creation failed: %@", compileError);
-    [self handleShaderCompileError:compileError
-                         forShader:name
-                            source:fullSource];
-    if (error)
-      *error = compileError;
+  NSLog(@"[SHADER DEBUG] Library creation returned: %@, error: %@", library, compileError);
+  
+  // EARLY RETURN if library failed
+  if (!library) {
+    NSLog(@"[SHADER DEBUG] EARLY EXIT: library is nil");
+    if (compileError) {
+      [self handleShaderCompileError:compileError
+                           forShader:name
+                              source:fullSource];
+      if (error)
+        *error = compileError;
+    }
     return NO;
   }
-  NSLog(@"[SHADER DEBUG] Metal library created successfully");
+  
+  NSLog(@"[SHADER DEBUG] Metal library created successfully for: %@", name);
+  
+  // Debug: list ALL functions in the library
+  NSArray *allFuncs = [library functionNames];
+  NSLog(@"[SHADER DEBUG] Library '%@' has %lu functions: %@", name, (unsigned long)allFuncs.count, allFuncs);
+  fprintf(stderr, "[SHADER] %s has %lu funcs\n", [name UTF8String], (unsigned long)allFuncs.count);
+  fflush(stderr);
 
   self.libraryCache[name] = library;
 
-  // Create pipeline
+// Create pipeline
   NSLog(@"[SHADER DEBUG] Creating pipeline state...");
+  [@"Creating pipeline\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"shadercandy_log.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
   NSError *pipelineError = nil;
   MetalPipelineState *pipeline =
       [self createPipelineStateWithLibrary:library
-                                shaderName:name
-                                     error:&pipelineError];
+                                 shaderName:name
+                                      error:&pipelineError];
   if (pipelineError) {
     NSLog(@"[SHADER DEBUG] FAILED: Pipeline creation failed: %@", pipelineError);
     if (error)
@@ -998,12 +1030,15 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                         ofType:(NSString *)type
                         subDir:(NSString *)subDir {
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+  NSLog(@"MetalRenderer: bundleForClass returns: %@, resourcePath: %@, bundlePath: %@", bundle, bundle.resourcePath, bundle.bundlePath);
+  
   NSString *path = [bundle pathForResource:name ofType:type inDirectory:subDir];
   if (path)
     return path;
 
   // Also try mainBundle (important for screensaver/player contexts)
   NSBundle *mainBundle = [NSBundle mainBundle];
+  NSLog(@"MetalRenderer: mainBundle: %@, resourcePath: %@", mainBundle, mainBundle.resourcePath);
   path = [mainBundle pathForResource:name ofType:type inDirectory:subDir];
   if (path)
     return path;
@@ -1220,6 +1255,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   id<MTLFunction> vertexFunc = [library newFunctionWithName:@"vertex_main"];
   id<MTLFunction> fragmentFunc = [library newFunctionWithName:@"fragment_main"];
 
+  NSLog(@">>>>> PIPELINE: vertexFunc=%p, fragmentFunc=%p for shader %@", vertexFunc, fragmentFunc, name);
+  fprintf(stderr, ">>>> PIPELINE: v=%p, f=%p shader=%s\n", vertexFunc, fragmentFunc, [name UTF8String]);
+  fflush(stderr);
+
   if (!vertexFunc || !fragmentFunc) {
     NSLog(@"Shader '%@' missing required functions: vertex_main=%@, fragment_main=%@",
           name, vertexFunc ? @"YES" : @"NO", fragmentFunc ? @"YES" : @"NO");
@@ -1257,10 +1296,15 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       [_device newRenderPipelineStateWithDescriptor:desc
                                               error:&pipelineError];
   if (pipelineError) {
+    NSLog(@"[PIPELINE ERROR] Failed to create render pipeline: %@", pipelineError);
+    // Write to home directory
+    [@"PIPELINE ERROR\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"shadercandy_log.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
     if (error)
       *error = pipelineError;
     return nil;
   }
+  NSLog(@"[PIPELINE OK] Render pipeline created successfully");
+  [@"PIPELINE OK\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"shadercandy_log.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
   // Check for simulation pipeline
   id<MTLFunction> simFunc = [library newFunctionWithName:@"fragment_sim"];
@@ -1775,6 +1819,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   BOOL needsOffscreen = _bloomConfig.enabled || _hdrEnabled ||
                         _neuralStyleEnabled || _isTransitioning;
 
+  NSLog(@"[RENDER] needsOffscreen=%d (bloom=%d, hdr=%d, neural=%d, trans=%d)",
+        needsOffscreen, _bloomConfig.enabled, _hdrEnabled, _neuralStyleEnabled, _isTransitioning);
+
   if (!needsOffscreen) {
     // 1. Optional Simulation Pass
     if (_currentPipeline.simulationPipeline) {
@@ -2177,12 +2224,33 @@ transition_complete:;
 
 - (void)renderWithBloomToDrawable:(id<CAMetalDrawable>)drawable
                     commandBuffer:(id<MTLCommandBuffer>)commandBuffer
-                 renderDescriptor:(MTLRenderPassDescriptor *)finalDesc
+                 renderDescriptor:(MTLRenderPassDescriptor *)descriptor
                          uniforms:(Uniforms *)uniforms
                       bufferIndex:(NSUInteger)bufferIndex {
   // Check if we have a valid pipeline
   if (!_currentPipeline.renderPipeline) {
-    NSLog(@"MetalRenderer: No render pipeline available for bloom, skipping render");
+    NSLog(@"MetalRenderer: No render pipeline available, skipping render");
+    return;
+  }
+
+  // Pre-check all bloom pipelines before starting GPU work.
+  // If any are missing, fall back to simple rendering to avoid a blank frame.
+  id<MTLRenderPipelineState> bloomThresh =
+      [self bloomPipeline:@"bloom_threshold"];
+  id<MTLRenderPipelineState> bloomBlurH = [self bloomPipeline:@"bloom_blur_h"];
+  id<MTLRenderPipelineState> bloomBlurV = [self bloomPipeline:@"bloom_blur_v"];
+  id<MTLRenderPipelineState> bloomCombine =
+      [self bloomPipeline:@"bloom_combine"];
+
+  if (!bloomThresh || !bloomBlurH || !bloomBlurV || !bloomCombine) {
+    NSLog(@"MetalRenderer: Bloom pipelines unavailable, falling back to simple render");
+    // Disable bloom so we don't keep hitting this path
+    _bloomConfig.enabled = NO;
+    [self renderSimpleToDrawable:drawable
+                  commandBuffer:commandBuffer
+               renderDescriptor:descriptor
+                       uniforms:uniforms
+                    bufferIndex:bufferIndex];
     return;
   }
 
@@ -2224,11 +2292,6 @@ transition_complete:;
   bloomDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
   bloomDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
 
-  id<MTLRenderPipelineState> bloomThresh =
-      [self bloomPipeline:@"bloom_threshold"];
-  if (!bloomThresh)
-    return;
-
   id<MTLRenderCommandEncoder> threshEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
   [threshEncoder setRenderPipelineState:bloomThresh];
@@ -2244,9 +2307,6 @@ transition_complete:;
 
   // Horizontal blur
   bloomDesc.colorAttachments[0].texture = _resources.bloomTextureB;
-  id<MTLRenderPipelineState> bloomBlurH = [self bloomPipeline:@"bloom_blur_h"];
-  if (!bloomBlurH)
-    return;
 
   id<MTLRenderCommandEncoder> blurHEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
@@ -2263,9 +2323,6 @@ transition_complete:;
 
   // Vertical blur
   bloomDesc.colorAttachments[0].texture = _resources.bloomTextureA;
-  id<MTLRenderPipelineState> bloomBlurV = [self bloomPipeline:@"bloom_blur_v"];
-  if (!bloomBlurV)
-    return;
 
   id<MTLRenderCommandEncoder> blurVEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:bloomDesc];
@@ -2281,13 +2338,8 @@ transition_complete:;
   [blurVEncoder endEncoding];
 
   // Combine pass
-  id<MTLRenderPipelineState> bloomCombine =
-      [self bloomPipeline:@"bloom_combine"];
-  if (!bloomCombine)
-    return;
-
   id<MTLRenderCommandEncoder> finalEncoder =
-      [commandBuffer renderCommandEncoderWithDescriptor:finalDesc];
+      [commandBuffer renderCommandEncoderWithDescriptor:descriptor];
   [finalEncoder setRenderPipelineState:bloomCombine];
   [finalEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
   [finalEncoder setFragmentTexture:_resources.sceneTexture atIndex:0];
@@ -2381,9 +2433,16 @@ transition_complete:;
   if (cached)
     return cached;
 
+  // bloom.metal lives in shaders/effects/ — try there first, then shaders/
   NSString *path = [self findResourcePath:@"bloom"
                                    ofType:@"metal"
-                                   subDir:@"shaders"];
+                                   subDir:@"shaders/effects"];
+  if (!path) {
+    path = [self findResourcePath:@"bloom"
+                           ofType:@"metal"
+                           subDir:@"shaders"];
+  }
+  
   if (!path) {
     NSLog(@"MetalRenderer Error: Failed to find bloom.metal");
     return nil;

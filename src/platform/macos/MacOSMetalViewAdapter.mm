@@ -45,6 +45,10 @@
 }
 
 - (void)commonInit {
+  // Use stderr which always works
+  fprintf(stderr, "SC_DEBUG: commonInit called\n");
+  fflush(stderr);
+  
   // Register Defaults
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
@@ -200,6 +204,11 @@
 
 - (void)setFrame:(NSRect)frame {
   [super setFrame:frame];
+  
+  // ALWAYS write to file when setFrame is called
+  [@"setFrame\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"sc_debug.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  [[NSString stringWithFormat:@"setFrame: %@\n", NSStringFromRect(frame)] writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"sc_debug.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  
   if (_mtkView) {
     _mtkView.frame = self.bounds;
   }
@@ -211,6 +220,7 @@
 
 - (void)startAnimation {
   [super startAnimation];
+  NSLog(@">>>>> startAnimation called, isPreview=%d", self.isPreview);
 
   // Tahoe/macOS 15 Fix: Ensure zero bounds are recovered for full screen
   if (!self.isPreview && NSWidth(self.bounds) < 1.0) {
@@ -225,6 +235,7 @@
 
 - (void)viewDidMoveToWindow {
   [super viewDidMoveToWindow];
+  NSLog(@">>>>> viewDidMoveToWindow called");
   
   // Ensure proper frame when moving to window
   if (self.window && (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0)) {
@@ -260,7 +271,11 @@
 
   NSLog(@"MacOSMetalViewAdapter: Setting up Metal for %@ view...",
         self.isPreview ? @"preview" : @"main");
-
+  
+  // Write to file
+  [[NSString stringWithFormat:@"setupMetal: isPreview=%d, bounds=%@\n", self.isPreview, NSStringFromRect(self.bounds)] 
+    writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"sc_debug.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  
   id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
   if (!metalDevice) {
     NSLog(@"MacOSMetalViewAdapter: Failed to create Metal device");
@@ -335,6 +350,9 @@
 }
 
 - (void)loadShaders {
+  // IMMEDIATE log
+  NSLog(@">>>>>>>>> loadShaders CALLED");
+  
   if (!_renderer || !_currentShaderName) {
     NSLog(@"MacOSMetalViewAdapter: loadShaders early exit - renderer: %p, shaderName: %@", _renderer, _currentShaderName);
     return;
@@ -435,8 +453,63 @@
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor)
+  // Debug: write to stderr so it appears in Console.app
+  fprintf(stderr, "[RENDER] drawInMTKView called, frame=%lu\n", (unsigned long)_frameCount);
+  fflush(stderr);
+  
+  if (!_renderer) {
+    fprintf(stderr, "[RENDER] ERROR: No renderer\n");
+    fflush(stderr);
     return;
+  }
+  if (!view.currentDrawable) {
+    fprintf(stderr, "[RENDER] ERROR: No currentDrawable\n");
+    fflush(stderr);
+    return;
+  }
+  if (!view.currentRenderPassDescriptor) {
+    fprintf(stderr, "[RENDER] ERROR: No currentRenderPassDescriptor\n");
+    fflush(stderr);
+    return;
+  }
+  if (!_renderer.currentPipeline) {
+    fprintf(stderr, "[RENDER] ERROR: No currentPipeline (shader not loaded?)\n");
+    fflush(stderr);
+    return;
+  }
+  
+  fprintf(stderr, "[RENDER] PASS - rendering frame %lu\n", (unsigned long)_frameCount);
+  fflush(stderr);
+  if (!view.currentDrawable) {
+    NSLog(@"[RENDER] ERROR: No currentDrawable");
+    return;
+  }
+  if (!view.currentRenderPassDescriptor) {
+    NSLog(@"[RENDER] ERROR: No currentRenderPassDescriptor");
+    return;
+  }
+  if (!_renderer.currentPipeline) {
+    NSLog(@"[RENDER] ERROR: No currentPipeline (shader not loaded?)");
+    return;
+  }
+  
+  // Write to file for debugging
+  NSString *logPath = @"/tmp/shadercandy_debug.log";
+  NSString *line = [NSString stringWithFormat:@"[RENDER] Frame %lu, shader=%@\n", 
+                    (unsigned long)_frameCount, _renderer.activeShaderName];
+  NSData *lineData = [line dataUsingEncoding:NSUTF8StringEncoding];
+  
+  NSFileManager *fm = [NSFileManager defaultManager];
+  if (![fm fileExistsAtPath:logPath]) {
+    [lineData writeToFile:logPath atomically:YES];
+  } else {
+    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:logPath];
+    if (handle) {
+      [handle seekToEndOfFile];
+      [handle writeData:lineData];
+      [handle closeFile];
+    }
+  }
 
   // Update uniforms
   NSTimeInterval elapsed = [[MetalSharedState sharedState] synchronizedTime];

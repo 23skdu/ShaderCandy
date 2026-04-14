@@ -424,6 +424,7 @@ public:
     }
 
     // Extract shader name from path
+    path = fragmentPath;
     name = fragmentPath;
     size_t lastSlash = name.find_last_of("/\\");
     if (lastSlash != std::string::npos) {
@@ -661,18 +662,18 @@ public:
       }
     }
 
-    // Default shader directories
+    // Default shader directories - local paths first for development
     if (shaderPaths.empty()) {
-      addShaderDirectory("/usr/share/shadercandy/shaders");
-      addShaderDirectory("/usr/local/share/shadercandy/shaders");
-      addShaderDirectory("/home/rsd/.local/share/shadercandy/shaders");
-      // Also add base directory for includes
-      addShaderDirectory("/home/rsd/.local/share/shadercandy");
       addShaderDirectory("./shaders");
       addShaderDirectory("./shaders/effects");
       addShaderDirectory("../shaders");
       addShaderDirectory("../shaders/effects");
       addShaderDirectory("../shaders/base");
+      // System directories
+      addShaderDirectory("/usr/share/shadercandy/shaders");
+      addShaderDirectory("/usr/local/share/shadercandy/shaders");
+      // Home directory
+      addShaderDirectory("/home/rsd/.local/share/shadercandy/shaders");
     }
 
     // Open display
