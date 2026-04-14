@@ -160,7 +160,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
 + (instancetype)defaultConfig {
   MetalBloomConfig *config = [[MetalBloomConfig alloc] init];
-  config.enabled = YES;
+  config.enabled = NO;
   config.quality = MetalBloomQualityMedium;
   config.intensity = 0.8f;
   config.threshold = 0.8f;
@@ -409,9 +409,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   // Skip debug overlay for standalone app to avoid shader compilation issues
   // [self setupDebugOverlay];
 
-  // Initialize HDR Pipeline
+  // Initialize HDR Pipeline - but keep SDR path as default to avoid blank screen
+  // when sceneTexture is not yet allocated. HDR can be enabled by user preference.
   [[HDRPipeline sharedPipeline] initializeWithDevice:_device error:nil];
-  _hdrEnabled = [[HDRPipeline sharedPipeline] detectHDRDisplay];
+  _hdrEnabled = NO; // Start with SDR path; set via detectHDRDisplay only if user enables HDR
   _toneMapping = ToneMappingOperatorACES;
   _maxBrightness = 1000.0f;
 
@@ -1738,12 +1739,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
 - (void)renderToDrawable:(id<CAMetalDrawable>)drawable
     renderPassDescriptor:(MTLRenderPassDescriptor *)descriptor {
-  if (!_currentPipeline || !_commandQueue)
+  if (!_currentPipeline || !_commandQueue) {
     return;
+  }
 
   // Ensure we have a valid render pipeline
   if (!_currentPipeline.renderPipeline) {
-    NSLog(@"MetalRenderer: Cannot render - no valid render pipeline for shader '%@'", 
+    NSLog(@"MetalRenderer: Cannot render - no valid render pipeline for shader '%@'",
           _activeShaderName ?: @"unknown");
     return;
   }
@@ -1763,19 +1765,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   uint8_t *bufferPtr = (uint8_t *)_resources.uniformBuffer.contents;
   Uniforms *uniforms = (Uniforms *)(bufferIndex * sizeof(Uniforms) + bufferPtr);
   
-  // Debug output for problem shaders
-  BOOL isProblemShader = [_activeShaderName isEqualToString:@"capman"] ||
-                         [_activeShaderName isEqualToString:@"area_51"] ||
-                         [_activeShaderName isEqualToString:@"burning_ship"] ||
-                         [_activeShaderName isEqualToString:@"biolume_forest"];
-  
-  if (isProblemShader || _frameCount % 60 == 0) {
-    NSLog(@"MetalRenderer: Drawing frame %lu (Shader: %@, Pipeline: %@, Time: %.2f, Resolution: %.0fx%.0f)",
-          (unsigned long)_frameCount, _activeShaderName,
-          _currentPipeline.renderPipeline ? @"OK" : @"NIL",
-          uniforms->time, uniforms->resolution.x, uniforms->resolution.y);
-  }
-
   // Determine if we need the advanced offscreen pipeline
   BOOL needsOffscreen = _bloomConfig.enabled || _hdrEnabled ||
                         _neuralStyleEnabled || _isTransitioning;
@@ -2018,10 +2007,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 }
 
 - (void)renderSimpleToDrawable:(id<CAMetalDrawable>)drawable
-                 commandBuffer:(id<MTLCommandBuffer>)commandBuffer
-              renderDescriptor:(MTLRenderPassDescriptor *)descriptor
-                      uniforms:(Uniforms *)uniforms
-                   bufferIndex:(NSUInteger)bufferIndex {
+                  commandBuffer:(id<MTLCommandBuffer>)commandBuffer
+               renderDescriptor:(MTLRenderPassDescriptor *)descriptor
+                       uniforms:(Uniforms *)uniforms
+                    bufferIndex:(NSUInteger)bufferIndex {
   // Check if we have a valid pipeline
   if (!_currentPipeline.renderPipeline) {
     NSLog(@"MetalRenderer: No render pipeline available, skipping render");

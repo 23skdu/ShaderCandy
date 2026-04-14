@@ -49,7 +49,7 @@
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
   [defaults registerDefaults:@{
-    @"selectedShader" : @"spiral",
+    @"selectedShader" : @"default",
     @"preferredFPS" : @60,
     @"enableBloom" : @YES,
     @"speed" : @1.0,
@@ -64,6 +64,8 @@
   }];
 
   _currentShaderName = [defaults stringForKey:@"selectedShader"];
+  NSLog(@"MacOSMetalViewAdapter: commonInit - selectedShader from defaults: %@", _currentShaderName);
+  
   _preferredFPS = [defaults integerForKey:@"preferredFPS"];
   _enableBloom = [defaults boolForKey:@"enableBloom"];
   _speed = [defaults floatForKey:@"speed"];
@@ -275,7 +277,7 @@
   self.mtkView.paused = NO;
   self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
   self.mtkView.clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
-
+  self.mtkView.layer.backgroundColor = [[NSColor blackColor] CGColor];
   [self addSubview:self.mtkView];
 
   // Create renderer
@@ -308,8 +310,7 @@
   if (rendererShaders.count > 0) {
     _availableShaders = rendererShaders;
   } else if (_availableShaders.count == 0) {
-    // Use actual known working shaders - NOT "default" which doesn't exist
-    _availableShaders = @[@"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb", @"aurora", @"starfield"];
+    _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb", @"aurora", @"starfield"];
     NSLog(@"MacOSMetalViewAdapter: Using default shader list");
   }
   NSLog(@"MacOSMetalViewAdapter: Final shader list: %@", _availableShaders);
@@ -370,7 +371,11 @@
     }
     
     NSLog(@"MacOSMetalViewAdapter: ALL shaders failed to load");
+    return;
   }
+  
+  // Shader loaded successfully
+  NSLog(@"MacOSMetalViewAdapter: Shader '%@' loaded and ready", _currentShaderName);
 }
 
 - (void)reloadShaders {
@@ -430,22 +435,12 @@
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor) {
-    NSLog(@"MacOSMetalViewAdapter: drawInMTKView early exit - renderer: %p, drawable: %p, descriptor: %p", 
-          _renderer, view.currentDrawable, view.currentRenderPassDescriptor);
+  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor)
     return;
-  }
-  
-  // Log first frame for debugging
-  if (_frameCount == 0) {
-    NSLog(@"MacOSMetalViewAdapter: First draw call - currentShader: %@, pipeline: %p, device: %@", 
-          _currentShaderName, _renderer.currentPipeline, _renderer.device);
-  }
 
   // Update uniforms
   NSTimeInterval elapsed = [[MetalSharedState sharedState] synchronizedTime];
 
-  // Get mouse position relative to window
   NSPoint mousePos =
       [self.window
           convertRectFromScreen:NSMakeRect([NSEvent mouseLocation].x,
@@ -460,14 +455,6 @@
                             gravity:_gravity
                              height:NSHeight(self.bounds)];
 
-  // Render
-  id currentPipeline = _renderer.currentPipeline;
-  if (!currentPipeline || ![currentPipeline respondsToSelector:@selector(renderPipeline)] || 
-      ![(id)currentPipeline renderPipeline]) {
-    NSLog(@"MacOSMetalViewAdapter: RENDER WARNING - No valid pipeline! Shader: %@, Pipeline: %p", 
-          _currentShaderName, currentPipeline);
-  }
-  
   [_renderer renderToDrawable:view.currentDrawable
          renderPassDescriptor:view.currentRenderPassDescriptor];
 
