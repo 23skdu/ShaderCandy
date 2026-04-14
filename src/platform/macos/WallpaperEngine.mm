@@ -292,9 +292,12 @@ NSString * const WallpaperEngineDidEncounterErrorNotification = @"WallpaperEngin
         [wallpaperWindow orderBack:nil];
         [wallpaperWindow makeKeyAndOrderFront:nil];
         
-        // Set initial shader
+        // Set initial shader first (needed before rendering starts)
         NSString *shaderName = _desktopShaders[displayID] ?: @"plasma";
         [desktopView setShader:shaderName renderer:_renderer];
+        
+        // Then start rendering
+        [desktopView startRendering];
     }
 }
 

@@ -104,7 +104,7 @@
               (val1 * 0.4f + val2 * 0.4f + val3 * 0.2f) * self->_masterVolume;
 
           // Subtle noise floor for "Atmospheric" feel
-          float noise = ((float)arc4random() / 0xFFFFFFFF) * 0.01f;
+          float noise = ((float)arc4random() / (float)UINT32_MAX) * 0.01f;
           mixed += noise * self->_currentComplexity;
 
           left[frame] = mixed;

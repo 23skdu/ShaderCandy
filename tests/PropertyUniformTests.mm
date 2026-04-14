@@ -25,7 +25,7 @@ public:
       [view setupMetal];
 
       // If setupMetal failed (no device), we can't test buffers
-      if (!view.device || !view.uniformBuffer) {
+      if (!view.renderer.device || !view.renderer.uniformBuffer) {
         results.push_back(
             {"Initialization", false,
              "Metal device or uniform buffer not available for test", 0.0});
@@ -55,21 +55,21 @@ public:
 
       // Test Speed
       view.speed = 2.5f;
-      [view updateUniforms]; // Trigger render/uniform update
+      [view.renderer updateUniformsWithTime:0.0];
       results.push_back(checkUniformValue(
           "Speed", view, offsetof(struct Uniforms, speed), 2.5f));
 
       // Test Intensity
       view.intensity = 1.3f;
-      view.frameCount++; // Simulate next frame
-      [view updateUniforms];
+      view.renderer.frameCount++; // Simulate next frame
+      [view.renderer updateUniformsWithTime:0.0];
       results.push_back(checkUniformValue(
           "Intensity", view, offsetof(struct Uniforms, intensity), 1.3f));
 
       // Test Gravity
       view.gravity = 4.2f;
-      view.frameCount++;
-      [view updateUniforms];
+      view.renderer.frameCount++;
+      [view.renderer updateUniformsWithTime:0.0];
       results.push_back(checkUniformValue(
           "Gravity", view, offsetof(struct Uniforms, gravity), 4.2f));
     }
@@ -81,8 +81,8 @@ private:
   TestResult checkUniformValue(const std::string &name, ShaderCandyView *view,
                                size_t offset, float expected) {
     // Uniforms are triple buffered
-    NSUInteger bufferIndex = (view.frameCount) % 3;
-    uint8_t *contents = (uint8_t *)[view.uniformBuffer contents];
+    NSUInteger bufferIndex = (view.renderer.frameCount) % 3;
+    uint8_t *contents = (uint8_t *)[view.renderer.uniformBuffer contents];
     float *actualPtr =
         (float *)(contents + bufferIndex * sizeof(struct Uniforms) + offset);
     float actual = *actualPtr;
