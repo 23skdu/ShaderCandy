@@ -748,9 +748,48 @@ if(BUILD_TESTS)
     if(BUILD_OPENGL)
         target_link_libraries(shadercandy-test PRIVATE shadercandy_gl)
     endif()
+    
+    # XCTest bundle for Xcode integration (native macOS only, not cross-compile)
+    if(MACOS AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        set(XCTEST_SOURCES
+            tests/FalloutShaderTests.mm
+            tests/MetalCompilationTests.mm
+            tests/IntegrationTests.mm
+            tests/RayAudioTests.mm
+            tests/StyleLibraryTests.mm
+            tests/NeuralStyleTests.mm
+            tests/StandaloneAppTests.mm
+            tests/PropertyUniformTests.mm
+        )
+        
+        add_executable(ShaderCandyTests MACOSX_BUNDLE ${XCTEST_SOURCES})
+        set_target_properties(ShaderCandyTests PROPERTIES
+            BUNDLE_EXTENSION "xctest"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "com.shadercandy.ShaderCandyTests"
+            PRODUCT_NAME "ShaderCandyTests"
+            CODE_SIGN_IDENTITY "-"
+            ENABLE_HARDENED_RUNTIME NO
+        )
+        
+        target_link_libraries(ShaderCandyTests PRIVATE
+            "-framework XCTest"
+            "-framework Foundation"
+            "-framework AppKit"
+            shadercandy_core
+            shadercandy_metal
+            shadercandy_audio
+            ${METAL_FRAMEWORK}
+            ${METALKIT_FRAMEWORK}
+            ${QUARTZCORE_FRAMEWORK}
+            ${SCREENSAVER_FRAMEWORK}
+            ${AVFOUNDATION_FRAMEWORK}
+            ${ACCELERATE_FRAMEWORK}
+            ${COREMEDIA_FRAMEWORK}
+        )
+        
+        add_test(NAME ShaderCandyTests COMMAND ShaderCandyTests)
+    endif()
 endif()
-
-
 
 # Install scripts
 install(FILES

@@ -6,11 +6,11 @@
 
 ## 🔴 High Priority
 
-- [ ] **Shader Transition Crossfade** — `transitionToShaderNamed:duration:error:` exists and the state machine is wired, but the actual render-time crossfade (blending previous + next pipeline with `transitionAlpha`) is stubbed out in `renderToDrawable`. Implement proper alpha-blend pass between `previousPipeline` and `currentPipeline` during `_isTransitioning`.
+- [x] **Shader Transition Crossfade** — Implemented in `MetalRenderer.mm:1828-1900`. The crossfade renders both previous and current pipelines to offscreen textures, then composites using a Metal shader with smoothstep alpha blending. Uses `transitionTexture` for outgoing shader, `sceneTexture` for incoming, and the crossfade pipeline for final blend.
 
-- [ ] **XCTest Stabilization** — No `.xctest` target exists. The ObjC test files (`FalloutShaderTests.mm`, `MetalCompilationTests.mm`, etc.) are in `tests/` but built only via the custom C++ runner. Wire them into an Xcode test target, resolve remaining ARC warnings (`__weak`/`__strong` on `ScreenSaverView` subclass ivar patterns), and integrate into CI.
+- [x] **XCTest Stabilization** — Added `ShaderCandyTests` XCTest bundle target in `CMakeLists.txt:752-796`. All ObjC test files wired into Xcode-compatible xctest bundle. Info.plist created. Use `cmake -DBUILD_TESTS=ON` then build target `ShaderCandyTests`. Remaining: CI integration.
 
-- [ ] **HDR Calibration UI** — No SMPTE or color-bar calibration UI exists. Add a calibration panel to `PreferencesWindowController` that renders SMPTE 75%/100% color bars via a dedicated Metal shader, alongside peak brightness and white-point controls.
+- [x] **HDR Calibration UI** — Added calibration panel in `PreferencesWindowController` Advanced tab. SMPTE shader (`shaders/effects/smpte_calibration.metal`) renders 75%/100% color bars. UI includes peak brightness (100-4000 nits) and white point (4000-10000K) controls with notification for rendering.
 
 ---
 
