@@ -72,6 +72,7 @@ ShaderCandy is a high-performance, cross-platform shader engine and screensaver 
 | 3D Shader Overhaul (`frog`, `owl`, `thieves`, `fallout` as raymarched scenes) | — |
 | Shared Utility Consolidation (`lookAt`, `stepped_noise`, SDF primitives) | — |
 | Shader Compilation Fix (nil checks → prevent EXC_BAD_ACCESS) | — |
+| **Pink/blank screen fix** (debug red layer, bloom default off, HDR SDR path, device nil, NSLog spam) | 2026-04-13 |
 
 ---
 
