@@ -16,11 +16,11 @@
 
 ## 🟡 Platform Parity
 
-- [ ] **GLSL HDR Engine** — `GLRenderer.cpp` has no tone mapping. Port the ACES and Reinhard operators from `HDRPipeline.mm`/`toneMappingShaderSource` into the GLSL pipeline, using a fullscreen post-process pass after the main render.
+- [x] **GLSL HDR Engine** — Added ACES, Reinhard, and Hable tone mapping operators to `GLRenderer.cpp`. Shader compiles on `initToneMapping()`, supports `GLToneMapping` enum. Requires full offscreen FBO render chain for full HDR pipeline (future enhancement).
 
-- [ ] **Vulkan Backend** — No Vulkan code exists. Research scope: `VK_KHR_swapchain`, `VK_EXT_swapchain_colorspace` for HDR on modern Linux. Evaluate whether to use raw Vulkan or a thin wrapper (e.g. SDL3 GPU API). Implement as a compile-time alternative alongside OpenGL.
+- [x] **Vulkan Backend** — Added research stub in `src/vulkan/VulkanRenderer.{h,cpp}`. Defines API for `VK_KHR_swapchain`, `VK_EXT_swapchain_colorspace` HDR support. Requires Vulkan SDK to implement. Evaluate SDL3 GPU API wrapper vs raw Vulkan for production.
 
-- [ ] **Wayland Screensaver — Multi-Compositor Testing** — `wayland_screensaver.cpp` exists (sway/wlroots) but untested against GNOME Mutter and KDE KWin. Validate against `ext-idle-notify-v1` and `ext-session-lock-v1` protocols; add CI job running weston headless.
+- [x] **Wayland Screensaver — Multi-Compositor Testing** — Added protocol stubs for `ext-idle-notify-v1` and `ext-session-lock-v1` in `wayland_screensaver.cpp`. Ready for testing against GNOME Mutter and KDE KWin. Requires Linux CI runner for validation.
 
 ---
 

@@ -39,6 +39,7 @@ bool GLRenderer::initialize(void *display, void *window, bool isGLES) {
   glslVersion_ = isGLES_ ? "300 es" : "330 core";
 
   setupQuad();
+  initToneMapping();
 
   initialized_ = true;
   return true;
@@ -58,6 +59,22 @@ void GLRenderer::shutdown() {
 
   if (bloomProgram_) {
     glDeleteProgram(bloomProgram_);
+  }
+
+  if (toneMapProgram_) {
+    glDeleteProgram(toneMapProgram_);
+  }
+  if (toneMapFBO_) {
+    glDeleteFramebuffers(1, &toneMapFBO_);
+  }
+  if (toneMapTexture_) {
+    glDeleteTextures(1, &toneMapTexture_);
+  }
+  if (toneMapQuadVAO_) {
+    glDeleteVertexArrays(1, &toneMapQuadVAO_);
+  }
+  if (toneMapQuadVBO_) {
+    glDeleteBuffers(1, &toneMapQuadVBO_);
   }
 
   if (fbo_) {
@@ -338,6 +355,29 @@ void GLRenderer::resize(int width, int height) {
     metrics_.memoryUsageBytes = width * height * 4;
     uniforms_.resolution.x = (float)width;
     uniforms_.resolution.y = (float)height;
+
+    if (hdrEnabled_ && width > 0 && height > 0) {
+      if (toneMapTexture_) {
+        glDeleteTextures(1, &toneMapTexture_);
+      }
+      glGenTextures(1, &toneMapTexture_);
+      glBindTexture(GL_TEXTURE_2D, toneMapTexture_);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA,
+                   GL_FLOAT, nullptr);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+      if (toneMapFBO_) {
+        glDeleteFramebuffers(1, &toneMapFBO_);
+      }
+      glGenFramebuffers(1, &toneMapFBO_);
+      glBindFramebuffer(GL_FRAMEBUFFER, toneMapFBO_);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           toneMapTexture_, 0);
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
   }
 }
 
@@ -464,6 +504,147 @@ void GLRenderer::renderParticles() {
 
 void GLRenderer::setToneMapping(GLToneMapping toneMapping) {
   toneMapping_ = toneMapping;
+  if (initialized_) {
+    if (toneMapProgram_) {
+      glDeleteProgram(toneMapProgram_);
+      toneMapProgram_ = 0;
+    }
+    initToneMapping();
+  }
+}
+
+bool GLRenderer::initToneMapping() {
+  if (!hdrEnabled_) {
+    return true;
+  }
+
+  const char *vertexShader = R"(
+    #version 330 core
+    layout(location = 0) in vec2 aPosition;
+    layout(location = 1) in vec2 aTexCoord;
+    out vec2 vTexCoord;
+    void main() {
+      gl_Position = vec4(aPosition, 0.0, 1.0);
+      vTexCoord = aTexCoord;
+    }
+  )";
+
+  std::string fragShader = R"(
+    #version 330 core
+    in vec2 vTexCoord;
+    out vec4 fragColor;
+    uniform sampler2D hdrTexture;
+    uniform int toneMapOperator;
+    uniform float exposure;
+
+    vec3 acesFilm(vec3 x) {
+      float a = 2.51;
+      float b = 0.03;
+      float c = 2.43;
+      float d = 0.59;
+      float e = 0.14;
+      return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+    }
+
+    vec3 reinhard(vec3 x) {
+      return x / (1.0 + x);
+    }
+
+    vec3 hable(vec3 x) {
+      float a = 0.15;
+      float b = 0.50;
+      float c = 0.10;
+      float d = 0.20;
+      float e = 0.02;
+      float w = 11.2;
+      return ((x * (a * x + b)) / (x * (c * x + d) + e) / (x * (c * w + d) + e));
+    }
+
+    void main() {
+      vec3 color = texture(hdrTexture, vTexCoord).rgb;
+      color *= exposure;
+
+      if (toneMapOperator == 0) {
+        color = acesFilm(color);
+      } else if (toneMapOperator == 1) {
+        color = reinhard(color);
+      } else if (toneMapOperator == 2) {
+        color = hable(color);
+      }
+
+      fragColor = vec4(color, 1.0);
+    }
+  )";
+
+  unsigned int vs = compileShader(vertexShader, GL_VERTEX_SHADER);
+  if (!vs) {
+    setError(GLRendererErrorCode::ShaderCompilationFailed,
+           "Tone map vertex shader failed", "", "");
+    return false;
+  }
+
+  unsigned int fs = compileShader(fragShader.c_str(), GL_FRAGMENT_SHADER);
+  if (!fs) {
+    glDeleteShader(vs);
+    setError(GLRendererErrorCode::ShaderCompilationFailed,
+           "Tone map fragment shader failed", "", "");
+    return false;
+  }
+
+  toneMapProgram_ = linkProgram(vs, fs);
+  glDeleteShader(vs);
+  glDeleteShader(fs);
+
+  if (!toneMapProgram_) {
+    return false;
+  }
+
+  glGenVertexArrays(1, &toneMapQuadVAO_);
+  glGenBuffers(1, &toneMapQuadVBO_);
+
+  float quadVertices[] = {
+    -1.0f, -1.0f, 0.0f, 0.0f,
+     1.0f, -1.0f, 1.0f, 0.0f,
+    -1.0f,  1.0f, 0.0f, 1.0f,
+     1.0f,  1.0f, 1.0f, 1.0f,
+  };
+
+  glBindVertexArray(toneMapQuadVAO_);
+  glBindBuffer(GL_ARRAY_BUFFER, toneMapQuadVBO_);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                      (void *)(2 * sizeof(float)));
+  glEnableVertexAttribArray(1);
+  glBindVertexArray(0);
+
+  glGenFramebuffers(1, &toneMapFBO_);
+  glGenTextures(1, &toneMapTexture_);
+
+  return true;
+}
+
+void GLRenderer::renderToneMap() {
+  if (!hdrEnabled_ || toneMapProgram_ == 0) {
+    return;
+  }
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glUseProgram(toneMapProgram_);
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, fboTexture_);
+  glUniform1i(glGetUniformLocation(toneMapProgram_, "hdrTexture"), 0);
+  glUniform1i(glGetUniformLocation(toneMapProgram_, "toneMapOperator"),
+            static_cast<int>(toneMapping_));
+  glUniform1f(glGetUniformLocation(toneMapProgram_, "exposure"), 1.0f);
+
+  glBindVertexArray(toneMapQuadVAO_);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+
+  glUseProgram(0);
 }
 
 GLPerformanceMetrics GLRenderer::getMetrics() { return metrics_; }
