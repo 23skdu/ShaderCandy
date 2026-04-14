@@ -750,7 +750,8 @@ if(BUILD_TESTS)
     endif()
     
     # XCTest bundle for Xcode integration (native macOS only, not cross-compile)
-    if(MACOS AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    # Note: This requires Xcode's SDK paths. For command-line builds, use shadercandy-test instead.
+    if(MACOS AND CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND (DEFINED ENV{XCODE_VERSION} OR DEFINED ENV{SDKROOT}))
         set(XCTEST_SOURCES
             tests/FalloutShaderTests.mm
             tests/MetalCompilationTests.mm
