@@ -368,6 +368,15 @@ static struct xdg_wm_base *g_xdgWmBase = nullptr;
 static struct zwlr_layer_shell_v1 *g_layerShell = nullptr;
 static struct wl_output *g_wlOutput = nullptr;
 
+// ext-idle-notify-v1 (sway, GNOME compatible)
+static struct zext_idle_notifier_v1 *g_idleNotifier = nullptr;
+static uint32_t g_idleTimeout = 0;
+
+// ext-session-lock-v1 (GNOME, KDE compatible)
+static struct ext_session_lock_manager_v1 *g_sessionLockManager = nullptr;
+static struct ext_session_lock_v1 *g_sessionLock = nullptr;
+static bool g_sessionLocked = false;
+
 static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
                               uint32_t serial, uint32_t time, uint32_t key,
                               uint32_t state);
@@ -393,6 +402,15 @@ static void handleGlobal(void *data, struct wl_registry *registry,
   } else if (strcmp(interface, wl_seat_interface.name) == 0) {
     g_wlSeat =
         (wl_seat *)wl_registry_bind(registry, name, &wl_seat_interface, 5);
+  }
+#ifdef __linux__
+  } else if (strcmp(interface, "zext_idle_notifier_v1") == 0) {
+    g_idleNotifier = (zext_idle_notifier_v1 *)wl_registry_bind(
+        registry, name, &zext_idle_notifier_v1_interface, 1);
+  } else if (strcmp(interface, "ext_session_lock_manager_v1") == 0) {
+    g_sessionLockManager = (ext_session_lock_manager_v1 *)wl_registry_bind(
+        registry, name, &ext_session_lock_manager_v1_interface, 1);
+#endif
   }
 }
 
