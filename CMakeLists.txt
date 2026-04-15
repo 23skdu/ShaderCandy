@@ -25,6 +25,14 @@ option(BUILD_SCREENSAVER_LINUX "Build Linux X11 screensaver" ON)
 option(BUILD_SCREENSAVER_WAYLAND "Build Linux Wayland screensaver" ON)
 option(BUILD_STANDALONE_PLAYER "Build Linux standalone player (requires GLFW)" ON)
 option(BUILD_WALLPAPER "Build Linux wallpaper mode" ON)
+option(ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
+
+# Coverage flags for Clang/macOS
+if(ENABLE_COVERAGE AND APPLE)
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+    add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+    message(STATUS "Code coverage instrumentation: Enabled")
+endif()
 
 # Detect platform
 if(APPLE)
@@ -318,12 +326,26 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
     # Bundle resources - shaders and textures
-    # Bundle resources - shaders and textures
-    file(GLOB_RECURSE SHADER_RESOURCES
-        shaders/*.metal
-        shaders/*.glsl
-        shaders/*.frag
-    )
+    # On macOS, prefer .metal over .frag (some shaders have both versions)
+    if(MACOS)
+        file(GLOB SHADER_RESOURCES
+            "shaders/*.metal"
+            "shaders/*.glsl"
+        )
+        # Only add .frag if no matching .metal exists
+        foreach(frag_file IN LISTS "${CMAKE_SOURCE_DIR}/shaders/*.frag")
+            get_filename_component(shader_name ${frag_file} NAME_WE)
+            if(NOT EXISTS "${CMAKE_SOURCE_DIR}/shaders/${shader_name}.metal")
+                list(APPEND SHADER_RESOURCES ${frag_file})
+            endif()
+        endforeach()
+    else()
+        file(GLOB SHADER_RESOURCES
+            "shaders/*.metal"
+            "shaders/*.glsl"
+            "shaders/*.frag"
+        )
+    endif()
     file(GLOB OTHER_RESOURCES
         textures/*.png
         src/core/ShaderInterop.h
@@ -412,13 +434,30 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
      find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
      
       # Bundle resources - shaders and textures (must be before add_executable)
-      file(GLOB_RECURSE STANDALONE_RESOURCES
-          "shaders/*.metal"
-          "shaders/*.glsl"
-          "shaders/*.frag"
-          "textures/*.png"
-          "src/core/ShaderInterop.h"
-      )
+      # On macOS, prefer .metal over .frag (some shaders have both versions)
+      if(MACOS)
+          file(GLOB STANDALONE_RESOURCES
+              "shaders/*.metal"
+              "shaders/*.glsl"
+              "textures/*.png"
+              "src/core/ShaderInterop.h"
+          )
+          # Only add .frag if no matching .metal exists
+          foreach(frag_file IN LISTS "${CMAKE_SOURCE_DIR}/shaders/*.frag")
+              get_filename_component(shader_name ${frag_file} NAME_WE)
+              if(NOT EXISTS "${CMAKE_SOURCE_DIR}/shaders/${shader_name}.metal")
+                  list(APPEND STANDALONE_RESOURCES ${frag_file})
+              endif()
+          endforeach()
+      else()
+          file(GLOB STANDALONE_RESOURCES
+              "shaders/*.metal"
+              "shaders/*.glsl"
+              "shaders/*.frag"
+              "textures/*.png"
+              "src/core/ShaderInterop.h"
+          )
+      endif()
      
      foreach(res ${STANDALONE_RESOURCES})
          get_filename_component(res_name ${res} NAME)
@@ -713,10 +752,13 @@ if(BUILD_TESTS)
         tests/LogicAndUniformTests.cpp
         tests/ShaderCompilationTests.cpp
         tests/RendererFeatureTests.cpp
+        tests/CoverageExpansionTests.cpp
     )
     
     if(MACOS)
         list(APPEND TEST_SOURCES tests/main.mm)
+        list(APPEND TEST_SOURCES tests/MetalCompilationTests.mm)
+        list(APPEND TEST_SOURCES tests/AudioAndNeuralTests.mm)
         list(APPEND TEST_SOURCES src/platform/macos/MacOSMetalViewAdapter.mm)
     else()
         list(APPEND TEST_SOURCES tests/main.cpp)
