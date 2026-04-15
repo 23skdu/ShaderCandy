@@ -150,11 +150,11 @@ float3 map(float3 p, float time) {
     if(banner2 < result.x) result = float3(banner2, 0.0, 13.0);
     
     float3 torchP1 = p - float3(-2.0, 1.0, 2.5);
-    float torch1 = sdCylinder(torchP1.xzy, 0.05, 0.3);
+    float torch1 = sdCylinder(torchP1.xzy, float2(0.05, 0.3));
     if(torch1 < result.x) result = float3(torch1, 0.0, 14.0);
     
     float3 torchP2 = p - float3(2.0, 1.0, 2.5);
-    float torch2 = sdCylinder(torchP2.xzy, 0.05, 0.3);
+    float torch2 = sdCylinder(torchP2.xzy, float2(0.05, 0.3));
     if(torch2 < result.x) result = float3(torch2, 0.0, 14.0);
     
     return result;
@@ -175,7 +175,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float3 accumulatedGlow = float3(0.0);
     float3 accumulatedEmissive = float3(0.0);
     
-    for(int i = 0; i < 100; i++) {
+    for(int i = 0; i < 64; i++) {
         float3 p = ro + rd * dTotal;
         float3 mapResult = map(p, t);
         float d = mapResult.x;
@@ -312,28 +312,25 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     color += accumulatedGlow * flicker;
     color += accumulatedEmissive * flicker;
     
-    for(int i = 0; i < 25; i++) {
+    for(int i = 0; i < 10; i++) {
         float fi = float(i);
         float2 ashUV = uv + float2(
-            sin(t * 0.25 + fi * 1.3) * 0.9,
-            t * 0.15 + fi * 0.08 + sin(t * 0.5 + fi) * 0.2
+            sin(t * 0.25 + fi * 1.5) * 0.8,
+            t * 0.12 + fi * 0.1
         );
-        float ash = smoothstep(0.018, 0.0, length(ashUV));
-        float ashAlpha = 0.25 + 0.15 * sin(t * 2.5 + fi * 2.0);
-        color += float3(0.45, 0.35, 0.28) * ash * ashAlpha;
+        float ash = smoothstep(0.025, 0.0, length(ashUV));
+        float ashAlpha = 0.2 + 0.1 * sin(t * 2.5 + fi * 2.0);
+        color += float3(0.4, 0.3, 0.25) * ash * ashAlpha;
     }
     
     float3 fogColor = float3(0.18, 0.06, 0.02);
     color = mix(color, fogColor, 1.0 - exp(-dTotal * 0.08));
     
-    float3 stars = float3(0.0);
-    for(int i = 0; i < 8; i++) {
-        float fi = float(i);
-        float2 starUV = uv * 3.0 + float2(fi * 1.7, fi * 2.3);
-        float star = smoothstep(0.015, 0.0, length(fract(starUV) - 0.5));
-        stars += float3(0.8, 0.6, 0.4) * star * 0.3;
-    }
-    color += stars * (1.0 - smoothstep(0.0, 0.3, p.y));
+    // Simplified background glow instead of stars loop
+    float3 starsGlow = float3(0.0);
+    float starField = smoothstep(0.1, 0.0, length(fract(uv * 5.0) - 0.5));
+    starsGlow = float3(0.7, 0.55, 0.35) * starField * 0.15;
+    color += starsGlow * (1.0 - smoothstep(0.0, 0.25, rd.y));
     
     return float4(color * uniforms.intensity, uniforms.alpha);
 }

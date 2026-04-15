@@ -130,7 +130,6 @@ float3 map(float3 p, float time) {
         );
         eP.x = rotP.x;
         eP.z = rotP.y;
-        
         float3 elf = elfSDF(eP, time, fi);
         if(elf.x < result.x) result = float3(elf.x, elf.y, 20.0 + fi);
     }
@@ -163,7 +162,7 @@ float3 map(float3 p, float time) {
     float3 mushStem = sdCylinder(mushroomP.xzy, float2(0.03, 0.15));
     float3 capP = mushroomP - float3(0.0, 0.12, 0.0);
     float mushCap = sdBox(capP, float3(0.08, 0.04, 0.07));
-    float mushroom = min(mushStem, mushCap);
+    float mushroom = min(mushStem.x, mushCap);
     if(mushroom < result.x) result = float3(mushroom, 0.0, 18.0);
     
     return result;
@@ -185,24 +184,11 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float3 accumulatedGlow = float3(0.0);
     float3 accumulatedMagic = float3(0.0);
     
-    for(int i = 0; i < 120; i++) {
+    for(int i = 0; i < 80; i++) {
         float3 p = ro + rd * td;
         float3 mapResult = map(p, t);
         float d = mapResult.x;
         hitMaterial = mapResult;
-        
-        for(int j = 0; j < 8; j++) {
-            float fj = float(j);
-            float3 wispP = p - float3(
-                sin(t * 0.45 + fj * 1.7) * 2.5,
-                0.4 + cos(t * 0.28 + fj * 2.2) * 0.9,
-                cos(t * 0.35 + fj * 1.2) * 2.5
-            );
-            float wispDist = length(wispP);
-            float wispPulse = 0.7 + 0.3 * sin(t * 4.0 + fj * 3.0);
-            float3 wispColor = float3(0.3 + fj * 0.08, 0.9 + fj * 0.02, 0.5 + fj * 0.05);
-            accumulatedGlow += wispColor * 0.012 * wispPulse / (1.0 + wispDist * 2.5);
-        }
         
         float3 moonPos = float3(-3.0, 4.0, -5.0);
         float moonDist = length(p - moonPos);
@@ -218,6 +204,23 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
         
         if(d < 0.001 || td > 28.0) break;
         td += d * 0.65;
+    }
+    
+    // Calculate wisps once at end (moved out of raymarch loop)
+    if(td < 28.0) {
+        float3 p = ro + rd * td;
+        for(int j = 0; j < 4; j++) {
+            float fj = float(j);
+            float3 wispP = p - float3(
+                sin(t * 0.45 + fj * 1.7) * 2.5,
+                0.4 + cos(t * 0.28 + fj * 2.2) * 0.9,
+                cos(t * 0.35 + fj * 1.2) * 2.5
+            );
+            float wispDist = length(wispP);
+            float wispPulse = 0.7 + 0.3 * sin(t * 4.0 + fj * 3.0);
+            float3 wispColor = float3(0.3 + fj * 0.08, 0.9 + fj * 0.02, 0.5 + fj * 0.05);
+            accumulatedGlow += wispColor * 0.012 * wispPulse / (1.0 + wispDist * 2.5);
+        }
     }
     
     float3 color = float3(0.003, 0.015, 0.008);
@@ -361,28 +364,22 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float3 fogColor = float3(0.04, 0.12, 0.08);
     color = mix(color, fogColor, 1.0 - exp(-td * 0.1));
     
-    for(int i = 0; i < 20; i++) {
+    // Simplified fireflies (moved outside, lighter calculation)
+    for(int i = 0; i < 8; i++) {
         float fi = float(i);
-        float2 fireflyUV = uv + float2(
-            sin(t * 0.75 + fi * 3.2) * 0.6,
-            cos(t * 0.55 + fi * 2.8) * 0.45 + fi * 0.12
-        );
-        float firefly = smoothstep(0.022, 0.0, length(fireflyUV));
-        float fireflyPulse = 0.4 + 0.6 * sin(t * 4.5 + fi * 2.5);
-        float3 fireflyColor = mix(
-            float3(0.5, 1.0, 0.3),
-            float3(0.3, 0.8, 0.6),
-            sin(fi * 1.3) * 0.5 + 0.5
-        );
-        color += fireflyColor * firefly * fireflyPulse;
+        float2 fireflyUV = uv * 2.0 + float2(sin(t * 0.75 + fi * 2.5), cos(t * 0.55 + fi * 2.2)) * 0.5;
+        float firefly = smoothstep(0.035, 0.0, length(fract(fireflyUV + fi) - 0.5));
+        float fireflyPulse = 0.3 + 0.5 * sin(t * 4.5 + fi * 2.0);
+        color += float3(0.4, 0.9, 0.3) * firefly * fireflyPulse;
     }
     
+    // Simplified moon rays
     float3 moonRays = float3(0.0);
-    for(int i = 0; i < 5; i++) {
+    for(int i = 0; i < 3; i++) {
         float fi = float(i);
-        float2 rayUV = uv + float2(fi * 0.4 - 0.8, 0.0);
-        float ray = smoothstep(0.08, 0.0, abs(rayUV.x)) * smoothstep(0.3, -0.5, rayUV.y);
-        moonRays += float3(0.3, 0.35, 0.4) * ray * 0.15;
+        float2 rayUV = uv + float2(fi * 0.5 - 0.5, 0.0);
+        float ray = smoothstep(0.1, 0.0, abs(rayUV.x)) * smoothstep(0.2, -0.4, rayUV.y);
+        moonRays += float3(0.25, 0.3, 0.35) * ray * 0.1;
     }
     color += moonRays;
     
