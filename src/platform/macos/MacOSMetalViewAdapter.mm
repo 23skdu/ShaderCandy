@@ -17,7 +17,6 @@
 @property(nonatomic, strong, nullable) MTKView *mtkView;
 @property(nonatomic, strong, nullable) NSDate *startTime;
 @property(nonatomic, assign) NSInteger frameCount;
-@property(nonatomic, strong, nullable) NSWindow *configPanel;
 @property(nonatomic, strong, nullable) NSString *currentShaderName;
 @property(nonatomic, strong, nullable) NSArray<NSString *> *availableShaders;
 @property(nonatomic, assign) BOOL isCycling;
@@ -45,10 +44,6 @@
 }
 
 - (void)commonInit {
-  // Use stderr which always works
-  fprintf(stderr, "SC_DEBUG: commonInit called\n");
-  fflush(stderr);
-  
   // Register Defaults
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
@@ -259,18 +254,9 @@
   if (!hasValidBounds && (width < 1.0 || height < 1.0)) {
     // For preview mode, we actually still want to try with tiny bounds
     if (!self.isPreview) {
-      NSLog(@"MacOSMetalViewAdapter: Frame too small (%@), deferring Metal setup",
-            NSStringFromRect(self.bounds));
       return;
     }
   }
-
-  NSLog(@"MacOSMetalViewAdapter: Setting up Metal for %@ view...",
-        self.isPreview ? @"preview" : @"main");
-  
-  // Write to file
-  [[NSString stringWithFormat:@"setupMetal: isPreview=%d, bounds=%@\n", self.isPreview, NSStringFromRect(self.bounds)] 
-    writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"sc_debug.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
   
   id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
   if (!metalDevice) {
@@ -315,16 +301,12 @@
   [_renderer setViewportSize:self.mtkView.drawableSize];
 
   // Discover shaders - prefer renderer discovery but use early discovery as fallback
-  NSLog(@"MacOSMetalViewAdapter: About to discover shaders from renderer...");
   NSArray *rendererShaders = [_renderer availableShaderNames];
-  NSLog(@"MacOSMetalViewAdapter: Renderer found %lu shaders: %@", (unsigned long)rendererShaders.count, rendererShaders);
   if (rendererShaders.count > 0) {
     _availableShaders = rendererShaders;
   } else if (_availableShaders.count == 0) {
     _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb", @"aurora", @"starfield"];
-    NSLog(@"MacOSMetalViewAdapter: Using default shader list");
   }
-  NSLog(@"MacOSMetalViewAdapter: Final shader list: %@", _availableShaders);
 
   // Set device before loading shaders
   self.mtkView.device = _renderer.device;
@@ -341,29 +323,17 @@
     [self loadShaders];
   }
   _startTime = [NSDate date];
-
-  NSLog(@"MacOSMetalViewAdapter: Metal setup complete");
 }
 
 - (void)loadShaders {
-  // IMMEDIATE log
-  NSLog(@">>>>>>>>> loadShaders CALLED");
-  
   if (!_renderer || !_currentShaderName) {
-    NSLog(@"MacOSMetalViewAdapter: loadShaders early exit - renderer: %p, shaderName: %@", _renderer, _currentShaderName);
     return;
   }
-
-  NSLog(@"MacOSMetalViewAdapter: Attempting to load shader: %@", _currentShaderName);
+  
   NSError *error = nil;
   BOOL success = [_renderer setActiveShader:_currentShaderName error:&error];
   
-  NSLog(@"MacOSMetalViewAdapter: Shader load result: %@, error: %@", success ? @"SUCCESS" : @"FAILED", error);
-  
   if (!success && error) {
-    NSLog(@"MacOSMetalViewAdapter: Failed to load shader '%@': %@",
-          _currentShaderName, error);
-    
     // Try other shaders as fallback
     for (NSString *shaderName in _availableShaders) {
       if ([shaderName isEqualToString:_currentShaderName])

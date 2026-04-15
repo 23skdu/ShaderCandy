@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MacOSMetalViewAdapter : ScreenSaverView <MTKViewDelegate>
 
 @property(nonatomic, strong, readonly, nullable) MetalRenderer *renderer;
+@property(nonatomic, strong, readwrite, nullable) NSWindow *configPanel;
 @property(nonatomic, assign) BOOL enableBloom;
 @property(nonatomic, assign) float speed;
 @property(nonatomic, assign) float intensity;
