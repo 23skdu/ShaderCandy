@@ -341,9 +341,14 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
     # Bundle resources - shaders and textures
-    file(GLOB_RECURSE SHADER_RESOURCES
+    # Get root-level shaders and specific subdirectories (excluding base/)
+    file(GLOB SHADER_RESOURCES
         "shaders/*.metal"
         "shaders/*.glsl"
+        "shaders/effects/*.metal"
+        "shaders/audio/*.metal"
+        "shaders/music/*.metal"
+        "shaders/neural/*.metal"
     )
     # Only add .frag files that don't have .metal equivalent
     file(GLOB FRAG_RESOURCES "shaders/*.frag")
@@ -441,9 +446,14 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
      find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
      
       # Bundle resources - shaders and textures
-      file(GLOB_RECURSE STANDALONE_RESOURCES
+      # Get root-level shaders and specific subdirectories (excluding base/)
+      file(GLOB STANDALONE_RESOURCES
           "shaders/*.metal"
           "shaders/*.glsl"
+          "shaders/effects/*.metal"
+          "shaders/audio/*.metal"
+          "shaders/music/*.metal"
+          "shaders/neural/*.metal"
           "textures/*.png"
           "src/core/ShaderInterop.h"
       )
