@@ -453,62 +453,19 @@
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-  // Debug: write to stderr so it appears in Console.app
-  fprintf(stderr, "[RENDER] drawInMTKView called, frame=%lu\n", (unsigned long)_frameCount);
-  fflush(stderr);
+  // Skip all debug output in release - causes major slowdown
   
   if (!_renderer) {
-    fprintf(stderr, "[RENDER] ERROR: No renderer\n");
-    fflush(stderr);
     return;
   }
   if (!view.currentDrawable) {
-    fprintf(stderr, "[RENDER] ERROR: No currentDrawable\n");
-    fflush(stderr);
     return;
   }
   if (!view.currentRenderPassDescriptor) {
-    fprintf(stderr, "[RENDER] ERROR: No currentRenderPassDescriptor\n");
-    fflush(stderr);
     return;
   }
   if (!_renderer.currentPipeline) {
-    fprintf(stderr, "[RENDER] ERROR: No currentPipeline (shader not loaded?)\n");
-    fflush(stderr);
     return;
-  }
-  
-  fprintf(stderr, "[RENDER] PASS - rendering frame %lu\n", (unsigned long)_frameCount);
-  fflush(stderr);
-  if (!view.currentDrawable) {
-    NSLog(@"[RENDER] ERROR: No currentDrawable");
-    return;
-  }
-  if (!view.currentRenderPassDescriptor) {
-    NSLog(@"[RENDER] ERROR: No currentRenderPassDescriptor");
-    return;
-  }
-  if (!_renderer.currentPipeline) {
-    NSLog(@"[RENDER] ERROR: No currentPipeline (shader not loaded?)");
-    return;
-  }
-  
-  // Write to file for debugging
-  NSString *logPath = @"/tmp/shadercandy_debug.log";
-  NSString *line = [NSString stringWithFormat:@"[RENDER] Frame %lu, shader=%@\n", 
-                    (unsigned long)_frameCount, _renderer.activeShaderName];
-  NSData *lineData = [line dataUsingEncoding:NSUTF8StringEncoding];
-  
-  NSFileManager *fm = [NSFileManager defaultManager];
-  if (![fm fileExistsAtPath:logPath]) {
-    [lineData writeToFile:logPath atomically:YES];
-  } else {
-    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:logPath];
-    if (handle) {
-      [handle seekToEndOfFile];
-      [handle writeData:lineData];
-      [handle closeFile];
-    }
   }
 
   // Update uniforms
