@@ -45,29 +45,31 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)sharedCompiler;
 
 - (ShaderCompilationResult *)compileShaderNamed:(NSString *)name
-                                         device:(id<MTLDevice>)device
-                                          error:(NSError **)error;
+                                          device:(id<MTLDevice>)device
+                                           error:(NSError **)error;
 
 - (ShaderCompilationResult *)compileShaderFromSource:(NSString *)source
-                                            fileName:(NSString *)fileName
-                                              device:(id<MTLDevice>)device
-                                               error:(NSError **)error;
+                                             fileName:(NSString *)fileName
+                                               device:(id<MTLDevice>)device
+                                                error:(NSError **)error;
 
 - (ShaderCompilationResult *)compileShaderFromPath:(NSString *)path
-                                            device:(id<MTLDevice>)device
-                                             error:(NSError **)error;
+                                             device:(id<MTLDevice>)device
+                                              error:(NSError **)error;
 
 - (ShaderCompilationResult *)compileShaderFromMetallib:(NSString *)path
-                                                device:(id<MTLDevice>)device
-                                                 error:(NSError **)error;
+                                                 device:(id<MTLDevice>)device
+                                                  error:(NSError **)error;
 
 - (BOOL)precompileShaderNamed:(NSString *)name
-                   outputPath:(NSString *)outputPath
-                        error:(NSError **)error;
+                    outputPath:(NSString *)outputPath
+                         error:(NSError **)error;
 
 - (NSArray<NSString *> *)availableShaders;
 
 - (void)clearCache;
+
+- (void)preloadCommonShaders:(id<MTLDevice>)device;
 
 @end
 

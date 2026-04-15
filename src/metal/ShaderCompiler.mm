@@ -489,4 +489,14 @@
     [_metallibDates removeAllObjects];
 }
 
+- (void)preloadCommonShaders:(id<MTLDevice>)device {
+    NSArray *commonShaders = @[@"common", @"utils"];
+    for (NSString *name in commonShaders) {
+        NSString *path = [self pathForShaderNamed:name];
+        if (path) {
+            [self compileShaderFromPath:path device:device error:nil];
+        }
+    }
+}
+
 @end
