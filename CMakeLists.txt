@@ -388,7 +388,6 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     )
 
     target_link_libraries(ShaderCandy PRIVATE
-        shadercandy_core
         shadercandy_metal
         shadercandy_audio
         ${SCREENSAVER_FRAMEWORK}
@@ -476,10 +475,9 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
       find_library(COREML_FRAMEWORK CoreML REQUIRED)
       find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
 
-       target_link_libraries(ShaderCandyPlayer PRIVATE
-           shadercandy_core
-           shadercandy_metal
-           shadercandy_audio
+target_link_libraries(ShaderCandyPlayer PRIVATE
+            shadercandy_metal
+            shadercandy_audio
            ${COCOA_FRAMEWORK}
            ${METAL_FRAMEWORK}
            ${METALKIT_FRAMEWORK}
@@ -748,7 +746,6 @@ if(BUILD_TESTS)
     endif()
     
     add_executable(shadercandy-test ${TEST_SOURCES})
-    target_link_libraries(shadercandy-test PRIVATE shadercandy_core)
     
     add_executable(linux-logic-test tests/LinuxLogicTests.cpp)
     target_link_libraries(linux-logic-test shadercandy_core)
