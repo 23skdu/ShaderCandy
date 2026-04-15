@@ -205,10 +205,6 @@
 - (void)setFrame:(NSRect)frame {
   [super setFrame:frame];
   
-  // ALWAYS write to file when setFrame is called
-  [@"setFrame\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"sc_debug.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
-  [[NSString stringWithFormat:@"setFrame: %@\n", NSStringFromRect(frame)] writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"sc_debug.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
-  
   if (_mtkView) {
     _mtkView.frame = self.bounds;
   }
