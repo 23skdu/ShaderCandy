@@ -326,26 +326,19 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
     # Bundle resources - shaders and textures
-    # On macOS, prefer .metal over .frag (some shaders have both versions)
-    if(MACOS)
-        file(GLOB SHADER_RESOURCES
-            "shaders/*.metal"
-            "shaders/*.glsl"
-        )
-        # Only add .frag if no matching .metal exists
-        foreach(frag_file IN LISTS "${CMAKE_SOURCE_DIR}/shaders/*.frag")
-            get_filename_component(shader_name ${frag_file} NAME_WE)
-            if(NOT EXISTS "${CMAKE_SOURCE_DIR}/shaders/${shader_name}.metal")
-                list(APPEND SHADER_RESOURCES ${frag_file})
-            endif()
-        endforeach()
-    else()
-        file(GLOB SHADER_RESOURCES
-            "shaders/*.metal"
-            "shaders/*.glsl"
-            "shaders/*.frag"
-        )
-    endif()
+    file(GLOB_RECURSE SHADER_RESOURCES
+        "shaders/*.metal"
+        "shaders/*.glsl"
+    )
+    # Only add .frag files that don't have .metal equivalent
+    file(GLOB FRAG_RESOURCES "shaders/*.frag")
+    foreach(frag_file ${FRAG_RESOURCES})
+        get_filename_component(name ${frag_file} NAME_WE)
+        get_filename_component(dir ${frag_file} DIRECTORY)
+        if(NOT EXISTS "${dir}/${name}.metal")
+            list(APPEND SHADER_RESOURCES ${frag_file})
+        endif()
+    endforeach()
     file(GLOB OTHER_RESOURCES
         textures/*.png
         src/core/ShaderInterop.h
@@ -433,31 +426,21 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
      # Find Cocoa framework
      find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
      
-      # Bundle resources - shaders and textures (must be before add_executable)
-      # On macOS, prefer .metal over .frag (some shaders have both versions)
-      if(MACOS)
-          file(GLOB STANDALONE_RESOURCES
-              "shaders/*.metal"
-              "shaders/*.glsl"
-              "textures/*.png"
-              "src/core/ShaderInterop.h"
-          )
-          # Only add .frag if no matching .metal exists
-          foreach(frag_file IN LISTS "${CMAKE_SOURCE_DIR}/shaders/*.frag")
-              get_filename_component(shader_name ${frag_file} NAME_WE)
-              if(NOT EXISTS "${CMAKE_SOURCE_DIR}/shaders/${shader_name}.metal")
-                  list(APPEND STANDALONE_RESOURCES ${frag_file})
-              endif()
-          endforeach()
-      else()
-          file(GLOB STANDALONE_RESOURCES
-              "shaders/*.metal"
-              "shaders/*.glsl"
-              "shaders/*.frag"
-              "textures/*.png"
-              "src/core/ShaderInterop.h"
-          )
-      endif()
+      # Bundle resources - shaders and textures
+      file(GLOB_RECURSE STANDALONE_RESOURCES
+          "shaders/*.metal"
+          "shaders/*.glsl"
+          "textures/*.png"
+          "src/core/ShaderInterop.h"
+      )
+      file(GLOB FRAG_RESOURCES "shaders/*.frag")
+      foreach(frag_file ${FRAG_RESOURCES})
+          get_filename_component(name ${frag_file} NAME_WE)
+          get_filename_component(dir ${frag_file} DIRECTORY)
+          if(NOT EXISTS "${dir}/${name}.metal")
+              list(APPEND STANDALONE_RESOURCES ${frag_file})
+          endif()
+      endforeach()
      
      foreach(res ${STANDALONE_RESOURCES})
          get_filename_component(res_name ${res} NAME)
