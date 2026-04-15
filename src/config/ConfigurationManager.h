@@ -206,6 +206,8 @@ std::string serializeSettings(const AppSettings &settings);
 AppSettings deserializeSettings(const std::string &json);
 std::string serializeShaderConfig(const ShaderConfig &config);
 ShaderConfig deserializeShaderConfig(const std::string &json);
+std::map<std::string, ConfigValue> parse(const std::string &json);
+std::string escapeJSON(const std::string &s);
 } // namespace JSON
 
 } // namespace Config
