@@ -6,6 +6,8 @@
 //
 
 #include "ConfigurationManager.h"
+#include "PresetManager.h"
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -128,18 +130,7 @@ bool ConfigurationManager::saveToFile(const std::string &path) const {
       return false;
     }
 
-    // Simple JSON-like output
-    file << "{\n";
-    file << "  \"targetFPS\": " << settings_.targetFPS << ",\n";
-    file << "  \"vsync\": " << (settings_.vsync ? "true" : "false") << ",\n";
-    file << "  \"enableAudio\": " << (settings_.enableAudio ? "true" : "false")
-         << ",\n";
-    file << "  \"adaptiveQuality\": "
-         << (settings_.adaptiveQuality ? "true" : "false") << ",\n";
-    file << "  \"autoScaleFPSThreshold\": " << settings_.autoScaleFPSThreshold
-         << "\n";
-    file << "}\n";
-
+    file << JSON::serializeSettings(settings_);
     file.close();
     return true;
   } catch (const std::exception &) {
@@ -147,7 +138,11 @@ bool ConfigurationManager::saveToFile(const std::string &path) const {
   }
 }
 
-void ConfigurationManager::loadDefaults() { settings_ = AppSettings(); }
+void ConfigurationManager::loadDefaults() {
+  settings_ = AppSettings();
+  settings_.shaderPath = getShaderDirectory();
+}
+
 
 void ConfigurationManager::scanShaderDirectory(const std::string &path) {
   try {
@@ -155,7 +150,7 @@ void ConfigurationManager::scanShaderDirectory(const std::string &path) {
     if (!std::filesystem::exists(dirPath))
       return;
 
-    for (const auto &entry : std::filesystem::directory_iterator(dirPath)) {
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(dirPath)) {
       if (entry.is_regular_file() && (entry.path().extension() == ".metal" ||
                                       entry.path().extension() == ".glsl" ||
                                       entry.path().extension() == ".frag")) {
@@ -346,7 +341,7 @@ std::string ConfigurationManager::getPresetDirectory() {
 
 namespace JSON {
 
-static std::string escapeJSON(const std::string &s) {
+std::string escapeJSON(const std::string &s) {
   std::string result;
   for (char c : s) {
     switch (c) {
@@ -512,125 +507,110 @@ AppSettings deserializeSettings(const std::string &json) {
   if (json.empty())
     return settings;
 
-  size_t pos = 0;
-
-  auto findField = [&json](const std::string &field) -> size_t {
+  auto getValue = [&](const std::string &field) -> ConfigValue {
     size_t found = json.find("\"" + field + "\"");
-    return found;
+    if (found == std::string::npos)
+      return ConfigValue(0);
+    size_t pos = json.find(":", found);
+    if (pos == std::string::npos)
+      return ConfigValue(0);
+    pos++; // Skip :
+    return parseValue(json, pos);
   };
 
-  if (findField("targetFPS") != std::string::npos) {
-    size_t fp = findField("targetFPS") + 11;
-    while (fp < json.size() && !std::isdigit(json[fp]) && json[fp] != '-')
-      fp++;
-    size_t end = fp;
-    while (end < json.size() && (std::isdigit(json[end]) || json[end] == '-'))
-      end++;
-    if (end > fp)
-      settings.targetFPS = std::stoi(json.substr(fp, end - fp));
+  ConfigValue v;
+
+  v = getValue("targetFPS");
+  if (std::holds_alternative<int>(v)) {
+    settings.targetFPS = std::get<int>(v);
   }
 
-  if (findField("vsync") != std::string::npos) {
-    size_t vp = findField("vsync") + 7;
-    if (json.substr(vp, 4) == "true")
-      settings.vsync = true;
-    else if (json.substr(vp, 5) == "false")
-      settings.vsync = false;
+  v = getValue("vsync");
+  if (std::holds_alternative<bool>(v)) {
+    settings.vsync = std::get<bool>(v);
   }
 
-  if (findField("enableAudio") != std::string::npos) {
-    size_t ep = findField("enableAudio") + 12;
-    if (json.substr(ep, 4) == "true")
-      settings.enableAudio = true;
-    else if (json.substr(ep, 5) == "false")
-      settings.enableAudio = false;
+  v = getValue("enableAudio");
+  if (std::holds_alternative<bool>(v)) {
+    settings.enableAudio = std::get<bool>(v);
   }
 
-  if (findField("adaptiveQuality") != std::string::npos) {
-    size_t ap = findField("adaptiveQuality") + 17;
-    if (json.substr(ap, 4) == "true")
-      settings.adaptiveQuality = true;
-    else if (json.substr(ap, 5) == "false")
-      settings.adaptiveQuality = false;
+  v = getValue("adaptiveQuality");
+  if (std::holds_alternative<bool>(v)) {
+    settings.adaptiveQuality = std::get<bool>(v);
   }
 
-  if (findField("autoScaleFPSThreshold") != std::string::npos) {
-    size_t tp = findField("autoScaleFPSThreshold") + 23;
-    while (tp < json.size() && !std::isdigit(json[tp]) && json[tp] != '-')
-      tp++;
-    size_t end = tp;
-    while (end < json.size() && (std::isdigit(json[end]) || json[end] == '.'))
-      end++;
-    if (end > tp)
-      settings.autoScaleFPSThreshold = std::stof(json.substr(tp, end - tp));
+  v = getValue("autoScaleFPSThreshold");
+  if (std::holds_alternative<float>(v)) {
+    settings.autoScaleFPSThreshold = std::get<float>(v);
+  } else if (std::holds_alternative<int>(v)) {
+    settings.autoScaleFPSThreshold = static_cast<float>(std::get<int>(v));
   }
 
-  if (findField("defaultShader") != std::string::npos) {
-    size_t sp = findField("defaultShader") + 15;
-    size_t ep = json.find("\"", sp + 1);
-    if (ep != std::string::npos) {
-      settings.defaultShader = json.substr(sp + 1, ep - sp - 1);
-    }
+  v = getValue("defaultShader");
+  if (std::holds_alternative<std::string>(v)) {
+    settings.defaultShader = std::get<std::string>(v);
   }
 
   return settings;
 }
 
-std::string serializeShaderConfig(const ShaderConfig &config) {
-  std::string json = "{\n";
-  json += "  \"shaderName\": \"" + escapeJSON(config.shaderName) + "\",\n";
-  json += "  \"displayName\": \"" + escapeJSON(config.displayName) + "\",\n";
-  json += "  \"description\": \"" + escapeJSON(config.description) + "\",\n";
-  json += "  \"category\": \"" + escapeJSON(config.category) + "\",\n";
-
-  json += "  \"tags\": [";
-  for (size_t i = 0; i < config.tags.size(); i++) {
-    json += "\"" + escapeJSON(config.tags[i]) + "\"";
-    if (i < config.tags.size() - 1)
-      json += ", ";
-  }
-  json += "],\n";
-
-  json += "  \"supportsAudio\": " + boolToString(config.supportsAudio) + ",\n";
-  json += "  \"supportsHDR\": " + boolToString(config.supportsHDR) + ",\n";
-  json += "  \"quality\": " + std::to_string(config.quality) + "\n";
-  json += "}\n";
-  return json;
-}
-
-ShaderConfig deserializeShaderConfig(const std::string &json) {
-  ShaderConfig config;
-
+std::map<std::string, ConfigValue> parse(const std::string &json) {
+  std::map<std::string, ConfigValue> dict;
   if (json.empty())
-    return config;
+    return dict;
 
   size_t pos = 0;
-  auto findField = [&json](const std::string &field) -> size_t {
-    return json.find("\"" + field + "\"");
+  auto skipWS = [&]() {
+    while (pos < json.size() && std::isspace(json[pos]))
+      pos++;
   };
 
-  if (findField("shaderName") != std::string::npos) {
-    size_t sp = findField("shaderName") + 13;
-    size_t ep = json.find("\"", sp + 1);
-    if (ep != std::string::npos) {
-      config.shaderName = json.substr(sp + 1, ep - sp - 1);
-      config.displayName = config.shaderName;
+  skipWS();
+  if (pos >= json.size() || json[pos] != '{')
+    return dict;
+  pos++;
+
+  while (pos < json.size()) {
+    skipWS();
+    if (pos >= json.size() || json[pos] == '}')
+      break;
+
+    // Parse key
+    if (json[pos] != '"')
+      break;
+    pos++;
+    std::string key;
+    while (pos < json.size() && json[pos] != '"') {
+      key += json[pos++];
+    }
+    if (pos < json.size())
+      pos++; // skip "
+
+    skipWS();
+    if (pos >= json.size() || json[pos] != ':')
+      break;
+    pos++;
+
+    // Check that there's actually content after the colon
+    skipWS();
+    if (pos >= json.size()) {
+      dict.clear();
+      return dict;
+    }
+
+    dict[key] = parseValue(json, pos);
+
+    skipWS();
+    if (pos < json.size() && json[pos] == ',') {
+      pos++;
+    } else if (pos < json.size() && json[pos] == '}') {
+      // end of object
+    } else {
+      break;
     }
   }
-
-  if (findField("category") != std::string::npos) {
-    size_t cp = findField("category") + 11;
-    size_t ep = json.find("\"", cp + 1);
-    if (ep != std::string::npos) {
-      config.category = json.substr(cp + 1, ep - cp - 1);
-    }
-  }
-
-  config.supportsAudio = false;
-  config.supportsHDR = false;
-  config.quality = 1.0f;
-
-  return config;
+  return dict;
 }
 
 } // namespace JSON
@@ -649,6 +629,74 @@ bool ConfigurationManager::loadFromFile(const std::string &path) {
 
   settings_ = JSON::deserializeSettings(json);
   return true;
+}
+
+bool ConfigurationManager::savePreset(const std::string &name,
+                                      const std::string &shader) {
+  PresetManager &pm = PresetManager::getInstance();
+  Preset preset(shader);
+  preset.name = name;
+
+  // Fill with current parameter values
+  if (parameterValues_.count(shader) > 0) {
+    for (const auto &pair : parameterValues_.at(shader)) {
+      if (std::holds_alternative<float>(pair.second)) {
+        preset.setFloat(pair.first, std::get<float>(pair.second));
+      } else if (std::holds_alternative<int>(pair.second)) {
+        preset.setInt(pair.first, std::get<int>(pair.second));
+      } else if (std::holds_alternative<bool>(pair.second)) {
+        preset.setBool(pair.first, std::get<bool>(pair.second));
+      }
+    }
+  }
+
+  std::string error;
+  std::string path = getPresetDirectory() + "/" + shader + "/" + name + ".json";
+  return pm.savePreset(preset, path, error);
+}
+
+bool ConfigurationManager::loadPreset(const std::string &name,
+                                      const std::string &shader) {
+  PresetManager &pm = PresetManager::getInstance();
+  std::string error;
+  std::string path = getPresetDirectory() + "/" + shader + "/" + name + ".json";
+  auto preset = pm.loadPreset(path, error);
+
+  if (preset) {
+    for (const auto &pair : preset->floatParameters) {
+      setParameter(shader, pair.first, pair.second);
+    }
+    for (const auto &pair : preset->intParameters) {
+      setParameter(shader, pair.first, pair.second);
+    }
+    for (const auto &pair : preset->boolParameters) {
+      setParameter(shader, pair.first, pair.second);
+    }
+    return true;
+  }
+  return false;
+}
+
+std::vector<std::string>
+ConfigurationManager::getPresets(const std::string &shader) const {
+  std::vector<std::string> results;
+  std::string path = getPresetDirectory() + "/" + shader;
+  if (!std::filesystem::exists(path))
+    return results;
+
+  for (const auto &entry : std::filesystem::directory_iterator(path)) {
+    if (entry.path().extension() == ".json") {
+      results.push_back(entry.path().stem().string());
+    }
+  }
+  return results;
+}
+
+void ConfigurationManager::deletePreset(const std::string &name,
+                                        const std::string &shader) {
+  std::string error;
+  std::string path = getPresetDirectory() + "/" + shader + "/" + name + ".json";
+  PresetManager::getInstance().deletePreset(path, error);
 }
 
 } // namespace Config
