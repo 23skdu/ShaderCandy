@@ -869,20 +869,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 - (BOOL)_loadShaderWithNameInternal:(NSString *)name error:(NSError **)error {
   __block BOOL alreadyLoaded = NO;
   __block NSError *localError = nil;
-
-  // Simple log to confirm function called
-  fprintf(stderr, "SC_DEBUG: _loadShaderWithNameInternal called for %s\n", [name UTF8String]);
-  fflush(stderr);
   
-  NSLog(@">>>>>>>>> _loadShaderWithNameInternal CALLED FOR: %@", name);
-
   // Logic from former loadShaderWithName:
   // Check for shader file
   NSString *path = [self pathForShader:name];
   if (!path) {
-#ifdef DEBUG
-    
-#endif
     localError = [NSError
         errorWithDomain:@"MetalRenderer"
                    code:MetalRendererErrorCodeShaderCompilationFailed
@@ -1241,12 +1232,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   id<MTLFunction> fragmentFunc = [library newFunctionWithName:@"fragment_main"];
 
   NSLog(@">>>>> PIPELINE: vertexFunc=%p, fragmentFunc=%p for shader %@", vertexFunc, fragmentFunc, name);
-  fprintf(stderr, ">>>> PIPELINE: v=%p, f=%p shader=%s\n", vertexFunc, fragmentFunc, [name UTF8String]);
-  fflush(stderr);
-
   if (!vertexFunc || !fragmentFunc) {
-    NSLog(@"Shader '%@' missing required functions: vertex_main=%@, fragment_main=%@",
-          name, vertexFunc ? @"YES" : @"NO", fragmentFunc ? @"YES" : @"NO");
     if (error) {
       *error = [NSError errorWithDomain:@"MetalRenderer"
                                    code:MetalRendererErrorCodeShaderCompilationFailed
