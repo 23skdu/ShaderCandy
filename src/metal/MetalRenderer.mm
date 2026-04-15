@@ -1819,9 +1819,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   BOOL needsOffscreen = _bloomConfig.enabled || _hdrEnabled ||
                         _neuralStyleEnabled || _isTransitioning;
 
-  NSLog(@"[RENDER] needsOffscreen=%d (bloom=%d, hdr=%d, neural=%d, trans=%d)",
-        needsOffscreen, _bloomConfig.enabled, _hdrEnabled, _neuralStyleEnabled, _isTransitioning);
-
   if (!needsOffscreen) {
     // 1. Optional Simulation Pass
     if (_currentPipeline.simulationPipeline) {
@@ -2130,13 +2127,12 @@ transition_complete:;
 }
 
 - (void)renderSimpleToDrawable:(id<CAMetalDrawable>)drawable
-                  commandBuffer:(id<MTLCommandBuffer>)commandBuffer
-               renderDescriptor:(MTLRenderPassDescriptor *)descriptor
-                       uniforms:(Uniforms *)uniforms
-                    bufferIndex:(NSUInteger)bufferIndex {
+                   commandBuffer:(id<MTLCommandBuffer>)commandBuffer
+                renderDescriptor:(MTLRenderPassDescriptor *)descriptor
+                        uniforms:(Uniforms *)uniforms
+                     bufferIndex:(NSUInteger)bufferIndex {
   // Check if we have a valid pipeline
   if (!_currentPipeline.renderPipeline) {
-    NSLog(@"MetalRenderer: No render pipeline available, skipping render");
     return;
   }
 
