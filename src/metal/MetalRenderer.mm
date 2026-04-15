@@ -1007,7 +1007,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                         ofType:(NSString *)type
                         subDir:(NSString *)subDir {
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSLog(@"MetalRenderer: bundleForClass returns: %@, resourcePath: %@, bundlePath: %@", bundle, bundle.resourcePath, bundle.bundlePath);
   
   NSString *path = [bundle pathForResource:name ofType:type inDirectory:subDir];
   if (path)
@@ -1062,8 +1061,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       }
     }
   }
-  NSLog(@"MetalRenderer Error: Could not find resource %@.%@ in subDir %@",
-        name, type, subDir);
   return nil;
 }
 
@@ -1362,7 +1359,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSMutableSet *foundNames = [NSMutableSet set];
 
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  NSLog(@"MetalRenderer: bundleForClass resolved to: %@", bundle.bundlePath);
   NSFileManager *fm = [NSFileManager defaultManager];
 
   // List of paths to search for shaders
@@ -1376,13 +1372,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     [mainBundle resourcePath],
     [[mainBundle bundlePath] stringByAppendingPathComponent:@"shaders"],
     [[fm currentDirectoryPath] stringByAppendingPathComponent:@"shaders"]
-  ];
-
-  NSLog(@"MetalRenderer: Searching for shaders in %lu locations (mainBundle: %@)...", 
-        (unsigned long)searchPaths.count, mainBundle.bundlePath);
-  for (NSString *path in searchPaths) {
-    NSLog(@"MetalRenderer:   Checking path: %@", path);
-  }
+];
 
   for (NSString *path in searchPaths) {
     if (!path)
