@@ -214,7 +214,6 @@ vertex VertexOut vertex_main(
     VertexOut out;
     out.position = float4(in.position, 0.0, 1.0);
     out.texCoord = in.texCoord;
-    out.screenPos = in.position;
     return out;
 }
 
