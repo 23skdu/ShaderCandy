@@ -2437,14 +2437,12 @@ transition_complete:;
   if (cached)
     return cached;
 
-  // bloom.metal lives in shaders/effects/ — try there first, then shaders/
-  NSString *path = [self findResourcePath:@"bloom"
-                                   ofType:@"metal"
-                                   subDir:@"shaders/effects"];
-  if (!path) {
-    path = [self findResourcePath:@"bloom"
-                           ofType:@"metal"
-                           subDir:@"shaders"];
+  // bloom.metal lives in shaders/effects/ or shaders/ - try multiple paths
+  NSArray *searchDirs = @[@"shaders/effects", @"shaders", @""];
+  NSString *path = nil;
+  for (NSString *dir in searchDirs) {
+    path = [self findResourcePath:@"bloom" ofType:@"metal" subDir:dir];
+    if (path) break;
   }
   
   if (!path) {
@@ -2456,7 +2454,6 @@ transition_complete:;
                                                encoding:NSUTF8StringEncoding
                                                   error:nil];
   if (!source) {
-    NSLog(@"MetalRenderer Error: Failed to read bloom.metal at %@", path);
     return nil;
   }
 
