@@ -217,14 +217,31 @@ if(MACOS AND BUILD_METAL)
     # Check for Metal compiler
     find_program(XCRUN_EXECUTABLE xcrun)
     if(XCRUN_EXECUTABLE)
-        execute_process(COMMAND ${XCRUN_EXECUTABLE} -f metal OUTPUT_VARIABLE METAL_COMPILER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        execute_process(COMMAND ${XCRUN_EXECUTABLE} --find metal OUTPUT_VARIABLE METAL_COMPILER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    endif()
+    
+    # Fallback: check Xcode toolchain directly
+    if(NOT METAL_COMPILER)
+        set(METAL_COMPILER "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/metal")
+        if(NOT EXISTS ${METAL_COMPILER})
+            set(METAL_COMPILER "")
+        endif()
     endif()
 
     # Compile all Metal shaders to individual metallib files
     option(ENABLE_OFFLINE_SHADER_COMPILATION "Compile shaders at build time" OFF)
     
     if(ENABLE_OFFLINE_SHADER_COMPILATION AND METAL_COMPILER AND XCRUN_EXECUTABLE)
+        message(STATUS "Note: Offline shader compilation requires manual setup for include dependencies.")
+        message(STATUS "For automatic runtime compilation with caching, keep this OFF (default).")
+        
         file(GLOB_RECURSE METAL_SOURCE_SHADERS "shaders/**/*.metal")
+        
+        # Shader include path
+        set(SHADER_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/src/core")
+        
+        # Get SDK path via xcrun
+        execute_process(COMMAND xcrun --sdk macosx --show-sdk-path OUTPUT_VARIABLE MACOS_SDK_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
         
         foreach(shader_source ${METAL_SOURCE_SHADERS})
             get_filename_component(shader_name ${shader_source} NAME_WE)
@@ -235,16 +252,14 @@ if(MACOS AND BUILD_METAL)
             set(output_dir ${CMAKE_BINARY_DIR}/shaders/${relative_dir})
             file(MAKE_DIRECTORY ${output_dir})
             
-            # Compile to .air (intermediate)
-            set(air_file ${output_dir}/${shader_name}.air)
-            
-            # Compile to .metallib
+            # Compile to .metallib using xcrun for proper environment
             set(metallib_file ${output_dir}/${shader_name}.metallib)
             
+            # Note: This requires the shader to not depend on ShaderUtils namespace
+            # which is defined in utils.metal - runtime compilation handles this automatically
             add_custom_command(
                 OUTPUT ${metallib_file}
-                COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metal -c ${shader_source} -o ${air_file}
-                COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metallib ${air_file} -o ${metallib_file}
+                COMMAND xcrun -sdk macosx metal -c ${shader_source} -o ${metallib_file} -isysroot ${MACOS_SDK_PATH} -I ${SHADER_INCLUDE_PATH}
                 DEPENDS ${shader_source}
                 COMMENT "Compiling Metal shader: ${shader_name}"
                 VERBATIM

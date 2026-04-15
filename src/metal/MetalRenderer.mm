@@ -421,6 +421,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   [[NeuralStyleEngine sharedEngine] initializeWithDevice:_device error:nil];
   _neuralStyleEnabled = NO;
   _styleStrength = 0.5f;
+  
+  // Preload common shaders for faster first shader switch
+  [[ShaderCompiler sharedCompiler] preloadCommonShaders:_device];
 
 #ifdef DEBUG
   NSLog(@"MetalRenderer: Initialized with device %@ (Family: %ld)",

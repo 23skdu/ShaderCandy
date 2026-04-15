@@ -59,7 +59,8 @@ build_project() {
         -DBUILD_METAL=ON \
         -DBUILD_OPENGL=OFF \
         -DBUILD_SCREENSAVER_MACOS=ON \
-        -DBUILD_STANDALONE_APP=ON
+        -DBUILD_STANDALONE_APP=ON \
+        -DENABLE_OFFLINE_SHADER_COMPILATION=OFF
     
     # Build with make (works with Command Line Tools)
     echo "Compiling..."
@@ -109,7 +110,8 @@ build_with_make() {
         -DBUILD_METAL=ON \
         -DBUILD_OPENGL=OFF \
         -DBUILD_SCREENSAVER_MACOS=ON \
-        -DBUILD_STANDALONE_APP=ON
+        -DBUILD_STANDALONE_APP=ON \
+        -DENABLE_OFFLINE_SHADER_COMPILATION=OFF
     
     make -j$(sysctl -n hw.ncpu)
     
