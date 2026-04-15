@@ -878,7 +878,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSString *path = [self pathForShader:name];
   if (!path) {
 #ifdef DEBUG
-    NSLog(@"[SHADER DEBUG] FAILED: Shader '%@' not found at any search path", name);
+    
 #endif
     localError = [NSError
         errorWithDomain:@"MetalRenderer"
@@ -892,7 +892,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     return NO;
   }
 #ifdef DEBUG
-  NSLog(@"[SHADER DEBUG] Found shader file at: %@", path);
 #endif
 
   // Check modification date
@@ -900,7 +899,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSDate *lastMod = self.shaderModificationDates[name];
   if (lastMod && [modDate isEqualToDate:lastMod] && self.pipelineCache[name]) {
 #ifdef DEBUG
-    NSLog(@"[SHADER DEBUG] Shader '%@' already loaded and unchanged", name);
 #endif
     return YES; // Already loaded and unchanged
   }
@@ -913,18 +911,13 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                                                encoding:NSUTF8StringEncoding
                                                   error:&compileError];
   if (!source) {
-    NSLog(@"[SHADER DEBUG] FAILED: Could not read shader file: %@", compileError);
     if (error)
       *error = compileError;
     return NO;
   }
-  NSLog(@"[SHADER DEBUG] Read %lu bytes from shader file", (unsigned long)source.length);
 
   // Create library with full source
-  NSLog(@"[SHADER DEBUG] Preparing shader source...");
   NSString *fullSource = [self prepareShaderSource:source forShader:name];
-  NSLog(@"[SHADER DEBUG] Prepared source size: %lu bytes", (unsigned long)fullSource.length);
-  NSLog(@"[SHADER DEBUG] First 200 chars of source: %@", [fullSource substringToIndex:MIN(200, fullSource.length)]);
   
   // Also write to file
   NSString *logLine = [NSString stringWithFormat:@"[SHADER] Loading shader: %@\n", name];
@@ -942,15 +935,12 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     }
   }
   
-  NSLog(@"[SHADER DEBUG] Creating Metal library for shader '%@'...", name);
   id<MTLLibrary> library = [self.device newLibraryWithSource:fullSource
                                                      options:nil
                                                        error:&compileError];
-  NSLog(@"[SHADER DEBUG] Library creation returned: %@, error: %@", library, compileError);
   
   // EARLY RETURN if library failed
   if (!library) {
-    NSLog(@"[SHADER DEBUG] EARLY EXIT: library is nil");
     if (compileError) {
       [self handleShaderCompileError:compileError
                            forShader:name
@@ -961,32 +951,20 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     return NO;
   }
   
-  NSLog(@"[SHADER DEBUG] Metal library created successfully for: %@", name);
-  
-  // Debug: list ALL functions in the library
-  NSArray *allFuncs = [library functionNames];
-  NSLog(@"[SHADER DEBUG] Library '%@' has %lu functions: %@", name, (unsigned long)allFuncs.count, allFuncs);
-  fprintf(stderr, "[SHADER] %s has %lu funcs\n", [name UTF8String], (unsigned long)allFuncs.count);
-  fflush(stderr);
-
   self.libraryCache[name] = library;
 
 // Create pipeline
-  NSLog(@"[SHADER DEBUG] Creating pipeline state...");
-  [@"Creating pipeline\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"shadercandy_log.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
   NSError *pipelineError = nil;
   MetalPipelineState *pipeline =
       [self createPipelineStateWithLibrary:library
                                  shaderName:name
                                       error:&pipelineError];
   if (pipelineError) {
-    NSLog(@"[SHADER DEBUG] FAILED: Pipeline creation failed: %@", pipelineError);
     if (error)
       *error = pipelineError;
     return NO;
   }
   if (!pipeline) {
-    NSLog(@"[SHADER DEBUG] FAILED: Pipeline is nil (missing vertex_main or fragment_main)");
     if (error) {
       *error = [NSError errorWithDomain:@"MetalRenderer"
                                    code:MetalRendererErrorCodeShaderCompilationFailed
@@ -994,7 +972,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     }
     return NO;
   }
-  NSLog(@"[SHADER DEBUG] Pipeline state created successfully");
 
   self.pipelineCache[name] = pipeline;
   self.currentPipeline = pipeline;
