@@ -1042,6 +1042,14 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   path = [mainBundle pathForResource:name ofType:type inDirectory:subDir];
   if (path)
     return path;
+  
+  // Also try root (no subdirectory) - CMake flattens bundle structure
+  path = [bundle pathForResource:name ofType:type];
+  if (path)
+    return path;
+  path = [mainBundle pathForResource:name ofType:type];
+  if (path)
+    return path;
 
   // Fallback to manual search
   NSFileManager *fm = [NSFileManager defaultManager];
