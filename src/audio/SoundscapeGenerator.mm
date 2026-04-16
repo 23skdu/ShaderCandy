@@ -41,7 +41,7 @@
 - (instancetype)init {
   self = [super init];
   if (self) {
-    _enabled = YES;
+    _enabled = NO; // Disabled by default until started
     _masterVolume = 0.5f;
     _activeType = SoundscapeTypeCosmicDrone;
 
@@ -54,13 +54,12 @@
     _targetFrequency1 = 55.0f;  // A1
     _targetFrequency2 = 55.44f; // Slightly detuned
     _targetFrequency3 = 110.0f; // A2
-
-    [self setupEngine];
   }
   return self;
 }
 
 - (void)setupEngine {
+  if (_engine) return;
   _engine = [[AVAudioEngine alloc] init];
 
   // Create synthesis node
@@ -142,6 +141,7 @@
 }
 
 - (BOOL)start {
+  [self setupEngine];
   NSError *error = nil;
   if (![_engine startAndReturnError:&error]) {
     NSLog(@"SoundscapeGenerator: Failed to start engine: %@", error);

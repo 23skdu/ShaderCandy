@@ -151,13 +151,6 @@ Preset Preset::fromDictionary(
     }
   }
 
-  // Set modified date
-  auto now = std::chrono::system_clock::now();
-  auto time = std::chrono::system_clock::to_time_t(now);
-  std::tm *tm = std::localtime(&time);
-  std::ostringstream oss;
-  oss << std::put_time(tm, "%Y-%m-%dT%H:%M:%SZ");
-  preset.modifiedDate = oss.str();
 
   return preset;
 }
