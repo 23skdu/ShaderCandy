@@ -46,40 +46,10 @@
 }
 
 - (void)commonInit {
-  // 1. Memory-only defaults (No IO here)
-  _preferredFPS = 60;
-  _enableBloom = YES;
-  _speed = 1.0;
-  _intensity = 1.0;
-  _gravity = 1.0;
-  _enableHotReload = NO;
-  _isCycling = YES;
-  _cycleInterval = 15.0;
-  _lastCycleTime = [NSDate date];
-  
+  // TRUE NO-OP for Sonoma stability
+  // Do not even look at ScreenSaverDefaults here
   self.wantsLayer = YES;
   self.animationTimeInterval = 1.0 / 60.0;
-
-  // 2. Offload all I/O and discovery to a background queue
-  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-      NSString *identifier = [[NSBundle bundleForClass:[self class]] bundleIdentifier] ?: @"com.shadercandy.screensaver";
-      ScreenSaverDefaults *defaults = [ScreenSaverDefaults defaultsForModuleWithName:identifier];
-      
-      // Load actual settings
-      dispatch_async(dispatch_get_main_queue(), ^{
-          self->_preferredFPS = [defaults integerForKey:@"preferredFPS"] ?: 60;
-          self->_enableBloom = [defaults boolForKey:@"enableBloom"];
-          self->_speed = [defaults floatForKey:@"speed"];
-          self->_intensity = [defaults floatForKey:@"intensity"];
-          self->_gravity = [defaults floatForKey:@"gravity"];
-          self->_enableHotReload = [defaults boolForKey:@"hotReload"];
-          self->_isCycling = [defaults boolForKey:@"cycleShaders"];
-          self->_cycleInterval = [defaults doubleForKey:@"cycleInterval"];
-          self->_currentShaderName = [defaults stringForKey:@"selectedShader"];
-      });
-      
-      [self discoverShadersEarly];
-  });
 }
 
 // Discover shaders early without requiring Metal device
@@ -230,11 +200,12 @@
 
 - (void)viewDidMoveToWindow {
   [super viewDidMoveToWindow];
-#ifdef DEBUG
-  NSLog(@">>>>> viewDidMoveToWindow called");
-#endif
+  
   if (!self.mtkView) {
-    [self setupMetal];
+    // Perform all heavy initialization on the next turn of the execution loop
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self setupMetal];
+    });
   }
 }
 
@@ -265,18 +236,47 @@
   if (self.mtkView)
     return;
 
-  // 1. Create MTKView IMMEDIATELY to satisfy the Remote Layer Factory
-  // Use zero rect - we will fix it once the device is ready
-  self.mtkView = [[MTKView alloc] initWithFrame:self.bounds];
-  self.mtkView.delegate = self;
-  self.mtkView.paused = YES; // Stay paused until renderer is ready
-  self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-  [self addSubview:self.mtkView];
+  // 1. Lazy-load settings FIRST (on background)
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+      NSString *idStr = [[NSBundle bundleForClass:[self class]] bundleIdentifier] ?: @"com.shadercandy.screensaver";
+      ScreenSaverDefaults *defaults = [ScreenSaverDefaults defaultsForModuleWithName:idStr];
+      
+      // Cache settings locally
+      NSInteger fps = [defaults integerForKey:@"preferredFPS"] ?: 60;
+      BOOL bloom = [defaults boolForKey:@"enableBloom"];
+      float speed = [defaults floatForKey:@"speed"] ?: 1.0f;
+      float intensity = [defaults floatForKey:@"intensity"] ?: 1.0f;
+      NSString *shader = [defaults stringForKey:@"selectedShader"] ?: @"default";
 
-  // 2. Offload ALL high-latency initialization to background
+      dispatch_async(dispatch_get_main_queue(), ^{
+          self->_preferredFPS = fps;
+          self->_enableBloom = bloom;
+          self->_speed = speed;
+          self->_intensity = intensity;
+          self->_currentShaderName = shader;
+          self->_lastCycleTime = [NSDate date];
+          self.animationTimeInterval = 1.0 / (double)fps;
+          
+          // 2. ONLY NOW create the UI
+          [CATransaction begin];
+          self.mtkView = [[MTKView alloc] initWithFrame:self.bounds];
+          self.mtkView.delegate = self;
+          self.mtkView.paused = YES;
+          self.mtkView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+          [self addSubview:self.mtkView];
+          [CATransaction commit];
+          [CATransaction flush];
+          
+          // 3. Chain to renderer setup
+          [self startBackgroundRendererSetup];
+      });
+  });
+}
+
+- (void)startBackgroundRendererSetup {
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-    id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
-    if (!metalDevice) return;
+      id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
+      if (!metalDevice) return;
   
   // Ensure the MTKView fills the entire view even in preview
     dispatch_async(dispatch_get_main_queue(), ^{
