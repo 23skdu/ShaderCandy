@@ -341,24 +341,11 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
     find_library(SCREENSAVER_FRAMEWORK ScreenSaver REQUIRED)
     
     # Bundle resources - shaders and textures
-    # Get root-level shaders and specific subdirectories (excluding base/)
+    # All .metal shaders are consolidated in shaders/effects/
     file(GLOB SHADER_RESOURCES
-        "shaders/*.metal"
-        "shaders/*.glsl"
         "shaders/effects/*.metal"
-        "shaders/audio/*.metal"
-        "shaders/music/*.metal"
-        "shaders/neural/*.metal"
+        "shaders/base/*.metal"
     )
-    # Only add .frag files that don't have .metal equivalent
-    file(GLOB FRAG_RESOURCES "shaders/*.frag")
-    foreach(frag_file ${FRAG_RESOURCES})
-        get_filename_component(name ${frag_file} NAME_WE)
-        get_filename_component(dir ${frag_file} DIRECTORY)
-        if(NOT EXISTS "${dir}/${name}.metal")
-            list(APPEND SHADER_RESOURCES ${frag_file})
-        endif()
-    endforeach()
     file(GLOB OTHER_RESOURCES
         textures/*.png
         src/core/ShaderInterop.h
@@ -446,14 +433,10 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
      find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
      
       # Bundle resources - shaders and textures
-      # Get root-level shaders and specific subdirectories (excluding base/)
+      # All .metal shaders are consolidated in shaders/effects/
       file(GLOB STANDALONE_RESOURCES
-          "shaders/*.metal"
-          "shaders/*.glsl"
           "shaders/effects/*.metal"
-          "shaders/audio/*.metal"
-          "shaders/music/*.metal"
-          "shaders/neural/*.metal"
+          "shaders/base/*.metal"
           "textures/*.png"
           "src/core/ShaderInterop.h"
       )

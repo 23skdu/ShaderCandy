@@ -44,6 +44,10 @@
 }
 
 - (void)commonInit {
+  // Simple file logging
+  NSString *logPath = @"/tmp/shadercandy.log";
+  [@"commonInit\n" writeToFile:logPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  
   // Register Defaults
   ScreenSaverDefaults *defaults = [ScreenSaverDefaults
       defaultsForModuleWithName:@"com.shadercandy.screensaver"];
@@ -63,7 +67,6 @@
   }];
 
   _currentShaderName = [defaults stringForKey:@"selectedShader"];
-  NSLog(@"MacOSMetalViewAdapter: commonInit - selectedShader from defaults: %@", _currentShaderName);
   
   _preferredFPS = [defaults integerForKey:@"preferredFPS"];
   _enableBloom = [defaults boolForKey:@"enableBloom"];
@@ -78,11 +81,8 @@
   self.animationTimeInterval = 1.0 / (double)_preferredFPS;
 
   self.wantsLayer = YES;
-  NSLog(@"MacOSMetalViewAdapter: Initializing with frame %@",
-        NSStringFromRect(self.bounds));
 
   // Pre-discover shaders early so they're available for configureSheet
-  // We need to do this without Metal device to populate the menu
   [self discoverShadersEarly];
 }
 
@@ -130,57 +130,61 @@
     return;
   }
 
-  // Scan for .metal files
-  NSDirectoryEnumerator *enumerator =
-      [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
-          includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
-                             options:NSDirectoryEnumerationSkipsHiddenFiles
-                        errorHandler:nil];
+    // Scan for .metal and .frag files
+    NSDirectoryEnumerator *enumerator =
+        [fm enumeratorAtURL:[NSURL fileURLWithPath:shadersPath]
+            includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
+                               options:NSDirectoryEnumerationSkipsHiddenFiles
+                          errorHandler:nil];
 
-  for (NSURL *fileURL in enumerator) {
-    NSString *fileName;
-    [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
+    for (NSURL *fileURL in enumerator) {
+      NSString *fileName;
+      [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
 
-    NSNumber *isDirectory;
-    [fileURL getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:nil];
+      NSNumber *isDirectory;
+      [fileURL getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:nil];
 
-    if (![isDirectory boolValue] && [fileName hasSuffix:@".metal"]) {
-      NSString *name = [fileName stringByDeletingPathExtension];
-      // Skip utility shaders
-      if (![name isEqualToString:@"common"] &&
-          ![name isEqualToString:@"utils"] &&
-          ![name isEqualToString:@"ShaderInterop"] &&
-          ![name isEqualToString:@"bloom"] &&
-          ![name isEqualToString:@"particles"] &&
-          ![name isEqualToString:@"debug_overlay"]) {
-        [shaders addObject:name];
-      }
-    }
-  }
-
-  // Also look in subdirectories (effects, music, etc.)
-  NSArray *subDirs = @[@"effects", @"music", @"neural", @"audio", @"system", @"base"];
-  for (NSString *subDir in subDirs) {
-    NSString *subPath = [shadersPath stringByAppendingPathComponent:subDir];
-    if ([fm fileExistsAtPath:subPath]) {
-      NSLog(@"MacOSMetalViewAdapter: Scanning subdirectory: %@", subPath);
-      NSDirectoryEnumerator *subEnum =
-          [fm enumeratorAtURL:[NSURL fileURLWithPath:subPath]
-              includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
-                         options:NSDirectoryEnumerationSkipsHiddenFiles
-                    errorHandler:nil];
-      for (NSURL *fileURL in subEnum) {
-        NSString *fileName;
-        [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
-        if ([fileName hasSuffix:@".metal"]) {
-          NSString *name = [fileName stringByDeletingPathExtension];
+      NSString *ext = [fileName pathExtension];
+      if (![isDirectory boolValue] && ([ext isEqualToString:@"metal"] || [ext isEqualToString:@"frag"])) {
+        NSString *name = [fileName stringByDeletingPathExtension];
+        // Skip utility shaders
+        if (![name isEqualToString:@"common"] &&
+            ![name isEqualToString:@"utils"] &&
+            ![name isEqualToString:@"ShaderInterop"] &&
+            ![name isEqualToString:@"bloom"] &&
+            ![name isEqualToString:@"particles"] &&
+            ![name isEqualToString:@"debug_overlay"]) {
           if (![shaders containsObject:name]) {
             [shaders addObject:name];
           }
         }
       }
     }
-  }
+
+    // Also look in subdirectories (effects, music, etc.)
+    NSArray *subDirs = @[@"effects", @"music", @"neural", @"audio", @"system", @"base"];
+    for (NSString *subDir in subDirs) {
+      NSString *subPath = [shadersPath stringByAppendingPathComponent:subDir];
+      if ([fm fileExistsAtPath:subPath]) {
+        NSLog(@"MacOSMetalViewAdapter: Scanning subdirectory: %@", subPath);
+        NSDirectoryEnumerator *subEnum =
+            [fm enumeratorAtURL:[NSURL fileURLWithPath:subPath]
+                includingPropertiesForKeys:@[NSURLNameKey, NSURLIsDirectoryKey]
+                           options:NSDirectoryEnumerationSkipsHiddenFiles
+                      errorHandler:nil];
+        for (NSURL *fileURL in subEnum) {
+          NSString *fileName;
+          [fileURL getResourceValue:&fileName forKey:NSURLNameKey error:nil];
+          NSString *ext = [fileName pathExtension];
+          if ([ext isEqualToString:@"metal"] || [ext isEqualToString:@"frag"]) {
+            NSString *name = [fileName stringByDeletingPathExtension];
+            if (![shaders containsObject:name]) {
+              [shaders addObject:name];
+            }
+          }
+        }
+      }
+    }
 
   [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
 
@@ -211,7 +215,9 @@
 
 - (void)startAnimation {
   [super startAnimation];
+#ifdef DEBUG
   NSLog(@">>>>> startAnimation called, isPreview=%d", self.isPreview);
+#endif
 
   // Tahoe/macOS 15 Fix: Ensure zero bounds are recovered for full screen
   if (!self.isPreview && NSWidth(self.bounds) < 1.0) {
@@ -226,7 +232,9 @@
 
 - (void)viewDidMoveToWindow {
   [super viewDidMoveToWindow];
+#ifdef DEBUG
   NSLog(@">>>>> viewDidMoveToWindow called");
+#endif
   
   // Ensure proper frame when moving to window
   if (self.window && (NSWidth(self.bounds) < 1.0 || NSHeight(self.bounds) < 1.0)) {
@@ -304,62 +312,92 @@
   NSArray *rendererShaders = [_renderer availableShaderNames];
   if (rendererShaders.count > 0) {
     _availableShaders = rendererShaders;
+    NSLog(@"MacOSMetalViewAdapter: Renderer discovered %lu shaders", (unsigned long)rendererShaders.count);
   } else if (_availableShaders.count == 0) {
-    _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"mandelbulb", @"aurora", @"starfield"];
+    // Only use hardcoded fallback if no shaders were discovered
+    _availableShaders = @[@"default", @"spiral", @"plasma", @"tunnel", @"nebula", @"aurora"];
+    NSLog(@"MacOSMetalViewAdapter: Using fallback shader list (no shaders discovered)");
   }
 
   // Set device before loading shaders
   self.mtkView.device = _renderer.device;
 
-  // Load default/saved shader
+  // Load default/saved shader - ensure we always have a valid shader name
   if (_availableShaders.count > 0) {
     if ([_currentShaderName isEqualToString:@"Cycle All"] ||
-        !_currentShaderName) {
+        !_currentShaderName ||
+        ![_availableShaders containsObject:_currentShaderName]) {
+      // If cycling is enabled or current shader is invalid, use first available
+      // Prefer "default" if available, otherwise use first shader
+      if ([_availableShaders containsObject:@"default"]) {
+        _currentShaderName = @"default";
+      } else {
+        _currentShaderName = _availableShaders.firstObject;
+      }
       _isCycling = YES;
-      _currentShaderName = _availableShaders.firstObject;
-    } else if (![_availableShaders containsObject:_currentShaderName]) {
-      _currentShaderName = _availableShaders.firstObject;
     }
+    NSLog(@"MacOSMetalViewAdapter: Loading shader '%@'", _currentShaderName);
     [self loadShaders];
+  } else {
+    NSLog(@"MacOSMetalViewAdapter: CRITICAL - No shaders available!");
   }
   _startTime = [NSDate date];
 }
 
 - (void)loadShaders {
-  if (!_renderer || !_currentShaderName) {
+  if (!_renderer) {
+    NSLog(@"MacOSMetalViewAdapter: Cannot load shaders - no renderer");
+    return;
+  }
+  
+  if (!_currentShaderName || _availableShaders.count == 0) {
+    NSLog(@"MacOSMetalViewAdapter: Cannot load shaders - no shader name or no available shaders");
     return;
   }
   
   NSError *error = nil;
   BOOL success = [_renderer setActiveShader:_currentShaderName error:&error];
   
-  if (!success && error) {
-    // Try other shaders as fallback
-    for (NSString *shaderName in _availableShaders) {
-      if ([shaderName isEqualToString:_currentShaderName])
-        continue;
-      
-      NSError *fallbackError = nil;
-      if ([_renderer setActiveShader:shaderName error:&fallbackError]) {
-        NSLog(@"MacOSMetalViewAdapter: Successfully loaded fallback shader '%@'", shaderName);
-        _currentShaderName = shaderName;
-        return;
-      }
-    }
-    
-    // Last resort: try loading "default" directly
-    NSError *defaultError = nil;
-    if ([_renderer setActiveShader:@"default" error:&defaultError]) {
-      _currentShaderName = @"default";
-      return;
-    }
-    
-    NSLog(@"MacOSMetalViewAdapter: ALL shaders failed to load");
+  if (success) {
+    NSLog(@"MacOSMetalViewAdapter: Shader '%@' loaded successfully", _currentShaderName);
     return;
   }
   
-  // Shader loaded successfully
-  NSLog(@"MacOSMetalViewAdapter: Shader '%@' loaded and ready", _currentShaderName);
+  // Failed to load - log the error
+  NSLog(@"MacOSMetalViewAdapter: Failed to load shader '%@': %@", _currentShaderName, error.localizedDescription);
+  
+  // Try other shaders as fallback
+  for (NSString *shaderName in _availableShaders) {
+    if ([shaderName isEqualToString:_currentShaderName])
+      continue;
+    
+    NSError *fallbackError = nil;
+    if ([_renderer setActiveShader:shaderName error:&fallbackError]) {
+      NSLog(@"MacOSMetalViewAdapter: Successfully loaded fallback shader '%@'", shaderName);
+      _currentShaderName = shaderName;
+      return;
+    }
+  }
+  
+  // Last resort: try loading "default" directly
+  if (![_currentShaderName isEqualToString:@"default"]) {
+    NSError *defaultError = nil;
+    if ([_renderer setActiveShader:@"default" error:&defaultError]) {
+      NSLog(@"MacOSMetalViewAdapter: Loaded 'default' shader as last resort");
+      _currentShaderName = @"default";
+      return;
+    }
+  }
+  
+  // Try aurora as final fallback
+  NSError *auroraError = nil;
+  if ([_renderer setActiveShader:@"aurora" error:&auroraError]) {
+    NSLog(@"MacOSMetalViewAdapter: Loaded 'aurora' shader as final fallback");
+    _currentShaderName = @"aurora";
+    return;
+  }
+  
+  NSLog(@"MacOSMetalViewAdapter: CRITICAL - ALL shaders failed to load");
 }
 
 - (void)reloadShaders {
@@ -419,18 +457,7 @@
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-  // Skip all debug output in release - causes major slowdown
-  
-  if (!_renderer) {
-    return;
-  }
-  if (!view.currentDrawable) {
-    return;
-  }
-  if (!view.currentRenderPassDescriptor) {
-    return;
-  }
-  if (!_renderer.currentPipeline) {
+  if (!_renderer || !view.currentDrawable || !view.currentRenderPassDescriptor || !_renderer.currentPipeline) {
     return;
   }
 
@@ -649,23 +676,22 @@ destinationBytesPerImage:bytesPerImage];
 
 - (NSWindow *)configureSheet {
   // Always create fresh panel to ensure shaders list is current
-  // (previous panels might have been created before shader discovery)
   self.configPanel = nil;
 
-  NSPanel *window = [[NSPanel alloc]
-      initWithContentRect:NSMakeRect(0, 0, 320, 420)
+  // Use standard NSWindow for better compatibility as a sheet
+  NSWindow *window = [[NSWindow alloc]
+      initWithContentRect:NSMakeRect(0, 0, 320, 480)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
                   backing:NSBackingStoreBuffered
                     defer:NO];
   [window setTitle:@"ShaderCandy Configuration"];
+  [window setBecomesKeyOnlyIfNeeded:NO];
+  [window center];
   self.configPanel = window;
 
   NSView *contentView =
       [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 420)];
   [window setContentView:contentView];
-  
-  // Debug log
-  NSLog(@"MacOSMetalViewAdapter: configureSheet called, shaders: %@", _availableShaders);
 
   int y = 380;
 
@@ -898,10 +924,7 @@ destinationBytesPerImage:bytesPerImage];
   [defaults synchronize];
 
   // Dismiss the config panel
-  // For screensaver config sheets, the system handles dismissal automatically
-  // after this method returns. Just release our reference.
   if (self.configPanel) {
-    // Try to close as sheet first
     NSWindow *sheetParent = self.configPanel.sheetParent;
     if (sheetParent) {
       [sheetParent endSheet:self.configPanel returnCode:NSModalResponseOK];

@@ -1,4 +1,4 @@
-#include "../core/ShaderInterop.h"
+#include "ShaderInterop.h"
 
 // Threshold kernel - isolates bright spots
 fragment float4 bloom_threshold(VertexOut in [[stage_in]],

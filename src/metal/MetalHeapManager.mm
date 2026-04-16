@@ -26,7 +26,7 @@
       MTLHeapDescriptor *heapDesc = [[MTLHeapDescriptor alloc] init];
       heapDesc.size = heapSize.unsignedLongValue;
       heapDesc.storageMode = MTLStorageModeShared;
-      heapDesc.type = MTLHeapTypePlacement;
+      heapDesc.type = MTLHeapTypeAutomatic;
 
       _heap = [_device newHeapWithDescriptor:heapDesc];
       if (_heap) {
