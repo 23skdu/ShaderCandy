@@ -173,21 +173,23 @@
 }
 
 - (NSString *)pathForShaderNamed:(NSString *)name {
+    if (!name) return nil;
     NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+    NSFileManager *fm = [NSFileManager defaultManager];
 
-    NSArray *extensions = @[@"metal", @"metallib"];
-    NSArray *searchPaths = @[
-        [bundle pathForResource:name ofType:nil inDirectory:_shaderSearchPath],
-        [bundle pathForResource:name ofType:@"metal" inDirectory:_shaderSearchPath],
-        [bundle pathForResource:name ofType:@"frag" inDirectory:_shaderSearchPath],
-        [bundle pathForResource:name ofType:@"metallib" inDirectory:_shaderSearchPath]
-    ];
+    // Safe search order using individual checks to avoid nil-insertion crashes in NSArray literal
+    NSString *path = [bundle pathForResource:name ofType:nil inDirectory:_shaderSearchPath];
+    if (path && [fm fileExistsAtPath:path]) return path;
 
-    for (NSString *path in searchPaths) {
-        if (path && [[NSFileManager defaultManager] fileExistsAtPath:path]) {
-            return path;
-        }
-    }
+    path = [bundle pathForResource:name ofType:@"metal" inDirectory:_shaderSearchPath];
+    if (path && [fm fileExistsAtPath:path]) return path;
+
+    path = [bundle pathForResource:name ofType:@"frag" inDirectory:_shaderSearchPath];
+    if (path && [fm fileExistsAtPath:path]) return path;
+
+    path = [bundle pathForResource:name ofType:@"metallib" inDirectory:_shaderSearchPath];
+    if (path && [fm fileExistsAtPath:path]) return path;
+
     return nil;
 }
 

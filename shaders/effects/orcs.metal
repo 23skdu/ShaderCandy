@@ -158,6 +158,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
     
     float t = uniforms.time * uniforms.speed;
+    float flicker = 0.7 + 0.3 * sin(t*15.0) * sin(t*23.0);
     float3 ro = float3(3.0 * sin(t*0.3), 1.5 + sin(t*0.2)*0.3, -5.0);
     float3 rd = normalize(float3(uv, 1.0));
     rd = lookAt(ro, float3(0, -0.5, 0)) * rd;
@@ -193,7 +194,6 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
         float3 lp2 = float3(3.0, -1.2, -2.0); // Side lava flow
         float3 lp3 = float3(-3.0, -1.0, 1.0); // Another lava flow
         
-        float flicker = 0.7 + 0.3 * sin(t*15.0) * sin(t*23.0);
         
         float diff1 = max(dot(n, normalize(p-lp1)), 0.0);
         float diff2 = max(dot(n, normalize(p-lp2)), 0.0) * 0.5;
