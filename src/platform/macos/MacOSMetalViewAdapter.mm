@@ -678,8 +678,8 @@ destinationBytesPerImage:bytesPerImage];
   // Always create fresh panel to ensure shaders list is current
   self.configPanel = nil;
 
-  // Use standard NSWindow for better compatibility as a sheet
-  NSWindow *window = [[NSWindow alloc]
+  // Use NSPanel for proper sheet behavior and selector support
+  NSPanel *window = [[NSPanel alloc]
       initWithContentRect:NSMakeRect(0, 0, 320, 480)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
                   backing:NSBackingStoreBuffered
