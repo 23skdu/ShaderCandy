@@ -238,6 +238,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 @property(nonatomic, strong, nullable) NSString *previousShaderName;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> crossfadePipeline;
 
+// Memory management
+@property(nonatomic, assign) NSUInteger maxPipelineCacheSize;
+@property(nonatomic, assign) NSUInteger maxLibraryCacheSize;
+
 @end
 
 #pragma mark - Private Readwrite Extensions
@@ -285,7 +289,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     _metrics = [[MetalPerformanceMetrics alloc] init];
     _errorLog = [NSMutableArray array];
     _frameTimeHistory = [NSMutableArray array];
-    _inFlightSemaphore = dispatch_semaphore_create(3);
+    _inFlightSemaphore = dispatch_semaphore_create(2);
     _developmentMode = NO;
     _hotReloadEnabled = NO;
     _preferredFPS = 60.0f;
@@ -311,6 +315,8 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     _maxMemoryBudgetBytes = 256 * 1024 * 1024; // 256MB default
     _currentMemoryUsageBytes = 0;
     _aggressiveMemoryPurge = NO;
+    _maxPipelineCacheSize = 24; // Keep up to 24 pipelines
+    _maxLibraryCacheSize = 12;  // Keep up to 12 libraries
 
     // Performance state
     _isThermalThrottling = NO;
@@ -869,6 +875,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 - (BOOL)_loadShaderWithNameInternal:(NSString *)name error:(NSError **)error {
   __block BOOL alreadyLoaded = NO;
   __block NSError *localError = nil;
+
+  // Manage cache size before loading new shader
+  [self purgeCachesIfNecessary];
   
   // Logic from former loadShaderWithName:
   // Check for shader file
@@ -913,22 +922,6 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   // Create library with full source
   NSString *fullSource = [self prepareShaderSource:source forShader:name];
   
-  // Also write to file
-  NSString *logLine = [NSString stringWithFormat:@"[SHADER] Loading shader: %@\n", name];
-  NSData *logData = [logLine dataUsingEncoding:NSUTF8StringEncoding];
-  NSFileManager *fm = [NSFileManager defaultManager];
-  NSString *debugLogPath = @"/tmp/shadercandy_debug.log";
-  if (![fm fileExistsAtPath:debugLogPath]) {
-    [logData writeToFile:debugLogPath atomically:YES];
-  } else {
-    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:debugLogPath];
-    if (handle) {
-      [handle seekToEndOfFile];
-      [handle writeData:logData];
-      [handle closeFile];
-    }
-  }
-  
   id<MTLLibrary> library = [self.device newLibraryWithSource:fullSource
                                                      options:nil
                                                        error:&compileError];
@@ -971,7 +964,8 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   self.currentPipeline = pipeline;
   self.activeShaderName = name;
 
-  NSLog(@"MetalRenderer: Loaded shader '%@'", name);
+  NSLog(@"MetalRenderer: Loaded shader '%@' (Cache sizes: P:%lu, L:%lu)", 
+        name, (unsigned long)self.pipelineCache.count, (unsigned long)self.libraryCache.count);
 
   if ([self.delegate respondsToSelector:@selector(metalRenderer:
                                             didReloadShadersWithName:)]) {
@@ -985,8 +979,54 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   return YES;
 }
 
+- (void)purgeCachesIfNecessary {
+  // Purge pipeline cache if it exceeds limit
+  if (self.pipelineCache.count > self.maxPipelineCacheSize) {
+    NSLog(@"MetalRenderer: Purging pipeline cache (size: %lu)", (unsigned long)self.pipelineCache.count);
+    
+    // Simple FIFO: remove 25% of oldest pipelines, excluding current and previous
+    NSMutableArray *keysToRemove = [NSMutableArray array];
+    NSArray *allKeys = [self.pipelineCache allKeys];
+    
+    for (NSString *key in allKeys) {
+      if (![key isEqualToString:self.activeShaderName] && ![key isEqualToString:self.previousShaderName]) {
+        [keysToRemove addObject:key];
+        if (keysToRemove.count >= self.maxPipelineCacheSize / 4) break;
+      }
+    }
+    
+    [self.pipelineCache removeObjectsForKeys:keysToRemove];
+  }
+  
+  // Purge library cache if it exceeds limit
+  if (self.libraryCache.count > self.maxLibraryCacheSize) {
+    NSLog(@"MetalRenderer: Purging library cache (size: %lu)", (unsigned long)self.libraryCache.count);
+    
+    NSMutableArray *keysToRemove = [NSMutableArray array];
+    NSArray *allKeys = [self.libraryCache allKeys];
+    
+    for (NSString *key in allKeys) {
+      if (![key isEqualToString:self.activeShaderName] && ![key isEqualToString:self.previousShaderName]) {
+        [keysToRemove addObject:key];
+        if (keysToRemove.count >= self.maxLibraryCacheSize / 4) break;
+      }
+    }
+    
+    [self.libraryCache removeObjectsForKeys:keysToRemove];
+  }
+  
+  // Check memory pressure
+  if (self.aggressiveMemoryPurge || self.currentMemoryUsageBytes > self.maxMemoryBudgetBytes * 0.8) {
+    [self.resourcePool purgeUnusedResources];
+  }
+}
+
 - (NSString *)pathForShader:(NSString *)name {
-  return [self findResourcePath:name ofType:@"metal" subDir:@"shaders"];
+  NSString *path = [self findResourcePath:name ofType:@"metal" subDir:@"shaders"];
+  if (!path) {
+    path = [self findResourcePath:name ofType:@"frag" subDir:@"shaders"];
+  }
+  return path;
 }
 
 - (NSDate *)modificationDateForPath:(NSString *)path {
@@ -998,73 +1038,61 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 }
 
 - (NSString *)findResourcePath:(NSString *)name
-                        ofType:(NSString *)type
-                        subDir:(NSString *)subDir {
+                         ofType:(NSString *)type
+                         subDir:(NSString *)subDir {
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-  
-  NSString *path = [bundle pathForResource:name ofType:type inDirectory:subDir];
-  if (path)
-    return path;
-
-  // Also try mainBundle (important for screensaver/player contexts)
   NSBundle *mainBundle = [NSBundle mainBundle];
-  NSLog(@"MetalRenderer: mainBundle: %@, resourcePath: %@", mainBundle, mainBundle.resourcePath);
-  path = [mainBundle pathForResource:name ofType:type inDirectory:subDir];
-  if (path)
-    return path;
-  
-  // Also try root (no subdirectory) - CMake flattens bundle structure
-  path = [bundle pathForResource:name ofType:type];
-  if (path)
-    return path;
-  path = [mainBundle pathForResource:name ofType:type];
-  if (path)
-    return path;
-
-  // Fallback to manual search
   NSFileManager *fm = [NSFileManager defaultManager];
-  NSArray *searchPaths = @[
-    [[bundle resourcePath] stringByAppendingPathComponent:subDir ?: @""],
-    [bundle.bundlePath stringByAppendingPathComponent:subDir ?: @""],
-    [[mainBundle resourcePath] stringByAppendingPathComponent:subDir ?: @""],
-    [[mainBundle bundlePath] stringByAppendingPathComponent:subDir ?: @""],
-    [[fm currentDirectoryPath] stringByAppendingPathComponent:subDir ?: @""],
-    [[fm currentDirectoryPath] stringByAppendingPathComponent:@"src/core"],
-    [[fm currentDirectoryPath] stringByAppendingPathComponent:@"src/metal"],
+
+  // Build search paths for shaders in both flat and subdirectory structures
+  NSMutableArray *searchPaths = [NSMutableArray array];
+  
+  NSArray *basePaths = @[
+    [mainBundle resourcePath],
+    [bundle resourcePath],
+    [[mainBundle bundlePath] stringByAppendingPathComponent:@"Contents/Resources"],
+    [[bundle bundlePath] stringByAppendingPathComponent:@"Contents/Resources"],
     [fm currentDirectoryPath]
   ];
-
-  for (NSString *basePath in searchPaths) {
-    NSString *check = [[basePath stringByAppendingPathComponent:name]
-        stringByAppendingPathExtension:type];
-    if ([fm fileExistsAtPath:check]) {
-      NSLog(@"MetalRenderer: Found resource %@.%@ at %@", name, type, check);
-      return check;
-    }
-
-    // Check subdirectories
-    for (NSString *sub in
-         @[ @"base", @"effects", @"audio", @"music", @"neural" ]) {
-      check = [[basePath stringByAppendingPathComponent:sub]
-          stringByAppendingPathComponent:
-              [name stringByAppendingPathExtension:type]];
-      if ([fm fileExistsAtPath:check]) {
-        NSLog(@"MetalRenderer: Found resource %@.%@ in subDir %@ at %@", name,
-              type, sub, check);
-        return check;
+  
+  NSArray *shadersDirs = @[@"shaders", @"shaders/effects", @"shaders/base", @"shaders/audio", @"shaders/music", @"shaders/neural", @"shaders/system"];
+  
+  for (NSString *base in basePaths) {
+    if (!base || base.length == 0) continue;
+    for (NSString *shadersDir in shadersDirs) {
+      NSString *path = [[[base stringByAppendingPathComponent:shadersDir] stringByAppendingPathComponent:name] stringByAppendingPathExtension:type];
+      if ([searchPaths indexOfObject:path] == NSNotFound) {
+        [searchPaths addObject:path];
       }
     }
   }
+  
+  // Search in order
+  for (NSString *path in searchPaths) {
+    if ([fm fileExistsAtPath:path]) {
+      return path;
+    }
+  }
+  
   return nil;
 }
 
 - (NSString *)prepareShaderSource:(NSString *)source
-                        forShader:(NSString *)shaderName {
+                         forShader:(NSString *)shaderName {
   NSMutableString *fullSource = [NSMutableString string];
 
   // Prepend Metal standard library
   [fullSource
       appendString:@"#include <metal_stdlib>\nusing namespace metal;\n\n"];
+
+  // Strip GLSL version directive if present
+  NSString *cleanSource = source;
+  if ([source hasPrefix:@"#version"]) {
+    NSRange range = [source rangeOfString:@"\n"];
+    if (range.location != NSNotFound) {
+      cleanSource = [source substringFromIndex:range.location + 1];
+    }
+  }
 
   // Load and prepend interop header (Cached)
   if (!self.cachedInteropHeader) {
@@ -1113,6 +1141,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     [fullSource appendString:@"\nusing namespace ShaderUtils;\n\n"];
   }
 
+  // Pre-define common constants for GLSL compatibility
+  [fullSource appendString:@"#define PI 3.14159265359\n"];
+  [fullSource appendString:@"#define TWO_PI 6.28318530718\n\n"];
+
   // Add vertex shader wrapper
   [fullSource
       appendString:@"vertex VertexOut vertex_main(VertexIn in [[stage_in]]) {\n"
@@ -1123,7 +1155,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
                    @"}\n\n"];
 
   // Add the main shader source
-  NSMutableString *cleanedSource = [source mutableCopy];
+  NSMutableString *cleanedSource = [cleanSource mutableCopy];
 
   // Robustly remove ShaderInterop.h include (ignoring whitespace and quote
   // style, and potential path prefixes)
@@ -1231,7 +1263,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   id<MTLFunction> vertexFunc = [library newFunctionWithName:@"vertex_main"];
   id<MTLFunction> fragmentFunc = [library newFunctionWithName:@"fragment_main"];
 
+#ifdef DEBUG
   NSLog(@">>>>> PIPELINE: vertexFunc=%p, fragmentFunc=%p for shader %@", vertexFunc, fragmentFunc, name);
+#endif
   if (!vertexFunc || !fragmentFunc) {
     if (error) {
       *error = [NSError errorWithDomain:@"MetalRenderer"
@@ -1274,8 +1308,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       *error = pipelineError;
     return nil;
   }
+#ifdef DEBUG
   NSLog(@"[PIPELINE OK] Render pipeline created successfully");
-  [@"PIPELINE OK\n" writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"shadercandy_log.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+#endif
 
   // Check for simulation pipeline
   id<MTLFunction> simFunc = [library newFunctionWithName:@"fragment_sim"];
@@ -1349,77 +1384,61 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   NSBundle *bundle = [NSBundle bundleForClass:[self class]];
   NSFileManager *fm = [NSFileManager defaultManager];
-
-  // List of paths to search for shaders
-  // Also try [NSBundle mainBundle] as a fallback for screensaver/player contexts
   NSBundle *mainBundle = [NSBundle mainBundle];
-  NSArray *searchPaths = @[
-    [[bundle resourcePath] stringByAppendingPathComponent:@"shaders"],
-    [bundle resourcePath],
-    [[bundle bundlePath] stringByAppendingPathComponent:@"shaders"],
-    [[mainBundle resourcePath] stringByAppendingPathComponent:@"shaders"],
+
+  // Shaders are in Resources/shaders/ (flat structure)
+  NSArray *basePaths = @[
     [mainBundle resourcePath],
-    [[mainBundle bundlePath] stringByAppendingPathComponent:@"shaders"],
-    [[fm currentDirectoryPath] stringByAppendingPathComponent:@"shaders"]
-];
+    [bundle resourcePath],
+    [[mainBundle bundlePath] stringByAppendingPathComponent:@"Contents/Resources"],
+    [[bundle bundlePath] stringByAppendingPathComponent:@"Contents/Resources"],
+    [fm currentDirectoryPath]
+  ];
 
-  for (NSString *path in searchPaths) {
-    if (!path)
-      continue;
-
-    // Simple directory listing
+  for (NSString *basePath in basePaths) {
+    if (!basePath || basePath.length == 0) continue;
+    
+    // Check Resources/shaders/
+    NSString *shadersPath = [basePath stringByAppendingPathComponent:@"shaders"];
     NSError *error = nil;
-    NSArray *files = [fm contentsOfDirectoryAtPath:path error:&error];
+    NSArray *files = [fm contentsOfDirectoryAtPath:shadersPath error:nil];
     if (files) {
-      NSInteger metalCount = 0;
       for (NSString *fileName in files) {
         if ([fileName hasSuffix:@".metal"]) {
           [foundNames addObject:[fileName stringByDeletingPathExtension]];
-          metalCount++;
         }
       }
-      if (metalCount > 0) {
-        NSLog(@"MetalRenderer: Found %ld .metal files in %@", (long)metalCount, path);
-      }
-    } else if (error) {
-      NSLog(@"MetalRenderer: Error reading %@: %@", path, error);
     }
-
-    // Also check subdirectories one level deep
-    for (NSString *sub in
-         @[ @"base", @"effects", @"audio", @"music", @"neural" ]) {
-      NSString *subPath = [path stringByAppendingPathComponent:sub];
-      files = [fm contentsOfDirectoryAtPath:subPath error:nil];
-      if (files) {
-        NSInteger metalCount = 0;
-        for (NSString *fileName in files) {
-          if ([fileName hasSuffix:@".metal"]) {
-            [foundNames addObject:[fileName stringByDeletingPathExtension]];
-            metalCount++;
-          }
-        }
-        if (metalCount > 0) {
-          NSLog(@"MetalRenderer: Found %ld .metal files in %@", (long)metalCount, subPath);
+    
+    // Also check Resources/shaders/effects/ (for development builds)
+    NSString *effectsPath = [shadersPath stringByAppendingPathComponent:@"effects"];
+    files = [fm contentsOfDirectoryAtPath:effectsPath error:nil];
+    if (files) {
+      for (NSString *fileName in files) {
+        if ([fileName hasSuffix:@".metal"]) {
+          [foundNames addObject:[fileName stringByDeletingPathExtension]];
         }
       }
     }
   }
-
+  
   // Filter excluded names
+  NSArray *excludedNames = @[@"common", @"utils", @"ShaderInterop", @"bloom", @"particles", @"debug_overlay"];
   for (NSString *name in foundNames) {
-    if (![name isEqualToString:@"common"] && ![name isEqualToString:@"utils"] &&
-        ![name isEqualToString:@"ShaderInterop"] &&
-        ![name isEqualToString:@"bloom"] &&
-        ![name isEqualToString:@"particles"] &&
-        ![name isEqualToString:@"debug_overlay"] &&
-        ![name hasSuffix:@"_failed"]) {
+    BOOL isExcluded = NO;
+    for (NSString *excluded in excludedNames) {
+      if ([name isEqualToString:excluded] || [name hasSuffix:@"_failed"]) {
+        isExcluded = YES;
+        break;
+      }
+    }
+    if (!isExcluded) {
       [shaders addObject:name];
     }
   }
 
   [shaders sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
-  NSLog(@"Discovered %lu shaders: %@", (unsigned long)shaders.count, shaders);
-  return [shaders copy];
+  return shaders;
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)testAllShaders {
@@ -1754,6 +1773,15 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 - (void)renderToDrawable:(id<CAMetalDrawable>)drawable
     renderPassDescriptor:(MTLRenderPassDescriptor *)descriptor {
   if (!_currentPipeline || !_commandQueue) {
+    static int count = 0;
+    if (count++ < 3) NSLog(@"MetalRenderer: No pipeline or command queue, skipping");
+    return;
+  }
+
+  // Check drawable validity before proceeding
+  if (!drawable) {
+    static int count = 0;
+    if (count++ < 3) NSLog(@"MetalRenderer: Invalid drawable, skipping frame");
     return;
   }
 

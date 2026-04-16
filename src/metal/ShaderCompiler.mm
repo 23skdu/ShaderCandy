@@ -179,6 +179,7 @@
     NSArray *searchPaths = @[
         [bundle pathForResource:name ofType:nil inDirectory:_shaderSearchPath],
         [bundle pathForResource:name ofType:@"metal" inDirectory:_shaderSearchPath],
+        [bundle pathForResource:name ofType:@"frag" inDirectory:_shaderSearchPath],
         [bundle pathForResource:name ofType:@"metallib" inDirectory:_shaderSearchPath]
     ];
 
@@ -202,7 +203,8 @@
 
     NSString *file;
     while ((file = [enumerator nextObject])) {
-        if ([[file pathExtension] isEqualToString:@"metal"]) {
+        NSString *ext = [file pathExtension];
+        if ([ext isEqualToString:@"metal"] || [ext isEqualToString:@"frag"]) {
             NSString *name = [[file lastPathComponent] stringByDeletingPathExtension];
             // Skip utility shaders
             if (![name isEqualToString:@"common"] && ![name isEqualToString:@"utils"] &&
