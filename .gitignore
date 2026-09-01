@@ -58,6 +58,7 @@ dkms.conf
 build/
 build-*/
 build_*/
+build-make/
 cmake-build-*/
 out/
 
@@ -70,6 +71,7 @@ out/
 
 # OS
 .DS_Store
+*.dsstore
 Thumbs.db
 
 # Package files
@@ -97,6 +99,7 @@ Makefile
 .gemini/
 *.saver/
 osx/installer/ShaderCandyInstaller.xcodeproj/
+package/usr/bin/
 
 # Test artifacts
 test_results*.txt
