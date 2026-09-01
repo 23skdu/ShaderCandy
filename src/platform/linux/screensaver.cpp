@@ -1272,6 +1272,32 @@ private:
         goToNextShader();
         shaderStartTime = std::chrono::steady_clock::now();
       }
+      // Left arrow = previous shader
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_Left) {
+        goToPreviousShader();
+        shaderStartTime = std::chrono::steady_clock::now();
+      }
+      // Space or P = next shader
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_space ||
+               XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_p) {
+        goToNextShader();
+        shaderStartTime = std::chrono::steady_clock::now();
+      }
+      // N = previous shader
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_n) {
+        goToPreviousShader();
+        shaderStartTime = std::chrono::steady_clock::now();
+      }
+      // D = toggle debug overlay
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_d) {
+        if (currentShader) {
+          currentShader->showDebug = !currentShader->showDebug;
+        }
+      }
+      // T = run shader test suite
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_t) {
+        runShaderTestSuite();
+      }
       // F12 or PrintScreen = screenshot
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_F12 ||
                XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==

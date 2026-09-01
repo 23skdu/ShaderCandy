@@ -8,6 +8,7 @@
 #include "ShaderCompilationTests.cpp"
 #include "RendererFeatureTests.cpp"
 #include "CoverageExpansionTests.cpp"
+#include "ShaderRegressionTests.cpp"
 
 using namespace ShaderCandy::Test;
 

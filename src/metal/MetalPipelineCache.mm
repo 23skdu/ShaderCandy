@@ -2,7 +2,7 @@
 //  MetalPipelineCache.mm
 //  ShaderCandy
 //
-//  Pipeline state caching implementation
+//  Pipeline state caching with MTLBinaryArchive-based disk persistence
 //
 
 #import "MetalPipelineCache.h"
@@ -15,7 +15,7 @@
     NSMutableDictionary<NSString *, id<MTLRenderPipelineState>> *_simPipelineCache;
     NSMutableDictionary<NSString *, id<MTLComputePipelineState>> *_computePipelineCache;
     NSMutableDictionary<NSString *, id<MTLRenderPipelineState>> *_particlePipelineCache;
-    NSMutableDictionary<NSString *, NSData *> *_diskCache;
+    id<MTLBinaryArchive> _binaryArchive;
     NSString *_diskCachePath;
     dispatch_queue_t _cacheQueue;
 }
@@ -41,7 +41,6 @@
         _simPipelineCache = [NSMutableDictionary dictionary];
         _computePipelineCache = [NSMutableDictionary dictionary];
         _particlePipelineCache = [NSMutableDictionary dictionary];
-        _diskCache = [NSMutableDictionary dictionary];
 
         // Setup disk cache directory
         _diskCachePath = [_cachePath stringByExpandingTildeInPath];
@@ -57,12 +56,6 @@
 #endif
             _enableDiskCache = NO;
         }
-
-        // Load disk cache
-        [self loadDiskCache];
-
-        // Note: Memory pressure monitoring on macOS would require IOKit
-        // For now, manual cache control via clearAllCaches() is supported
     }
     return self;
 }
@@ -78,92 +71,138 @@
     [self clearMemoryCache];
 }
 
-- (void)loadDiskCache {
-    if (!_enableDiskCache) return;
+#pragma mark - Binary Archive Management
+
+- (nullable id<MTLBinaryArchive>)archiveForDevice:(id<MTLDevice>)device {
+    if (_binaryArchive) return _binaryArchive;
+    if (!_enableDiskCache) return nil;
+
+    NSString *archivePath = [_diskCachePath stringByAppendingPathComponent:@"pipeline_archive.metallib"];
+    NSURL *archiveURL = [NSURL fileURLWithPath:archivePath];
 
     NSError *error = nil;
-    NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:_diskCachePath
-                                                                         error:&error];
-    if (error) return;
+    MTLBinaryArchiveDescriptor *desc = [[MTLBinaryArchiveDescriptor alloc] init];
+    desc.url = archiveURL;
 
-    for (NSString *file in files) {
-        if ([file hasSuffix:@".plist"]) {
-            NSString *path = [_diskCachePath stringByAppendingPathComponent:file];
-            NSDictionary *data = [NSDictionary dictionaryWithContentsOfFile:path];
-            if (data) {
-                NSString *shaderName = [file stringByDeletingPathExtension];
-                _diskCache[shaderName] = data[@"pipelineData"];
-            }
+    // Try to load existing archive
+    _binaryArchive = [device newBinaryArchiveWithDescriptor:desc error:&error];
+    if (error) {
+#ifdef DEBUG
+        NSLog(@"MetalPipelineCache: Could not load binary archive: %@", error);
+#endif
+        // Create a fresh archive
+        error = nil;
+        _binaryArchive = [device newBinaryArchiveWithDescriptor:desc error:&error];
+        if (error) {
+#ifdef DEBUG
+            NSLog(@"MetalPipelineCache: Could not create binary archive: %@", error);
+#endif
+            return nil;
         }
     }
 
+    return _binaryArchive;
+}
+
+- (void)serializeArchive {
+    if (!_binaryArchive || !_enableDiskCache) return;
+
+    NSString *archivePath = [_diskCachePath stringByAppendingPathComponent:@"pipeline_archive.metallib"];
+    NSURL *archiveURL = [NSURL fileURLWithPath:archivePath];
+
+    NSError *error = nil;
+    [_binaryArchive serializeToURL:archiveURL error:&error];
+    if (error) {
 #ifdef DEBUG
-    NSLog(@"MetalPipelineCache: Loaded %lu pipeline states from disk", (unsigned long)_diskCache.count);
+        NSLog(@"MetalPipelineCache: Failed to serialize archive: %@", error);
 #endif
+    }
 }
 
-- (void)saveToDiskCache:(NSString *)shaderName data:(NSData *)data {
-    if (!_enableDiskCache) return;
-
-    dispatch_async(_cacheQueue, ^{
-        NSString *path = [self->_diskCachePath stringByAppendingPathComponent:
-                          [NSString stringWithFormat:@"%@.plist", shaderName]];
-        NSDictionary *plist = @{@"pipelineData": data};
-        [plist writeToFile:path atomically:YES];
-
-        self->_diskCache[shaderName] = data;
-    });
-}
+#pragma mark - Cache Key
 
 - (NSString *)cacheKeyForShader:(NSString *)shaderName
                     descriptor:(MTLRenderPipelineDescriptor *)descriptor {
-    // Create a hash based on descriptor properties
     NSMutableString *key = [NSMutableString stringWithString:shaderName];
     [key appendFormat:@"_vfn_%@", descriptor.vertexFunction.name ?: @"nil"];
     [key appendFormat:@"_ffn_%@", descriptor.fragmentFunction.name ?: @"nil"];
     [key appendFormat:@"_fmt_%lu", (unsigned long)descriptor.colorAttachments[0].pixelFormat];
     [key appendFormat:@"_blend_%d", descriptor.colorAttachments[0].blendingEnabled];
-
     return key;
 }
 
-- (nullable MetalPipelineState *)pipelineForShader:(NSString *)shaderName
-                                         device:(id<MTLDevice>)device
-                                      library:(id<MTLLibrary>)library
-                                   descriptor:(MTLRenderPipelineDescriptor *)descriptor
-                                           error:(NSError **)error {
-    MetalPipelineState *state = [[MetalPipelineState alloc] initWithShaderName:shaderName];
+#pragma mark - Pipeline Retrieval
 
+- (nullable MetalPipelineState *)pipelineForShader:(NSString *)shaderName
+                                          device:(id<MTLDevice>)device
+                                       library:(id<MTLLibrary>)library
+                                    descriptor:(MTLRenderPipelineDescriptor *)descriptor
+                                            error:(NSError **)error {
+    MetalPipelineState *state = [[MetalPipelineState alloc] initWithShaderName:shaderName];
     NSString *key = [self cacheKeyForShader:shaderName descriptor:descriptor];
 
-    // Check memory cache first
+    // 1. Check in-memory cache
     if (_renderPipelineCache[key]) {
         state.renderPipeline = _renderPipelineCache[key];
     }
-    // NOTE: Disk cache persistence for MTLRenderPipelineState is not supported.
-    // Metal pipeline states cannot be serialized/deserialized directly.
-    // To implement persistent caching, use MTLBinaryArchive (macOS 12+):
-    //   MTLBinaryArchiveDescriptor *desc = [[MTLBinaryArchiveDescriptor alloc] init];
-    //   desc.url = [NSURL fileURLWithPath:[_diskCachePath stringByAppendingPathComponent:@"archive.metallib"]];
-    //   id<MTLBinaryArchive> archive = [device newBinaryArchiveWithDescriptor:desc error:&error];
-    //   [archive addRenderPipelineStateWithDescriptor:descriptor error:&error];
-    //   [archive serializeToURL:desc.url error:&error];
 
-    // Compile if not cached
+    // 2. Try binary archive (persistent cache)
+    if (!state.renderPipeline && _enableDiskCache) {
+        id<MTLBinaryArchive> archive = [self archiveForDevice:device];
+        if (archive) {
+            NSError *archiveError = nil;
+            MTLBinaryArchiveDescriptor *archiveDesc = [[MTLBinaryArchiveDescriptor alloc] init];
+            archiveDesc.url = [NSURL fileURLWithPath:[_diskCachePath stringByAppendingPathComponent:@"pipeline_archive.metallib"]];
+
+            id<MTLBinaryArchive> loadedArchive = [device newBinaryArchiveWithDescriptor:archiveDesc error:&archiveError];
+            if (!archiveError && loadedArchive) {
+                NSError *pipelineError = nil;
+                state.renderPipeline = [loadedArchive renderPipelineStateWithDescriptor:descriptor error:&pipelineError];
+                if (pipelineError) {
+#ifdef DEBUG
+                    NSLog(@"MetalPipelineCache: Binary archive miss for %@: %@", shaderName, pipelineError);
+#endif
+                } else {
+#ifdef DEBUG
+                    NSLog(@"MetalPipelineCache: Restored %@ from binary archive", shaderName);
+#endif
+                }
+            }
+        }
+    }
+
+    // 3. Compile from source
     if (!state.renderPipeline) {
         NSError *compileError = nil;
         state.renderPipeline = [device newRenderPipelineStateWithDescriptor:descriptor
-                                                                  error:&compileError];
+                                                                   error:&compileError];
         if (compileError) {
             if (error) *error = compileError;
             return nil;
         }
 
-        // Cache in memory
+        // Add to binary archive for future persistence
+        if (_enableDiskCache) {
+            id<MTLBinaryArchive> archive = [self archiveForDevice:device];
+            if (archive) {
+                NSError *addError = nil;
+                [archive addRenderPipelineStateWithDescriptor:descriptor error:&addError];
+                if (addError) {
+#ifdef DEBUG
+                    NSLog(@"MetalPipelineCache: Failed to add to archive: %@", addError);
+#endif
+                }
+                // Serialize periodically (every 10 pipelines)
+                if ((_renderPipelineCache.count + _computePipelineCache.count) % 10 == 0) {
+                    [self serializeArchive];
+                }
+            }
+        }
+
         _renderPipelineCache[key] = state.renderPipeline;
     }
 
-    // Check for simulation pipeline
+    // 4. Check for simulation pipeline
     id<MTLFunction> simFunc = [library newFunctionWithName:@"fragment_sim"];
     if (simFunc) {
         NSString *simKey = [key stringByAppendingString:@"_sim"];
@@ -172,7 +211,7 @@
             descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA32Float;
             NSError *simError = nil;
             id<MTLRenderPipelineState> simPipeline = [device newRenderPipelineStateWithDescriptor:descriptor
-                                                                                         error:&simError];
+                                                                                          error:&simError];
             if (!simError && simPipeline) {
                 _simPipelineCache[simKey] = simPipeline;
                 state.simulationPipeline = simPipeline;
@@ -182,14 +221,14 @@
         }
     }
 
-    // Check for particle pipelines
+    // 5. Check for particle pipelines
     id<MTLFunction> computeFunc = [library newFunctionWithName:@"compute_particles"];
     if (computeFunc) {
         NSString *computeKey = [key stringByAppendingString:@"_compute"];
         if (!_computePipelineCache[computeKey]) {
             NSError *computeError = nil;
             id<MTLComputePipelineState> computePipeline = [device newComputePipelineStateWithFunction:computeFunc
-                                                                                             error:&computeError];
+                                                                                              error:&computeError];
             if (!computeError && computePipeline) {
                 _computePipelineCache[computeKey] = computePipeline;
                 state.computePipeline = computePipeline;
@@ -198,7 +237,6 @@
             state.computePipeline = _computePipelineCache[computeKey];
         }
 
-        // Particle render pipeline
         id<MTLFunction> vFunc = [library newFunctionWithName:@"vertex_particles"];
         id<MTLFunction> fFunc = [library newFunctionWithName:@"fragment_particles"];
         if (vFunc && fFunc) {
@@ -212,7 +250,7 @@
 
                 NSError *pError = nil;
                 id<MTLRenderPipelineState> particlePipeline = [device newRenderPipelineStateWithDescriptor:pDesc
-                                                                                                   error:&pError];
+                                                                                                    error:&pError];
                 if (!pError && particlePipeline) {
                     _particlePipelineCache[particleKey] = particlePipeline;
                     state.particleRenderPipeline = particlePipeline;
@@ -227,11 +265,10 @@
 }
 
 - (nullable MetalPipelineState *)computePipelineForShader:(NSString *)shaderName
-                                                  device:(id<MTLDevice>)device
-                                               function:(id<MTLFunction>)function
+                                                   device:(id<MTLDevice>)device
+                                                 function:(id<MTLFunction>)function
                                                     error:(NSError **)error {
     MetalPipelineState *state = [[MetalPipelineState alloc] initWithShaderName:shaderName];
-
     NSString *key = [NSString stringWithFormat:@"%@_compute_%@", shaderName, function.name];
 
     if (_computePipelineCache[key]) {
@@ -239,7 +276,7 @@
     } else {
         NSError *compileError = nil;
         state.computePipeline = [device newComputePipelineStateWithFunction:function
-                                                                  error:&compileError];
+                                                                   error:&compileError];
         if (compileError) {
             if (error) *error = compileError;
             return nil;
@@ -251,14 +288,13 @@
 }
 
 - (void)prewarmPipelinesForShaders:(NSArray<NSString *> *)shaders
-                           device:(id<MTLDevice>)device
-                        libraries:(NSDictionary<NSString *, id<MTLLibrary>> *)libraries {
+                            device:(id<MTLDevice>)device
+                         libraries:(NSDictionary<NSString *, id<MTLLibrary>> *)libraries {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         for (NSString *shaderName in shaders) {
             id<MTLLibrary> library = libraries[shaderName];
             if (!library) continue;
 
-            // Create minimal descriptor for pre-warming
             MTLRenderPipelineDescriptor *desc = [[MTLRenderPipelineDescriptor alloc] init];
             desc.vertexFunction = [library newFunctionWithName:@"vertex_main"];
             desc.fragmentFunction = [library newFunctionWithName:@"fragment_main"];
@@ -273,11 +309,16 @@
             }
         }
 
+        // Serialize archive after pre-warming
+        [self serializeArchive];
+
 #ifdef DEBUG
         NSLog(@"MetalPipelineCache: Pre-warmed %lu pipelines", (unsigned long)shaders.count);
 #endif
     });
 }
+
+#pragma mark - Cache Invalidation
 
 - (void)invalidateCacheForShader:(NSString *)shaderName {
     NSArray *keysToRemove = @[];
@@ -312,16 +353,17 @@
     }
     [_particlePipelineCache removeObjectsForKeys:keysToRemove];
 
-    // Remove from disk cache
-    NSString *diskPath = [_diskCachePath stringByAppendingPathComponent:
-                          [NSString stringWithFormat:@"%@.plist", shaderName]];
-    [[NSFileManager defaultManager] removeItemAtPath:diskPath error:nil];
-    [_diskCache removeObjectForKey:shaderName];
+    // Invalidate and recreate binary archive
+    _binaryArchive = nil;
+    NSString *archivePath = [_diskCachePath stringByAppendingPathComponent:@"pipeline_archive.metallib"];
+    [[NSFileManager defaultManager] removeItemAtPath:archivePath error:nil];
 
 #ifdef DEBUG
     NSLog(@"MetalPipelineCache: Invalidated cache for %@", shaderName);
 #endif
 }
+
+#pragma mark - Cache Management
 
 - (void)clearAllCaches {
     [self clearMemoryCache];
@@ -333,6 +375,7 @@
     [_simPipelineCache removeAllObjects];
     [_computePipelineCache removeAllObjects];
     [_particlePipelineCache removeAllObjects];
+    _binaryArchive = nil;
 #ifdef DEBUG
     NSLog(@"MetalPipelineCache: Cleared memory cache");
 #endif
@@ -345,7 +388,7 @@
                                 withIntermediateDirectories:YES
                                                  attributes:nil
                                                       error:&error];
-    [_diskCache removeAllObjects];
+    _binaryArchive = nil;
 #ifdef DEBUG
     NSLog(@"MetalPipelineCache: Cleared disk cache");
 #endif

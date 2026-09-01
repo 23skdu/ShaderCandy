@@ -93,6 +93,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     // Mesh shaders: only available on Apple3+
     _supportsMeshShaders = supportsApple3 ? YES : NO;
 
+    // Variable Rate Shading: available on Apple1+ (Apple Silicon)
+    _supportsVariableRateShading = (supportsApple1 || supportsApple2 || supportsApple3) ? YES : NO;
+
     // Use a reasonable default for thread group size
     // Actual value depends on compute pipeline, but 512 is safe for most GPUs
     _maxThreadsPerThreadgroup = 512;
@@ -317,6 +320,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     _aggressiveMemoryPurge = NO;
     _maxPipelineCacheSize = 24; // Keep up to 24 pipelines
     _maxLibraryCacheSize = 12;  // Keep up to 12 libraries
+
+    // Variable Rate Shading defaults
+    _variableRateShadingEnabled = NO;
+    _vrsPeripheralRate = 0.5f; // Half resolution in peripheral areas
 
     // Performance state
     _isThermalThrottling = NO;
