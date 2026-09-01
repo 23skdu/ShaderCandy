@@ -1,0 +1,13 @@
+CompileFlags:
+  Compiler: clang++
+  Add:
+    - -std=c++17
+    - -x objective-c++
+    - -fobjc-arc
+    - -fmodules
+  Remove:
+    - -march=*
+  CompilationDatabase: .
+
+Index:
+  Background: Build
