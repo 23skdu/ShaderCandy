@@ -196,6 +196,12 @@
   if (!self.mtkView) {
     [self setupMetal];
   }
+
+  // Register for battery state changes
+  [[NSWorkspace sharedWorkspace] addObserver:self
+                                  forKeyPath:@"powerState"
+                                     options:NSKeyValueObservingOptionNew
+                                     context:nil];
 }
 
 - (void)viewDidMoveToWindow {
@@ -214,6 +220,48 @@
   if (self.mtkView) {
     self.mtkView.paused = YES;
   }
+  [[NSWorkspace sharedWorkspace] removeObserver:self forKeyPath:@"powerState"];
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary *)change
+                       context:(void *)context {
+  if ([keyPath isEqualToString:@"powerState"]) {
+    BOOL onBattery = [self isOnBattery];
+    if (onBattery && _renderer) {
+      _renderer.preferredFPS = 15;
+      _renderer.resolutionScale = 0.5f;
+    } else if (_renderer) {
+      _renderer.preferredFPS = 60;
+      _renderer.resolutionScale = 1.0f;
+    }
+  }
+}
+
+- (BOOL)isOnBattery {
+  CFTypeRef powerInfo = IOPSCopyPowerSourcesInfo();
+  if (!powerInfo) return NO;
+
+  CFArrayRef powerSources = IOPSCopyPowerSourcesList(powerInfo);
+  if (!powerSources) {
+    CFRelease(powerInfo);
+    return NO;
+  }
+
+  BOOL onBattery = NO;
+  for (NSUInteger i = 0; i < CFArrayGetCount(powerSources); i++) {
+    CFTypeRef powerSource = CFArrayGetValueAtIndex(powerSources, i);
+    NSDictionary *description = (__bridge NSDictionary *)IOPSGetPowerSourceDescription(powerInfo, powerSource);
+    if ([description[@"Type"] isEqualToString:@"InternalBattery"]) {
+      onBattery = YES;
+      break;
+    }
+  }
+
+  CFRelease(powerSources);
+  CFRelease(powerInfo);
+  return onBattery;
 }
 
 - (void)animateOneFrame {
@@ -470,23 +518,64 @@
 
 - (void)keyDown:(NSEvent *)event {
   NSString *chars = [event charactersIgnoringModifiers];
-  if ([chars isEqualToString:@"d"] || [chars isEqualToString:@"D"]) {
+  unsigned int flags = [event modifierFlags];
+
+  if (flags & NSEventModifierFlagControl) {
+    if ([chars isEqualToString:@"q"] || [chars isEqualToString:@"Q"]) {
+      [NSApp terminate:nil];
+      return;
+    } else if ([chars isEqualToString:@"s"] || [chars isEqualToString:@"S"]) {
+      [self saveScreenshot];
+      return;
+    } else if ([chars isEqualToString:@"="] || [chars isEqualToString:@"+"]) {
+      if (_renderer) {
+        _renderer.intensity = MIN(2.0f, _renderer.intensity + 0.1f);
+      }
+      return;
+    } else if ([chars isEqualToString:@"-"]) {
+      if (_renderer) {
+        _renderer.intensity = MAX(0.0f, _renderer.intensity - 0.1f);
+      }
+      return;
+    }
+  }
+
+  unichar ch = [chars characterAtIndex:0];
+  if (ch == NSLeftArrowFunctionKey) {
+    if (_renderer) {
+      [_renderer previousShader];
+    }
+  } else if (ch == NSRightArrowFunctionKey) {
+    if (_renderer) {
+      [_renderer nextShader];
+    }
+  } else if ([chars isEqualToString:@" "] || [chars isEqualToString:@"p"] ||
+             [chars isEqualToString:@"P"]) {
+    if (_renderer) {
+      [_renderer nextShader];
+    }
+  } else if ([chars isEqualToString:@"n"] || [chars isEqualToString:@"N"]) {
+    if (_renderer) {
+      [_renderer previousShader];
+    }
+  } else if ([chars isEqualToString:@"d"] || [chars isEqualToString:@"D"]) {
     if (_renderer) {
       _renderer.showDebugOverlay = !_renderer.showDebugOverlay;
-      // Save state
       ScreenSaverDefaults *defaults = [ScreenSaverDefaults
           defaultsForModuleWithName:@"com.shadercandy.screensaver"];
       [defaults setBool:_renderer.showDebugOverlay forKey:@"showMetrics"];
       [defaults synchronize];
     }
-  } else if ([chars isEqualToString:@"s"] || [chars isEqualToString:@"S"]) {
-    // Screenshot shortcut for screensaver
-    [self saveScreenshot];
   } else if ([chars isEqualToString:@"t"] || [chars isEqualToString:@"T"]) {
-    // Test all shaders
     if (_renderer) {
       [_renderer testAllShaders];
     }
+  } else if ([chars isEqualToString:@"\t"]) {
+    if (_renderer) {
+      [_renderer nextShader];
+    }
+  } else if ([event keyCode] == 0x3D) {
+    [self saveScreenshot];
   } else {
     [super keyDown:event];
   }

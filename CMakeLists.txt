@@ -278,9 +278,6 @@ if(MACOS AND BUILD_METAL)
     endif()
 endif()
 
-# Vulkan Backend (not implemented - excluded from build)
-# See src/vulkan/VulkanRenderer.cpp — stub only, no real Vulkan objects created.
-
 # OpenGL Backend (optional - may not be implemented yet)
 if(BUILD_OPENGL)
     # Check if GL source files exist

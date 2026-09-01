@@ -32,6 +32,8 @@ ShaderCandy/
 └── docs/                   # Documentation and roadmaps
 ```
 
+**Note on Vulkan**: A Vulkan backend was considered for Linux HDR support (`VK_KHR_swapchain`, `VK_EXT_swapchain_colorspace`) but was removed. OpenGL 3.3+ with GLSL provides adequate cross-platform shader support. Vulkan may be revisited if Linux HDR becomes a primary target.
+
 ## Technical Implementation
 
 ### Rendering Pipeline

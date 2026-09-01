@@ -481,6 +481,33 @@ static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
     g_running = false;
   else if (key == 88)
     takeScreenshot();
+  // P key = next shader (evdev code 25)
+  else if (key == 25)
+    goToNextShader();
+  // N key = previous shader (evdev code 49)
+  else if (key == 49)
+    goToPreviousShader();
+  // D key = toggle debug overlay (evdev code 32)
+  else if (key == 32)
+    g_showDebug = !g_showDebug;
+  // T key = run test suite (evdev code 20)
+  else if (key == 20)
+    runShaderTestSuite();
+  // Tab key = switch display (evdev code 15)
+  else if (key == 15)
+    goToNextDisplay();
+  // Ctrl+S = save preset (evdev code 31)
+  else if (ctrl && key == 31)
+    savePreset("default");
+  // Ctrl+O = load preset (evdev code 24)
+  else if (ctrl && key == 24)
+    loadPreset("default");
+  // Ctrl+Plus = increase intensity (evdev code 13)
+  else if (ctrl && key == 13)
+    g_intensity = MIN(2.0f, g_intensity + 0.1f);
+  // Ctrl+Minus = decrease intensity (evdev code 12)
+  else if (ctrl && key == 12)
+    g_intensity = MAX(0.0f, g_intensity - 0.1f);
 }
 static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
                                     uint32_t serial, uint32_t modsDepressed,

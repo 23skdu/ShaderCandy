@@ -88,6 +88,12 @@
 
   _isRunning = YES;
 
+  // Register for battery state changes
+  [[NSWorkspace sharedWorkspace] addObserver:self
+                                  forKeyPath:@"powerState"
+                                     options:NSKeyValueObservingOptionNew
+                                     context:nil];
+
   NSLog(@"ShaderCandy Standalone App launched successfully");
 }
 
@@ -109,6 +115,54 @@
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:
     (NSApplication *)sender {
   return YES;
+}
+
+#pragma mark - Battery-Aware Rendering
+
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary *)change
+                       context:(void *)context {
+  if ([keyPath isEqualToString:@"powerState"]) {
+    [self handleBatteryStateChange];
+  }
+}
+
+- (void)handleBatteryStateChange {
+  BOOL onBattery = [self isOnBattery];
+
+  if (onBattery && _renderer) {
+    _renderer.preferredFPS = 15;
+    _renderer.resolutionScale = 0.5f;
+  } else if (_renderer) {
+    _renderer.preferredFPS = 60;
+    _renderer.resolutionScale = 1.0f;
+  }
+}
+
+- (BOOL)isOnBattery {
+  CFTypeRef powerInfo = IOPSCopyPowerSourcesInfo();
+  if (!powerInfo) return NO;
+
+  CFArrayRef powerSources = IOPSCopyPowerSourcesList(powerInfo);
+  if (!powerSources) {
+    CFRelease(powerInfo);
+    return NO;
+  }
+
+  BOOL onBattery = NO;
+  for (NSUInteger i = 0; i < CFArrayGetCount(powerSources); i++) {
+    CFTypeRef powerSource = CFArrayGetValueAtIndex(powerSources, i);
+    NSDictionary *description = (__bridge NSDictionary *)IOPSGetPowerSourceDescription(powerInfo, powerSource);
+    if ([description[@"Type"] isEqualToString:@"InternalBattery"]) {
+      onBattery = YES;
+      break;
+    }
+  }
+
+  CFRelease(powerSources);
+  CFRelease(powerInfo);
+  return onBattery;
 }
 
 #pragma mark - Window Management
