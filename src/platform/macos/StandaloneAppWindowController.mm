@@ -48,6 +48,102 @@
   BOOL _showingControls;
 }
 
+#pragma mark - Keyboard Handling
+
+- (BOOL)acceptsFirstResponder {
+  return YES;
+}
+
+- (void)keyDown:(NSEvent *)event {
+  NSString *chars = [event charactersIgnoringModifiers];
+  unsigned int flags = [event modifierFlags];
+
+  if (flags & NSEventModifierFlagControl) {
+    // Ctrl+key shortcuts
+    if ([chars isEqualToString:@"s"] || [chars isEqualToString:@"S"]) {
+      [self savePreset];
+      return;
+    } else if ([chars isEqualToString:@"o"] || [chars isEqualToString:@"O"]) {
+      [self loadPreset];
+      return;
+    } else if ([chars isEqualToString:@"="] || [chars isEqualToString:@"+"]) {
+      [self adjustIntensity:0.1f];
+      return;
+    } else if ([chars isEqualToString:@"-"]) {
+      [self adjustIntensity:-0.1f];
+      return;
+    } else if ([chars isEqualToString:@"q"] || [chars isEqualToString:@"Q"]) {
+      [NSApp terminate:nil];
+      return;
+    }
+  }
+
+  // Unmodified key shortcuts
+  unichar ch = [chars characterAtIndex:0];
+  if (ch == NSLeftArrowFunctionKey) {
+    [self previousShader];
+  } else if (ch == NSRightArrowFunctionKey) {
+    [self nextShader];
+  } else if ([chars isEqualToString:@" "] || [chars isEqualToString:@"p"] ||
+      [chars isEqualToString:@"P"]) {
+    [self nextShader];
+  } else if ([chars isEqualToString:@"n"] || [chars isEqualToString:@"N"]) {
+    [self previousShader];
+  } else if ([chars isEqualToString:@"d"] || [chars isEqualToString:@"D"]) {
+    [self toggleDebugOverlay];
+  } else if ([chars isEqualToString:@"t"] || [chars isEqualToString:@"T"]) {
+    [self runTestSuite];
+  } else if ([chars isEqualToString:@"\t"]) {
+    [self switchDisplay];
+  } else if ([event keyCode] == 0x3D) { // F12
+    [self takeScreenshot];
+  } else {
+    [super keyDown:event];
+  }
+}
+
+- (void)savePreset {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"SavePresetRequested"
+                    object:self];
+}
+
+- (void)loadPreset {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"LoadPresetRequested"
+                    object:self];
+}
+
+- (void)adjustIntensity:(float)delta {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"ParameterDidChange"
+                    object:self
+                  userInfo:@{@"name" : @"intensity", @"delta" : @(delta)}];
+}
+
+- (void)toggleDebugOverlay {
+  if (_renderer) {
+    _renderer.showDebugOverlay = !_renderer.showDebugOverlay;
+  }
+}
+
+- (void)runTestSuite {
+  if (_renderer) {
+    [_renderer testAllShaders];
+  }
+}
+
+- (void)switchDisplay {
+  // Cycle through available shaders as display switch
+  [self nextShader];
+}
+
+- (void)takeScreenshot {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"ScreenshotRequested"
+                    object:self];
+}
+
 #pragma mark - Initialization
 
 - (instancetype)initWithWindow:(NSWindow *)window {

@@ -68,7 +68,7 @@
 }
 
 - (void)setupBuffers {
-    _histogramBuffer = [_device newBufferWithLength:sizeof(float) * 256 options:MTLResourceStorageModePrivate];
+    _histogramBuffer = [_device newBufferWithLength:sizeof(float) * 256 options:MTLResourceStorageModeShared];
 }
 
 - (void)analyzeSceneBrightness:(id<MTLTexture>)frame commandBuffer:(id<MTLCommandBuffer>)commandBuffer {

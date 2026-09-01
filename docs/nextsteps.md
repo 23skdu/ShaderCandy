@@ -6,129 +6,91 @@
 
 ## P0 Blockers — Next Release
 
-These items are broken, stubbed, or incomplete and must be addressed before the next release.
+### 1. CRITICAL: Standalone Player Keyboard Navigation Incomplete
 
-### 1. CRITICAL: Audio Ray-Tracing Pipeline is Non-Functional
+`StandaloneAppWindowController.mm` handles arrow keys, Space, P/N, D, T, Tab, F12, and Ctrl shortcuts, but the **macOS screensaver** (`MacOSMetalViewAdapter.mm`) only handles D, S, and T. Left/Right arrows, Space, and all Ctrl shortcuts are missing from the screensaver. The Linux X11 screensaver and Wayland screensaver have partial coverage but no Ctrl+Save/Load.
 
-`AcousticSimulator.simulateReflections()` returns immediately at line 153 because `_rayTracePipeline` is never compiled — no `newComputePipelineStateWithFunction:` call exists in `AcousticSimulator.mm`. All downstream spatial audio (`RayAudioEngine`, `SpatialSoundscapeGenerator`) produces silence or zero acoustic energy.
+**Fix:** Implement a shared keyboard dispatcher or ensure all platforms handle the documented shortcut set. Prioritize arrow keys and Space for navigation across all modes.
 
-**Fix:** Compile the compute pipeline during `AcousticSimulator` initialization using the `audio_ray_tracing` kernel function from `shaders/audio/audio_ray_tracing.metal`.
+### 2. CRITICAL: PSO Disk Cache Not Implemented
 
-### 2. CRITICAL: PSO Disk Cache Read Path is Stubbed
+`MetalPipelineCache.mm` has an in-memory cache that works, but the disk cache stores `NSData` blobs that are never deserialized back into `MTLRenderPipelineState`. The read path falls through to recompilation every time. First-load micro-stutter persists.
 
-`MetalPipelineCache.mm:142-145` — the disk cache save path works but the read path falls back to recompilation:
-```objc
-} else if (_diskCache[key]) {
-    // Try disk cache - this is complex with Metal
-    // For now, fall back to compilation
-}
-```
-The cache is effectively write-only. Micro-stutter on first shader load persists.
+**Fix:** Implement `MTLBinaryArchive`-based persistent caching (macOS 12+) to serialize compiled pipeline states to disk and restore them on launch without recompilation.
 
-**Fix:** Implement PSO serialization/deserialization or use Metal's binary archive API (`MTLBinaryArchive`) for persistent caching.
+### 3. CRITICAL: Battery-Aware Rendering Only Works in Wallpaper Mode
 
-### 3. Vulkan Backend is a Complete Stub
+`WallpaperEngine.mm` degrades quality (FPS→15, resolution→50%) when on battery, but the standalone player and screensaver modes do not respond to battery state at all. On laptops, these modes will drain battery at full GPU load.
 
-`src/vulkan/VulkanRenderer.cpp` — `initialize()` sets `initialized_ = true` without creating any Vulkan objects. `render()` is empty. No Vulkan headers are included.
+**Fix:** Extend battery-aware quality degradation to `StandaloneAppDelegate` and `MacOSMetalViewAdapter`. Use `IOPSCopyPowerSourcesInfo` to detect battery state and reduce rendering quality accordingly.
 
-**Fix:** Either implement a minimal Vulkan renderer or explicitly mark the backend as unsupported and remove it from the build to avoid confusion.
+### 4. CRITICAL: Audio Ray-Tracing Uses Custom Ray-Tracer Instead of MPS
 
-### 4. Quantum Field Shader Missing Metal Port
+`AcousticSimulator.mm` compiles and runs a custom `traceAudioRays` compute kernel, but this is a basic implementation. Apple's `MPSRayIntersector` and `MTLAccelerationStructure` provide hardware-accelerated ray tracing on Apple Silicon that is significantly faster.
 
-`shaders/effects/quantum_field.frag` exists but there is no corresponding `quantum_field.metal`. Every other effect shader has both `.frag` and `.metal` versions. This shader is GLSL-only and non-functional on macOS.
+**Fix:** Replace the custom ray-tracer with MPS-based acceleration structure and ray intersector for production-quality spatial audio.
 
-**Fix:** Port `quantum_field.frag` to Metal or remove it from the shader catalog.
+### 5. Vulkan Backend Returns False but Files Remain
 
-### 5. Clouds Shader Disabled
+`VulkanRenderer.cpp` returns `false` from `initialize()` and the files are excluded from the build, but the source files (`VulkanRenderer.cpp`, `VulkanRenderer.h`) still exist in the repository. This creates confusion for contributors.
 
-`shaders/effects/clouds.metal.disabled` — the `.disabled` extension indicates an unresolved issue. This shader is excluded from the build.
+**Fix:** Either implement a minimal Vulkan renderer using `VK_KHR_swapchain` and `VK_EXT_swapchain_colorspace` for Linux HDR support, or remove the files entirely and document the decision in README.md.
 
-**Fix:** Diagnose and fix the issue, or remove the file entirely.
+### 6. Shader Regression Detector Not Integrated into CI
 
-### 6. Keyboard Shortcuts Are Largely Non-Functional
+`ShaderRegressionDetector.cpp` is a standalone tool that detects shader compilation time regressions (>20% threshold), but it is not wired into the test suite or CI pipeline. Regressions can ship unnoticed.
 
-The documented keyboard reference (below) does not match actual implementation:
+**Fix:** Add a `--regression-check` flag to `shadercandy-test` that runs the regression detector as part of the test suite. Fail the test if any shader regresses by more than 20%.
 
-| Shortcut | macOS Screensaver | macOS Standalone | Linux X11 | Linux Standalone | Linux Wayland |
-|---|---|---|---|---|---|
-| P / N (next/prev) | No | No | No | No | No |
-| Space (next) | No | No | No | Toggles pause | No |
-| 1–5 (params) | No | No | Yes | No | No |
-| Ctrl+S/O (save/load) | No | No | Yes | No | No |
-| Tab (switch display) | No | No | Yes | No | No |
-| Ctrl++/- (intensity) | No | No | Yes | No | No |
-| D (debug overlay) | Yes | No | No | No | No |
-| T (test suite) | Yes | No | No | No | No |
+### 7. No Variable Rate Shading (VRS) Support
 
-The macOS standalone player has **zero keyboard shortcut handlers** — it relies entirely on toolbar buttons and menus.
+VRS is available on Apple Silicon M1+ and can reduce fragment shader load in less detailed screen areas without visible quality loss. Detection exists in `MetalRenderer.mm:94` but is unused.
 
-**Fix:** Implement consistent keyboard shortcuts across all platforms, or update documentation to reflect platform-specific availability.
+**Fix:** Implement VRS tier selection based on GPU family, and apply coarser shading rates to peripheral regions of the screen.
 
-### 7. Battery-Aware Rendering is Incomplete
+### 8. Compute-Based Bloom Not Implemented
 
-`WallpaperEngine.mm:451-479` pauses playback on battery via `IOPSCopyPowerSourcesInfo`, but does not degrade quality (resolution, shader complexity). The standalone player and screensaver do not respond to battery state at all.
+The current bloom effect (`shaders/effects/bloom.metal`) uses a fragment-based approach that is suboptimal on Apple GPUs. A tile-based compute shader implementation using threadgroup memory would be more efficient.
 
-**Fix:** Implement tiered battery-aware rendering: cap FPS, reduce resolution scale, and simplify shaders when on battery across all modes.
-
-### 8. Unified Memory Management Not Audited
-
-`MetalHeapManager.mm` uses `MTLStorageModeShared` but its usage is limited. Many buffers in `MetalRenderer.mm` and `AcousticSimulator.mm` still use `MTLResourceStorageModePrivate`, preventing true zero-copy CPU/GPU access.
-
-**Fix:** Audit all `MTLBuffer` and `MTLTexture` allocations across the renderer and migrate to `MTLStorageModeShared` where appropriate.
+**Fix:** Replace the fragment-based bloom with a compute shader that processes tiles in shared memory, reducing bandwidth and improving performance on Apple Silicon.
 
 ---
 
 ## Performance Optimization (Future)
 
-1. **Metal Parallel Encoder Integration**
-   Use multiple parallel render command encoders for complex scenes with many post-processing passes. This better utilizes multi-core CPUs during frame encoding.
+1. **Metal Parallel Encoder Integration** — Use multiple parallel render command encoders for complex scenes with many post-processing passes.
 
-2. **Indirect Command Buffers (ICB)**
-   Implement ICB for particle systems to reduce CPU overhead in frame recording and allow the GPU to generate its own draw calls for dynamic systems.
+2. **Indirect Command Buffers (ICB)** — Implement ICB for particle systems to reduce CPU overhead in frame recording.
 
-3. **Variable Rate Shading (VRS)**
-   Utilize VRS on supported Apple Silicon (M1+) to reduce fragment shader load in less detailed areas of the screen without visible quality loss.
+3. **Metal Mesh Shaders** — Transition particle rendering to Mesh Shaders for M2/M3 GPUs.
 
-4. **Metal Mesh Shaders**
-   Transition particle rendering and complex geometry to Mesh Shaders for M2/M3 GPUs to significantly improve vertex throughput and culling efficiency. Detection exists (`MetalRenderer.mm:94`) but is unused.
+4. **Dynamic LoD for Audio Visualization** — Scale FFT processing complexity based on GPU load and audio complexity.
 
-5. **Compute-Based Bloom & Effects**
-   Replace current fragment-based bloom (`shaders/effects/bloom.metal`) with a more efficient tile-based compute shader implementation, taking advantage of threadgroup memory on Apple GPUs.
-
-6. **Persistent Pipeline State Object (PSO) Disk Cache**
-   See P0 Blocker #2 above. In-memory caching works; disk persistence is non-functional.
+5. **Persistent PSO Disk Cache** — See P0 Blocker #2 above.
 
 ---
 
 ## Stability & Power Management (Future)
 
-1. **Battery & Thermal Aware Rendering**
-   See P0 Blocker #7 above. Thermal throttling works (`MetalRenderer.mm:513-553`); battery-aware quality degradation is incomplete.
+1. **Battery-Aware Rendering (All Modes)** — See P0 Blocker #3 above.
 
-2. **Unified Memory Management Audit**
-   See P0 Blocker #8 above.
+2. **Spatial Audio MPS Optimization** — See P0 Blocker #4 above.
 
-3. **Dynamic LoD for Audio Visualization**
-   Scale the complexity of FFT processing and visualization based on current GPU load and audio complexity to ensure stable 60+ FPS during intense segments. No implementation exists.
-
-4. **Spatial Audio Ray-Tracing Optimization**
-   See P0 Blocker #1 above. Replace custom broken ray-tracer with MPS-based implementation (`MPSRay`, `MPSTriangleIntersector`, `MTLAccelerationStructure`).
+3. **Thermal Throttling Improvements** — Current implementation in `MetalRenderer.mm:513-553` works but could be more granular with per-shader quality levels.
 
 ---
 
 ## Keyboard Controls Reference
 
-| Key | Action |
-| --- | --- |
-| Escape / Ctrl+Q | Quit |
-| Right Arrow / Space / P | Next shader |
-| Left Arrow / N | Previous shader |
-| F12 / PrintScreen | Screenshot |
-| 1–5 | Adjust shader params |
-| Ctrl+S / Ctrl+O | Save/Load preset |
-| Tab | Switch display |
-| Ctrl++ / Ctrl+- | Intensity |
-| D | Toggle debug overlay |
-| T | Run shader test suite |
-
-> **Note:** Most shortcuts are only implemented on Linux X11. See P0 Blocker #6 for platform coverage gaps.
+| Key | macOS Screensaver | macOS Standalone | Linux X11 | Linux Standalone | Linux Wayland |
+|---|---|---|---|---|---|
+| Escape / Ctrl+Q | No | Yes | No | No | Yes |
+| Right Arrow / Space / P | No | Yes | No | Toggles pause | Yes |
+| Left Arrow / N | No | Yes | No | No | Yes |
+| F12 / PrintScreen | No | Yes | No | No | Yes |
+| 1–5 (params) | No | No | Yes | No | No |
+| Ctrl+S / Ctrl+O | No | Yes | Yes | No | No |
+| Tab (switch display) | No | Yes | Yes | No | Yes |
+| Ctrl++ / Ctrl+- | No | Yes | Yes | No | No |
+| D (debug overlay) | Yes | Yes | No | No | No |
+| T (test suite) | Yes | Yes | No | No | No |
