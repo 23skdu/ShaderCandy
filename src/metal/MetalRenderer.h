@@ -234,6 +234,10 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, assign, readonly) NSUInteger currentMemoryUsageBytes;
 @property(nonatomic, assign) BOOL aggressiveMemoryPurge;
 
+// Variable Rate Shading (VRS)
+@property(nonatomic, assign) BOOL variableRateShadingEnabled;
+@property(nonatomic, assign) float vrsPeripheralRate;
+
 // Performance states
 @property(nonatomic, assign, readonly) BOOL isThermalThrottling;
 @property(nonatomic, assign, readonly) float thermalLevel;

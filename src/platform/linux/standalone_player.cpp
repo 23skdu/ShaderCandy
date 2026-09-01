@@ -740,6 +740,60 @@ void StandalonePlayer::keyCallback(GLFWwindow *window, int key, int scancode,
       }
     }
     break;
+  case GLFW_KEY_P:
+    player->nextShader();
+    break;
+  case GLFW_KEY_N:
+    player->previousShader();
+    break;
+  case GLFW_KEY_D:
+    if (player->currentShader) {
+      player->currentShader->showDebug = !player->currentShader->showDebug;
+    }
+    break;
+  case GLFW_KEY_T:
+    player->runShaderTestSuite();
+    break;
+  case GLFW_KEY_TAB:
+    player->nextShader();
+    break;
+  case GLFW_KEY_1:
+  case GLFW_KEY_2:
+  case GLFW_KEY_3:
+  case GLFW_KEY_4:
+  case GLFW_KEY_5:
+    if (player->currentShader) {
+      int paramIdx = key - GLFW_KEY_1;
+      float *params[] = {&player->currentShader->uniforms.param1,
+                         &player->currentShader->uniforms.param2,
+                         &player->currentShader->uniforms.param3,
+                         &player->currentShader->uniforms.param4,
+                         &player->currentShader->uniforms.param5};
+      if (paramIdx < 5) {
+        bool shift = (mods & GLFW_MOD_SHIFT);
+        *params[paramIdx] = shift ? MIN(1.0f, *params[paramIdx] + 0.1f)
+                                  : MAX(0.0f, *params[paramIdx] - 0.1f);
+      }
+    }
+    break;
+  default:
+    // Ctrl+S = save, Ctrl+O = load
+    if (mods & GLFW_MOD_CONTROL) {
+      if (key == GLFW_KEY_S) {
+        player->savePreset("default");
+      } else if (key == GLFW_KEY_O) {
+        player->loadPreset("default");
+      } else if (key == GLFW_KEY_EQUAL || key == GLFW_KEY_KP_ADD) {
+        if (player->currentShader)
+          player->currentShader->uniforms.intensity =
+              MIN(2.0f, player->currentShader->uniforms.intensity + 0.1f);
+      } else if (key == GLFW_KEY_MINUS || key == GLFW_KEY_KP_SUBTRACT) {
+        if (player->currentShader)
+          player->currentShader->uniforms.intensity =
+              MAX(0.0f, player->currentShader->uniforms.intensity - 0.1f);
+      }
+    }
+    break;
   }
 }
 
