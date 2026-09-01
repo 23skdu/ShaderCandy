@@ -56,12 +56,41 @@
     _device = device;
     _commandQueue = [device newCommandQueue];
     
+    // Compile the audio ray-tracing compute pipeline
+    id<MTLLibrary> library = [device newDefaultLibrary];
+    if (!library) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AcousticSimulator"
+                                         code:-1
+                                     userInfo:@{NSLocalizedDescriptionKey: @"Failed to create Metal default library"}];
+        }
+        return NO;
+    }
+    
+    id<MTLFunction> traceFunction = [library newFunctionWithName:@"traceAudioRays"];
+    if (!traceFunction) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AcousticSimulator"
+                                         code:-2
+                                     userInfo:@{NSLocalizedDescriptionKey: @"Failed to find traceAudioRays kernel function"}];
+        }
+        return NO;
+    }
+    
+    NSError *pipelineError = nil;
+    _rayTracePipeline = [device newComputePipelineStateWithFunction:traceFunction
+                                                            error:&pipelineError];
+    if (pipelineError) {
+        if (error) *error = pipelineError;
+        return NO;
+    }
+    
     // Create ray buffers
     NSUInteger rayCount = 1024;
     _rayBuffer = [device newBufferWithLength:rayCount * sizeof(simd_float4) * 2
-                                      options:MTLResourceStorageModePrivate];
+                                      options:MTLResourceStorageModeShared];
     _reflectionBuffer = [device newBufferWithLength:rayCount * _maxReflections * sizeof(float)
-                                             options:MTLResourceStorageModePrivate];
+                                             options:MTLResourceStorageModeShared];
     
     _isInitialized = YES;
     return YES;

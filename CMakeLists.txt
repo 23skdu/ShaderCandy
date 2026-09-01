@@ -278,6 +278,9 @@ if(MACOS AND BUILD_METAL)
     endif()
 endif()
 
+# Vulkan Backend (not implemented - excluded from build)
+# See src/vulkan/VulkanRenderer.cpp — stub only, no real Vulkan objects created.
+
 # OpenGL Backend (optional - may not be implemented yet)
 if(BUILD_OPENGL)
     # Check if GL source files exist
@@ -737,11 +740,6 @@ endif()
 if(BUILD_TESTS)
     set(TEST_SOURCES
         tests/TestFramework.cpp
-        tests/MathAndCoreTests.cpp
-        tests/LogicAndUniformTests.cpp
-        tests/ShaderCompilationTests.cpp
-        tests/RendererFeatureTests.cpp
-        tests/CoverageExpansionTests.cpp
     )
     
     if(MACOS)
@@ -750,6 +748,7 @@ if(BUILD_TESTS)
         list(APPEND TEST_SOURCES tests/AudioAndNeuralTests.mm)
         list(APPEND TEST_SOURCES src/platform/macos/MacOSMetalViewAdapter.mm)
     else()
+        # Linux: unity build — main.cpp #includes the test .cpp files directly
         list(APPEND TEST_SOURCES tests/main.cpp)
     endif()
     
