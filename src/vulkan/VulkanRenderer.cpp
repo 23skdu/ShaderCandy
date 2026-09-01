@@ -18,12 +18,9 @@ VulkanRenderer::VulkanRenderer() = default;
 VulkanRenderer::~VulkanRenderer() { shutdown(); }
 
 bool VulkanRenderer::initialize() {
-  if (initialized_) {
-    return true;
-  }
-
-  initialized_ = true;
-  return true;
+  // Vulkan backend is not implemented. Use the Metal backend on macOS
+  // or the OpenGL backend on Linux instead.
+  return false;
 }
 
 void VulkanRenderer::shutdown() {

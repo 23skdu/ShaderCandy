@@ -139,10 +139,15 @@
     // Check memory cache first
     if (_renderPipelineCache[key]) {
         state.renderPipeline = _renderPipelineCache[key];
-    } else if (_diskCache[key]) {
-        // Try disk cache - this is complex with Metal
-        // For now, fall back to compilation
     }
+    // NOTE: Disk cache persistence for MTLRenderPipelineState is not supported.
+    // Metal pipeline states cannot be serialized/deserialized directly.
+    // To implement persistent caching, use MTLBinaryArchive (macOS 12+):
+    //   MTLBinaryArchiveDescriptor *desc = [[MTLBinaryArchiveDescriptor alloc] init];
+    //   desc.url = [NSURL fileURLWithPath:[_diskCachePath stringByAppendingPathComponent:@"archive.metallib"]];
+    //   id<MTLBinaryArchive> archive = [device newBinaryArchiveWithDescriptor:desc error:&error];
+    //   [archive addRenderPipelineStateWithDescriptor:descriptor error:&error];
+    //   [archive serializeToURL:desc.url error:&error];
 
     // Compile if not cached
     if (!state.renderPipeline) {

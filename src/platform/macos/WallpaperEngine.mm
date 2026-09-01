@@ -449,16 +449,31 @@ NSString * const WallpaperEngineDidEncounterErrorNotification = @"WallpaperEngin
 }
 
 - (void)powerStateDidChange:(NSNotification *)notification {
-    // Check if on battery
     BOOL onBattery = [self isOnBattery];
     
     if (_pauseOnBattery && onBattery && _isRunning && !_isPaused) {
         _wasPausedForBattery = YES;
-        [self pause];
+        [self degradeQualityForBattery];
     } else if (_wasPausedForBattery && !onBattery) {
         _wasPausedForBattery = NO;
-        [self resume];
+        [self restoreQualityFromBattery];
     }
+}
+
+- (void)degradeQualityForBattery {
+    if (_renderer) {
+        _renderer.preferredFPS = 15;
+        _renderer.resolutionScale = 0.5f;
+    }
+    [self pause];
+}
+
+- (void)restoreQualityFromBattery {
+    if (_renderer) {
+        _renderer.preferredFPS = 30;
+        _renderer.resolutionScale = 1.0f;
+    }
+    [self resume];
 }
 
 - (BOOL)isOnBattery {

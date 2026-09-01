@@ -6,6 +6,8 @@
 #include "LogicAndUniformTests.cpp"
 #include "MathAndCoreTests.cpp"
 #include "ShaderCompilationTests.cpp"
+#include "RendererFeatureTests.cpp"
+#include "CoverageExpansionTests.cpp"
 
 using namespace ShaderCandy::Test;
 
@@ -26,7 +28,11 @@ void listTests() {
   std::cout << "   - GLSL vertex shader validation\n";
   std::cout << "   - GLSL fragment shader validation\n";
   std::cout << "   - Uniform buffer structure tests\n";
-  std::cout << "   - Syntax validation (requires glslangValidator)\n\n";
+  std::cout << "   - Syntax validation (requires glslangValidator)\n";
+  std::cout << "   - All fragment shader discovery and validation\n";
+  std::cout << "   - Include guard verification\n";
+  std::cout << "   - pastel_unicorns.frag validation\n";
+  std::cout << "   - CPU/GPU struct consistency check\n\n";
 
   std::cout << "2. Math & SIMD Tests\n";
   std::cout << "   - Vector operations (add, dot, cross, length)\n";
@@ -39,6 +45,23 @@ void listTests() {
   std::cout << "   - Uniform buffer management\n";
   std::cout << "   - Performance monitoring\n";
   std::cout << "   - Cross-fade calculations\n\n";
+
+  std::cout << "4. Renderer Feature Tests\n";
+  std::cout << "   - Dynamic resolution scaling\n";
+  std::cout << "   - Thermal state management\n";
+  std::cout << "   - Memory budget calculation\n";
+  std::cout << "   - Auto-scaling thresholds\n";
+  std::cout << "   - Frame pacing timing\n\n";
+
+  std::cout << "5. Coverage Expansion Tests\n";
+  std::cout << "   - Vec2/Vec3 operators\n";
+  std::cout << "   - UniformBuffer time/deltaTime\n";
+  std::cout << "   - PerformanceMonitor enable/disable\n";
+  std::cout << "   - ConfigurationManager JSON parsing\n";
+  std::cout << "   - PresetManager serialization\n";
+  std::cout << "   - ShaderManager hot reload\n";
+  std::cout << "   - Color conversion edge cases\n";
+  std::cout << "   - SIMD alignment with odd counts\n\n";
 }
 
 int main(int argc, char **argv) {
