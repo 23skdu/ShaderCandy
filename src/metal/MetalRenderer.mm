@@ -265,6 +265,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
 @implementation MetalRenderer {
   std::unique_ptr<ShaderCandy::Audio::AudioInput> _audioInput;
+  id<MTLRasterizationRateMap> _rasterizationRateMap;
 }
 
 #pragma mark - Initialization
@@ -324,6 +325,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     // Variable Rate Shading defaults
     _variableRateShadingEnabled = NO;
     _vrsPeripheralRate = 0.5f; // Half resolution in peripheral areas
+
+    // Compute-based post processing
+    _useComputeBloom = YES;
 
     // Performance state
     _isThermalThrottling = NO;
@@ -2135,6 +2139,23 @@ transition_complete:;
     return;
   }
 
+#if TARGET_OS_MAC
+  if (@available(macOS 10.15.4, *)) {
+    if (_variableRateShadingEnabled && _supportsVariableRateShading && descriptor) {
+      if (!_rasterizationRateMap && descriptor.colorAttachments[0].texture) {
+        id<MTLTexture> targetTex = descriptor.colorAttachments[0].texture;
+        MTLSize sampleSize = MTLSizeMake(targetTex.width, targetTex.height, 1);
+        MTLRasterizationRateLayerDescriptor *layerDesc = [[MTLRasterizationRateLayerDescriptor alloc] initWithSampleCount:sampleSize];
+        MTLRasterizationRateMapDescriptor *mapDesc = [MTLRasterizationRateMapDescriptor rasterizationRateMapDescriptorWithScreenSize:sampleSize layer:layerDesc];
+        _rasterizationRateMap = [_device newRasterizationRateMapWithDescriptor:mapDesc];
+      }
+      if (_rasterizationRateMap) {
+        descriptor.rasterizationRateMap = _rasterizationRateMap;
+      }
+    }
+  }
+#endif
+
   descriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
 
   id<MTLRenderCommandEncoder> encoder =
@@ -2257,6 +2278,22 @@ transition_complete:;
   sceneDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
   sceneDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
 
+#if TARGET_OS_MAC
+  if (@available(macOS 10.15.4, *)) {
+    if (_variableRateShadingEnabled && _supportsVariableRateShading && _resources.sceneTexture) {
+      if (!_rasterizationRateMap) {
+        MTLSize sampleSize = MTLSizeMake(_resources.sceneTexture.width, _resources.sceneTexture.height, 1);
+        MTLRasterizationRateLayerDescriptor *layerDesc = [[MTLRasterizationRateLayerDescriptor alloc] initWithSampleCount:sampleSize];
+        MTLRasterizationRateMapDescriptor *mapDesc = [MTLRasterizationRateMapDescriptor rasterizationRateMapDescriptorWithScreenSize:sampleSize layer:layerDesc];
+        _rasterizationRateMap = [_device newRasterizationRateMapWithDescriptor:mapDesc];
+      }
+      if (_rasterizationRateMap) {
+        sceneDesc.rasterizationRateMap = _rasterizationRateMap;
+      }
+    }
+  }
+#endif
+
   id<MTLRenderCommandEncoder> sceneEncoder =
       [commandBuffer renderCommandEncoderWithDescriptor:sceneDesc];
   [sceneEncoder setRenderPipelineState:_currentPipeline.renderPipeline];
@@ -2280,7 +2317,60 @@ transition_complete:;
                     indexBufferOffset:0];
   [sceneEncoder endEncoding];
 
-  // Threshold pass
+  // Compute Bloom path: use compute shaders with threadgroup tile memory
+  if (_useComputeBloom) {
+    id<MTLComputePipelineState> threshCompute = [self bloomComputePipeline:@"bloom_threshold_compute"];
+    id<MTLComputePipelineState> blurHCompute = [self bloomComputePipeline:@"bloom_blur_h_compute"];
+    id<MTLComputePipelineState> blurVCompute = [self bloomComputePipeline:@"bloom_blur_v_compute"];
+
+    if (threshCompute && blurHCompute && blurVCompute && _resources.bloomTextureA && _resources.bloomTextureB) {
+      id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
+      MTLSize threadgroupSize = MTLSizeMake(16, 16, 1);
+      NSUInteger bw = _resources.bloomTextureA.width;
+      NSUInteger bh = _resources.bloomTextureA.height;
+      MTLSize threadgroups = MTLSizeMake((bw + 15) / 16, (bh + 15) / 16, 1);
+
+      // 1. Threshold compute pass
+      [computeEncoder setComputePipelineState:threshCompute];
+      [computeEncoder setTexture:_resources.sceneTexture atIndex:0];
+      [computeEncoder setTexture:_resources.bloomTextureA atIndex:1];
+      float threshold = _bloomConfig.threshold;
+      [computeEncoder setBytes:&threshold length:sizeof(float) atIndex:0];
+      [computeEncoder dispatchThreadgroups:threadgroups threadsPerThreadgroup:threadgroupSize];
+
+      // 2. Horizontal blur compute pass
+      [computeEncoder setComputePipelineState:blurHCompute];
+      [computeEncoder setTexture:_resources.bloomTextureA atIndex:0];
+      [computeEncoder setTexture:_resources.bloomTextureB atIndex:1];
+      [computeEncoder dispatchThreadgroups:threadgroups threadsPerThreadgroup:threadgroupSize];
+
+      // 3. Vertical blur compute pass
+      [computeEncoder setComputePipelineState:blurVCompute];
+      [computeEncoder setTexture:_resources.bloomTextureB atIndex:0];
+      [computeEncoder setTexture:_resources.bloomTextureA atIndex:1];
+      [computeEncoder dispatchThreadgroups:threadgroups threadsPerThreadgroup:threadgroupSize];
+
+      [computeEncoder endEncoding];
+
+      // Combine pass to final drawable
+      id<MTLRenderCommandEncoder> finalEncoder =
+          [commandBuffer renderCommandEncoderWithDescriptor:descriptor];
+      [finalEncoder setRenderPipelineState:bloomCombine];
+      [finalEncoder setVertexBuffer:_resources.vertexBuffer offset:0 atIndex:0];
+      [finalEncoder setFragmentTexture:_resources.sceneTexture atIndex:0];
+      [finalEncoder setFragmentTexture:_resources.bloomTextureA atIndex:1];
+      [finalEncoder setFragmentSamplerState:_resources.samplerState atIndex:0];
+      [finalEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                               indexCount:6
+                                indexType:MTLIndexTypeUInt16
+                              indexBuffer:_resources.indexBuffer
+                        indexBufferOffset:0];
+      [finalEncoder endEncoding];
+      return;
+    }
+  }
+
+  // Fallback: Fragment-based multi-pass bloom
   MTLRenderPassDescriptor *bloomDesc =
       [MTLRenderPassDescriptor renderPassDescriptor];
   bloomDesc.colorAttachments[0].texture = _resources.bloomTextureA;
@@ -2483,6 +2573,56 @@ transition_complete:;
       [_device newRenderPipelineStateWithDescriptor:desc error:nil];
   if (pipeline) {
     cache[functionName] = pipeline;
+  }
+  return pipeline;
+}
+
+- (id<MTLComputePipelineState>)bloomComputePipeline:(NSString *)kernelName {
+  static NSMutableDictionary *computeCache = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    computeCache = [NSMutableDictionary dictionary];
+  });
+
+  id<MTLComputePipelineState> cached = computeCache[kernelName];
+  if (cached)
+    return cached;
+
+  NSArray *searchDirs = @[@"shaders/effects", @"shaders", @""];
+  NSString *path = nil;
+  for (NSString *dir in searchDirs) {
+    path = [self findResourcePath:@"bloom" ofType:@"metal" subDir:dir];
+    if (path) break;
+  }
+
+  if (!path) {
+    return nil;
+  }
+
+  NSString *source = [NSString stringWithContentsOfFile:path
+                                               encoding:NSUTF8StringEncoding
+                                                  error:nil];
+  if (!source) {
+    return nil;
+  }
+
+  NSString *fullSource = [self prepareShaderSource:source forShader:@"bloom"];
+  NSError *error = nil;
+  id<MTLLibrary> library = [_device newLibraryWithSource:fullSource
+                                                 options:nil
+                                                   error:&error];
+  if (error || !library) {
+    return nil;
+  }
+
+  id<MTLFunction> kernelFunc = [library newFunctionWithName:kernelName];
+  if (!kernelFunc)
+    return nil;
+
+  id<MTLComputePipelineState> pipeline =
+      [_device newComputePipelineStateWithFunction:kernelFunc error:nil];
+  if (pipeline) {
+    computeCache[kernelName] = pipeline;
   }
   return pipeline;
 }

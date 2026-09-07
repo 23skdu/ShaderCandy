@@ -9,11 +9,11 @@
 Based on comprehensive deep code analysis of the Metal, OpenGL, Audio, Neural, and Platform subsystems, the following 10-part engineering roadmap defines the high-impact architectural and performance enhancements for ShaderCandy:
 
 ### Part 1: Metal Compute Bloom & Post-Processing Pipeline Integration
-* **Status & Findings:** `shaders/effects/bloom.metal` implements high-performance compute kernels (`bloom_threshold_compute`, `bloom_blur_h_compute`, `bloom_blur_v_compute`, `bloom_combine_compute`), but `MetalRenderer.mm` currently only dispatches legacy fragment render passes with full-screen quads.
+* **Status & Findings:** [COMPLETED] Integrated compute-based bloom kernels (`bloom_threshold_compute`, `bloom_blur_h_compute`, `bloom_blur_v_compute`) and `bloomComputePipeline:` directly into `MetalRenderer.mm` using 16x16 threadgroup tiles with automatic fallback to fragment passes when compute pipelines are unavailable.
 * **Objective:** Wire compute-based bloom directly into `MetalRenderer.mm`, dispatching compute commands using Apple Silicon threadgroup memory tiles (16x16). This eliminates redundant full-screen quad rasterization passes, minimizes memory bandwidth via on-chip tile memory, and reduces frame time during complex post-processing.
 
 ### Part 2: Hardware-Accelerated Variable Rate Shading (VRS)
-* **Status & Findings:** `MetalRenderer.h` and `MetalRenderer.mm` detect VRS capability (`_supportsVariableRateShading` on Apple Silicon Families) and expose configuration properties (`variableRateShadingEnabled`, `vrsPeripheralRate`), but no `MTLRasterizationRateMap` is allocated or attached to the render pass descriptor.
+* **Status & Findings:** [COMPLETED] Implemented dynamic `MTLRasterizationRateMap` generation and binding on `MTLRenderPassDescriptor.rasterizationRateMap` in `MetalRenderer.mm` based on `_vrsPeripheralRate` and `_supportsVariableRateShading`.
 * **Objective:** Construct and bind a dynamic `MTLRasterizationRateMap` descriptor during render pass creation. Shading rate is downscaled in peripheral screen areas and high-speed motion regions, significantly reducing fragment shader workload for intensive raymarched fractals (`mandelbox`, `mandelbulb_3d`, `raymarch_sculpture`) with no perceptible visual degradation.
 
 ### Part 3: Metal Indirect Command Buffers (ICB) for Dynamic Systems
@@ -36,11 +36,11 @@ Based on comprehensive deep code analysis of the Metal, OpenGL, Audio, Neural, a
   3. Support dynamic resolution scaling (DRS) with bicubic upsampling to guarantee a stable 60 FPS on lower-tier hardware and high-DPI displays.
 
 ### Part 7: Unified Cross-Platform Core ShaderManager Architecture
-* **Status & Findings:** `src/core/ShaderManager.cpp` is an empty stub returning `nullptr`. Shader discovery, metadata parsing, compilation, and hot-reload polling are duplicated separately across `screensaver.cpp`, `standalone_player.cpp`, `LinuxShaderManager.cpp`, and macOS host adapters.
+* **Status & Findings:** [COMPLETED] Replaced empty stub with full `UnifiedShaderManager` in `src/core/ShaderManager.cpp`, featuring directory shader scanning, `#include` recursive resolution, uniform parsing, category indexing, and state management.
 * **Objective:** Consolidate shader catalog discovery, `#include` preprocessing, uniform reflection, and file-system watching into a centralized cross-platform `ShaderManager`. Eliminate redundant boilerplate across Linux and macOS platform entry points while providing a unified API for preset management and hot reloading.
 
 ### Part 8: Multi-Display Spanning & Virtual Display Canvas Implementation
-* **Status & Findings:** `src/core/MultiDisplayManager.h` declares full architecture for multi-monitor modes (`Single`, `SpanAll`, `Clone`, `Independent`) and headless offscreen rendering, but lacks implementation files (`.cpp` / `.mm`).
+* **Status & Findings:** [COMPLETED] Implemented `src/core/MultiDisplayManager.cpp` supporting display enumeration, layout spanning (`SpanAll`, `Clone`, `Independent`), bidirectional virtual-to-display coordinate mapping, and `HeadlessRenderer` offscreen multi-pass rendering.
 * **Objective:** Implement `MultiDisplayManager.mm` (using `NSScreen` and `CGGetActiveDisplayList` on macOS) and `MultiDisplayManager_Linux.cpp` (using XRandR and `wl_output`). Support synchronized seamless canvas spanning across multi-monitor setups with proper aspect-ratio preservation and per-display shader assignment.
 
 ### Part 9: Linux Modernization — Native PipeWire Audio & Wayland Layer Shell
