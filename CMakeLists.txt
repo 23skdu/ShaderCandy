@@ -49,6 +49,7 @@ set(CORE_SOURCES
     src/core/ShaderManager.cpp
     src/core/UniformBuffer.cpp
     src/core/PerformanceMonitor.cpp
+    src/core/MultiDisplayManager.cpp
     src/config/ConfigurationManager.cpp
     src/config/PresetManager.cpp
 )

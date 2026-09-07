@@ -79,8 +79,12 @@ float PerformanceMonitor::getP99FrameTimeMs() const {
 
   updateSortedTimes();
 
-  size_t p99Index = static_cast<size_t>(sortedTimes_.size() * 0.99f);
-  p99Index = std::min(p99Index, sortedTimes_.size() - 1);
+  size_t count = std::min(frameTimes_.size(), sortedTimes_.size());
+  if (count == 0)
+    return 0.0f;
+
+  size_t p99Index = static_cast<size_t>(count * 0.99f);
+  p99Index = std::min(p99Index, count - 1);
 
   return sortedTimes_[p99Index];
 }
