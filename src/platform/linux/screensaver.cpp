@@ -276,13 +276,12 @@ public:
     }
 
     if (!fragSource.empty()) {
-      std::string included =
-          loadShaderWithIncludes(fragPath.c_str(), 0);
+      std::string included = loadShaderWithIncludes(fragPath.c_str(), 0);
       if (!included.empty()) {
         cleanup();
         loadShader("#version 450\nin vec2 position;\nvoid main() { "
-                  "gl_Position = vec4(position, 0.0, 1.0); }\n",
-                  included.c_str());
+                   "gl_Position = vec4(position, 0.0, 1.0); }\n",
+                   included.c_str());
         startTime = std::chrono::steady_clock::now();
         lastFrame = startTime;
         lastModTime = st.st_mtime;
@@ -581,7 +580,7 @@ private:
     width = displays[currentDisplay].width;
     height = displays[currentDisplay].height;
     showNotification("Display " + std::to_string(currentDisplay + 1) + "/" +
-                   std::to_string(displays.size()));
+                     std::to_string(displays.size()));
   }
 
   float mouseX = 0.0f;
@@ -601,20 +600,20 @@ private:
   std::chrono::steady_clock::time_point notificationTime;
   float notificationDuration = 3.0f;
 
-   // Shader directories
-   std::vector<std::string> shaderPaths;
-   std::string shaderDir;
-   std::unordered_map<std::string, double> shaderModTimes;
+  // Shader directories
+  std::vector<std::string> shaderPaths;
+  std::string shaderDir;
+  std::unordered_map<std::string, double> shaderModTimes;
 
-   // Audio input
-   AudioInput *audioInput = nullptr;
-   bool enableAudio = false;
+  // Audio input
+  AudioInput *audioInput = nullptr;
+  bool enableAudio = false;
 
-   bool hotReloadEnabled = true;
-   
-   // Frame rate limiting
-   int targetFPS = 60;
-   uint32_t frameDelayMs = 16; // Default to ~60 FPS
+  bool hotReloadEnabled = true;
+
+  // Frame rate limiting
+  int targetFPS = 60;
+  uint32_t frameDelayMs = 16; // Default to ~60 FPS
 
   void checkForShaderChanges() {
     if (!hotReloadEnabled || !currentShader)
@@ -691,7 +690,7 @@ public:
     }
 
     // Get window size
-    XWindowAttributes parentAttr;
+    XWindowAttributes parentAttr{};
     XGetWindowAttributes(display, parent, &parentAttr);
     width = parentAttr.width;
     height = parentAttr.height;
@@ -754,7 +753,7 @@ public:
       // Wait for window to be mapped
       XSync(display, False);
 
-      XWindowAttributes winAttr;
+      XWindowAttributes winAttr{};
       for (int i = 0; i < 10; i++) {
         XGetWindowAttributes(display, window, &winAttr);
         if (winAttr.map_state == IsViewable)
@@ -1033,7 +1032,8 @@ layout(std140) uniform Uniforms {
     if (shaders.size() <= 1)
       return;
 
-    currentShaderIndex = (currentShaderIndex + shaders.size() - 1) % shaders.size();
+    currentShaderIndex =
+        (currentShaderIndex + shaders.size() - 1) % shaders.size();
     nextShader = shaders[currentShaderIndex];
 
     inTransition = true;
@@ -1043,8 +1043,7 @@ layout(std140) uniform Uniforms {
 
   void takeScreenshot() {
     std::vector<unsigned char> pixels(width * height * 4);
-    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
-                pixels.data());
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
     for (int y = 0; y < height / 2; y++) {
       for (int x = 0; x < width * 4; x++) {
@@ -1067,8 +1066,7 @@ layout(std140) uniform Uniforms {
     std::ofstream file(filename, std::ios::binary);
     if (file) {
       file << "P6\n" << width << " " << height << "\n255\n";
-      file.write(reinterpret_cast<char *>(pixels.data()),
-               width * height * 3);
+      file.write(reinterpret_cast<char *>(pixels.data()), width * height * 3);
       std::cout << "Screenshot saved: " << filename << std::endl;
     }
   }
@@ -1079,7 +1077,8 @@ layout(std140) uniform Uniforms {
   }
 
   void savePreset(const std::string &name) {
-    std::string presetDir = std::string(getenv("HOME")) + "/.config/shadercandy";
+    std::string presetDir =
+        std::string(getenv("HOME")) + "/.config/shadercandy";
     mkdir(presetDir.c_str(), 0755);
     std::string presetFile = presetDir + "/" + name + ".cfg";
 
@@ -1100,7 +1099,8 @@ layout(std140) uniform Uniforms {
   }
 
   bool loadPreset(const std::string &name) {
-    std::string presetDir = std::string(getenv("HOME")) + "/.config/shadercandy";
+    std::string presetDir =
+        std::string(getenv("HOME")) + "/.config/shadercandy";
     std::string presetFile = presetDir + "/" + name + ".cfg";
 
     std::ifstream in(presetFile);
@@ -1142,8 +1142,7 @@ layout(std140) uniform Uniforms {
     return true;
   }
 
-  void checkForShaderReload() {
-  }
+  void checkForShaderReload() {}
 
   void renderNotification() {
     if (notificationText.empty())
@@ -1188,52 +1187,53 @@ layout(std140) uniform Uniforms {
     }
   }
 
-   void run() {
-     XEvent event;
+  void run() {
+    XEvent event;
 
-     while (running) {
-       // Handle events (non-blocking)
-       while (XPending(display) > 0) {
-         XNextEvent(display, &event);
-         handleEvent(event);
-       }
-
-       // Check for shader hot-reload
-       checkForShaderChanges();
-
-       // Check for auto-switch
-       auto now = std::chrono::steady_clock::now();
-       float shaderTime =
-           std::chrono::duration<float>(now - shaderStartTime).count();
-
-       if (shaderTime > timePerShader && !inTransition) {
-         goToNextShader();
-         shaderStartTime = now;
-       }
-
-       // Update transition
-       if (inTransition) {
-         transitionProgress =
-             std::chrono::duration<float>(now - transitionStart).count() /
-             transitionDuration;
-         if (transitionProgress >= 1.0f) {
-           currentShader = nextShader;
-           nextShader = nullptr;
-           inTransition = false;
-           transitionProgress = 0.0f;
-         }
-       }
-
-       render();
-       
-        // Frame rate limiting based on target FPS
-        auto& config = ::ShaderCandy::Config::ConfigurationManager::getInstance();
-        int targetFPS = config.getSettings().targetFPS;
-        if (targetFPS <= 0) targetFPS = 60; // Safety fallback
-        uint32_t frameDelayMs = 1000 / targetFPS;
-        usleep(frameDelayMs * 1000); // Convert milliseconds to microseconds
+    while (running) {
+      // Handle events (non-blocking)
+      while (XPending(display) > 0) {
+        XNextEvent(display, &event);
+        handleEvent(event);
       }
+
+      // Check for shader hot-reload
+      checkForShaderChanges();
+
+      // Check for auto-switch
+      auto now = std::chrono::steady_clock::now();
+      float shaderTime =
+          std::chrono::duration<float>(now - shaderStartTime).count();
+
+      if (shaderTime > timePerShader && !inTransition) {
+        goToNextShader();
+        shaderStartTime = now;
+      }
+
+      // Update transition
+      if (inTransition) {
+        transitionProgress =
+            std::chrono::duration<float>(now - transitionStart).count() /
+            transitionDuration;
+        if (transitionProgress >= 1.0f) {
+          currentShader = nextShader;
+          nextShader = nullptr;
+          inTransition = false;
+          transitionProgress = 0.0f;
+        }
+      }
+
+      render();
+
+      // Frame rate limiting based on target FPS
+      auto &config = ::ShaderCandy::Config::ConfigurationManager::getInstance();
+      int targetFPS = config.getSettings().targetFPS;
+      if (targetFPS <= 0)
+        targetFPS = 60; // Safety fallback
+      uint32_t frameDelayMs = 1000 / targetFPS;
+      usleep(frameDelayMs * 1000); // Convert milliseconds to microseconds
     }
+  }
 
   void cleanup() {
     for (auto *shader : shaders) {
@@ -1289,12 +1289,14 @@ private:
         shaderStartTime = std::chrono::steady_clock::now();
       }
       // Left arrow = previous shader
-      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_Left) {
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_Left) {
         goToPreviousShader();
         shaderStartTime = std::chrono::steady_clock::now();
       }
       // Space or P = next shader
-      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_space ||
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                   XK_space ||
                XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_p) {
         goToNextShader();
         shaderStartTime = std::chrono::steady_clock::now();
@@ -1311,10 +1313,12 @@ private:
       }
       // T = run shader test suite
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_t) {
-        showNotification("Test suite: " + std::to_string(shaders.size()) + " shaders OK");
+        showNotification("Test suite: " + std::to_string(shaders.size()) +
+                         " shaders OK");
       }
       // F12 or PrintScreen = screenshot
-      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_F12 ||
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                   XK_F12 ||
                XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
                    XK_Print) {
         takeScreenshot();
@@ -1323,30 +1327,39 @@ private:
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_1) {
         shaderParams.param1 = std::max(0.0f, shaderParams.param1 - 0.1f);
         showNotification("param1: " + std::to_string(shaderParams.param1));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_exclam) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_exclam) {
         shaderParams.param1 = std::min(1.0f, shaderParams.param1 + 0.1f);
         showNotification("param1: " + std::to_string(shaderParams.param1));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_2) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_2) {
         shaderParams.param2 = std::max(0.0f, shaderParams.param2 - 0.1f);
         showNotification("param2: " + std::to_string(shaderParams.param2));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_at) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_at) {
         shaderParams.param2 = std::min(1.0f, shaderParams.param2 + 0.1f);
         showNotification("param2: " + std::to_string(shaderParams.param2));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_3) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_3) {
         shaderParams.param3 = std::max(0.0f, shaderParams.param3 - 0.1f);
         showNotification("param3: " + std::to_string(shaderParams.param3));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_numbersign) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_numbersign) {
         shaderParams.param3 = std::min(1.0f, shaderParams.param3 + 0.1f);
         showNotification("param3: " + std::to_string(shaderParams.param3));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_4) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_4) {
         shaderParams.param4 = std::max(0.0f, shaderParams.param4 - 0.1f);
         showNotification("param4: " + std::to_string(shaderParams.param4));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_dollar) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_dollar) {
         shaderParams.param4 = std::min(1.0f, shaderParams.param4 + 0.1f);
         showNotification("param4: " + std::to_string(shaderParams.param4));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_5) {
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                 XK_5) {
         shaderParams.colorPalette = (shaderParams.colorPalette + 1) % 8;
-        showNotification("palette: " + std::to_string(shaderParams.colorPalette));
+        showNotification("palette: " +
+                         std::to_string(shaderParams.colorPalette));
       }
       // Ctrl+S = save preset
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_s &&
@@ -1359,21 +1372,24 @@ private:
         loadPreset("default");
       }
       // Ctrl+Plus/Minus = intensity
-      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_equal &&
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                   XK_equal &&
                event.xkey.state & ControlMask && currentShader) {
         currentShader->uniforms.intensity =
             std::min(2.0f, currentShader->uniforms.intensity + 0.1f);
         showNotification("intensity: " +
-                       std::to_string(currentShader->uniforms.intensity));
-      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_minus &&
-               event.xkey.state & ControlMask && currentShader) {
+                         std::to_string(currentShader->uniforms.intensity));
+      } else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+                     XK_minus &&
+                 event.xkey.state & ControlMask && currentShader) {
         currentShader->uniforms.intensity =
             std::max(0.0f, currentShader->uniforms.intensity - 0.1f);
         showNotification("intensity: " +
-                       std::to_string(currentShader->uniforms.intensity));
+                         std::to_string(currentShader->uniforms.intensity));
       }
       // Tab = switch display
-      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_Tab) {
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_Tab) {
         goToNextDisplay();
       }
       // ESC or Q = quit

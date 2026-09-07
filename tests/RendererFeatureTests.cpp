@@ -1,6 +1,6 @@
-#include "TestFramework.h"
-#include "../src/core/ShaderManager.h"
 #include "../src/core/MultiDisplayManager.h"
+#include "../src/core/ShaderManager.h"
+#include "TestFramework.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -167,16 +167,19 @@ private:
     TEST_ASSERT_TRUE(initialized);
 
     auto shaders = manager->getAvailableShaders();
-    TEST_ASSERT(!shaders.empty(), "Should discover available shaders in repository");
+    TEST_ASSERT(!shaders.empty(),
+                "Should discover available shaders in repository");
 
     std::string active = manager->getActiveShader();
     TEST_ASSERT(!active.empty(), "Should select a default active shader");
 
     bool switched = manager->setActiveShader(shaders.front());
     TEST_ASSERT_TRUE(switched);
-    TEST_ASSERT(shaders.front() == manager->getActiveShader(), "Active shader must match");
+    TEST_ASSERT(shaders.front() == manager->getActiveShader(),
+                "Active shader must match");
 
-    return {__func__, true, "Unified ShaderManager initialization and discovery passed", 0.0};
+    return {__func__, true,
+            "Unified ShaderManager initialization and discovery passed", 0.0};
   }
 
   TestResult testMultiDisplayVirtualCanvas() {
@@ -184,10 +187,12 @@ private:
     TEST_ASSERT_TRUE(displayMgr.initialize());
 
     auto displays = displayMgr.getDisplays();
-    TEST_ASSERT(!displays.empty(), "Should have at least one display configured");
+    TEST_ASSERT(!displays.empty(),
+                "Should have at least one display configured");
 
     displayMgr.setSpanMode(MultiDisplayManager::SpanMode::SpanAll);
-    TEST_ASSERT_TRUE(displayMgr.getSpanMode() == MultiDisplayManager::SpanMode::SpanAll);
+    TEST_ASSERT_TRUE(displayMgr.getSpanMode() ==
+                     MultiDisplayManager::SpanMode::SpanAll);
 
     int vw = displayMgr.getVirtualWidth();
     int vh = displayMgr.getVirtualHeight();
@@ -198,13 +203,18 @@ private:
     float vx, vy;
     displayMgr.displayToVirtual(displays[0].id, dx, dy, vx, vy);
 
-    TEST_ASSERT(std::abs(vx - 0.5f) < 0.01f, "Coordinate conversion roundtrip X failed");
-    TEST_ASSERT(std::abs(vy - 0.5f) < 0.01f, "Coordinate conversion roundtrip Y failed");
+    TEST_ASSERT(std::abs(vx - 0.5f) < 0.01f,
+                "Coordinate conversion roundtrip X failed");
+    TEST_ASSERT(std::abs(vy - 0.5f) < 0.01f,
+                "Coordinate conversion roundtrip Y failed");
 
     displayMgr.setDisplayShader(displays[0].id, "aurora");
-    TEST_ASSERT(displayMgr.getDisplayShader(displays[0].id) == "aurora", "Display shader should match");
+    TEST_ASSERT(displayMgr.getDisplayShader(displays[0].id) == "aurora",
+                "Display shader should match");
 
-    return {__func__, true, "MultiDisplayManager virtual canvas and spanning logic passed", 0.0};
+    return {__func__, true,
+            "MultiDisplayManager virtual canvas and spanning logic passed",
+            0.0};
   }
 
   TestResult testHeadlessRenderer() {
@@ -228,7 +238,9 @@ private:
     renderer.endRender();
     TEST_ASSERT_TRUE(renderer.isFinished());
 
-    return {__func__, true, "HeadlessRenderer frame rendering and buffer operations passed", 0.0};
+    return {__func__, true,
+            "HeadlessRenderer frame rendering and buffer operations passed",
+            0.0};
   }
 };
 

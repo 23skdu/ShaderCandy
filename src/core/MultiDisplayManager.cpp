@@ -63,7 +63,7 @@ void MultiDisplayManager::shutdown() {
   pImpl->displayEnabled.clear();
 }
 
-std::vector<DisplayInfo> MultiDisplayManager::getDisplays() const {
+const std::vector<DisplayInfo> &MultiDisplayManager::getDisplays() const {
   return pImpl->displays;
 }
 
@@ -87,11 +87,12 @@ DisplayInfo MultiDisplayManager::getDisplay(const std::string &id) const {
 }
 
 void MultiDisplayManager::setDisplayShader(const std::string &displayId,
-                                          const std::string &shaderName) {
+                                           const std::string &shaderName) {
   pImpl->displayShaders[displayId] = shaderName;
 }
 
-std::string MultiDisplayManager::getDisplayShader(const std::string &displayId) const {
+std::string
+MultiDisplayManager::getDisplayShader(const std::string &displayId) const {
   auto it = pImpl->displayShaders.find(displayId);
   if (it != pImpl->displayShaders.end()) {
     return it->second;
@@ -99,7 +100,8 @@ std::string MultiDisplayManager::getDisplayShader(const std::string &displayId) 
   return "";
 }
 
-void MultiDisplayManager::setDisplayEnabled(const std::string &displayId, bool enabled) {
+void MultiDisplayManager::setDisplayEnabled(const std::string &displayId,
+                                            bool enabled) {
   pImpl->displayEnabled[displayId] = enabled;
 }
 
@@ -111,23 +113,23 @@ bool MultiDisplayManager::isDisplayEnabled(const std::string &displayId) const {
   return true;
 }
 
-void MultiDisplayManager::setSpanMode(SpanMode mode) {
-  spanMode_ = mode;
-}
+void MultiDisplayManager::setSpanMode(SpanMode mode) { spanMode_ = mode; }
 
 MultiDisplayManager::SpanMode MultiDisplayManager::getSpanMode() const {
   return spanMode_;
 }
 
 int MultiDisplayManager::getVirtualWidth() const {
-  if (pImpl->displays.empty()) return 1920;
+  if (pImpl->displays.empty())
+    return 1920;
   int minX, minY, maxX, maxY;
   DisplayUtils::getBoundingBox(pImpl->displays, minX, minY, maxX, maxY);
   return std::max(1, maxX - minX);
 }
 
 int MultiDisplayManager::getVirtualHeight() const {
-  if (pImpl->displays.empty()) return 1080;
+  if (pImpl->displays.empty())
+    return 1080;
   int minX, minY, maxX, maxY;
   DisplayUtils::getBoundingBox(pImpl->displays, minX, minY, maxX, maxY);
   return std::max(1, maxY - minY);
@@ -136,11 +138,13 @@ int MultiDisplayManager::getVirtualHeight() const {
 float MultiDisplayManager::getVirtualAspectRatio() const {
   int w = getVirtualWidth();
   int h = getVirtualHeight();
-  return (h > 0) ? (static_cast<float>(w) / static_cast<float>(h)) : (16.0f / 9.0f);
+  return (h > 0) ? (static_cast<float>(w) / static_cast<float>(h))
+                 : (16.0f / 9.0f);
 }
 
-void MultiDisplayManager::virtualToDisplay(float vx, float vy, const std::string &displayId,
-                                          float &dx, float &dy) const {
+void MultiDisplayManager::virtualToDisplay(float vx, float vy,
+                                           const std::string &displayId,
+                                           float &dx, float &dy) const {
   DisplayInfo d = getDisplay(displayId);
   int vw = getVirtualWidth();
   int vh = getVirtualHeight();
@@ -154,8 +158,9 @@ void MultiDisplayManager::virtualToDisplay(float vx, float vy, const std::string
   dy = (d.height > 0) ? ((absY - d.y) / d.height) : 0.0f;
 }
 
-void MultiDisplayManager::displayToVirtual(const std::string &displayId, float dx, float dy,
-                                          float &vx, float &vy) const {
+void MultiDisplayManager::displayToVirtual(const std::string &displayId,
+                                           float dx, float dy, float &vx,
+                                           float &vy) const {
   DisplayInfo d = getDisplay(displayId);
   int vw = getVirtualWidth();
   int vh = getVirtualHeight();
@@ -167,15 +172,12 @@ void MultiDisplayManager::displayToVirtual(const std::string &displayId, float d
   vy = (vh > 0) ? (absY / vh) : 0.0f;
 }
 
-void MultiDisplayManager::synchronizeTime(double time) {
-  syncTime_ = time;
-}
+void MultiDisplayManager::synchronizeTime(double time) { syncTime_ = time; }
 
-double MultiDisplayManager::getSynchronizedTime() const {
-  return syncTime_;
-}
+double MultiDisplayManager::getSynchronizedTime() const { return syncTime_; }
 
-void MultiDisplayManager::setDisplayChangeCallback(DisplayChangeCallback callback) {
+void MultiDisplayManager::setDisplayChangeCallback(
+    DisplayChangeCallback callback) {
   pImpl->changeCallback = callback;
 }
 
@@ -231,7 +233,8 @@ bool HeadlessRenderer::renderToFile(const std::string &outputPath) {
   endRender();
 
   std::ofstream out(outputPath, std::ios::binary);
-  if (!out) return false;
+  if (!out)
+    return false;
 
   // Simple uncompressed PPM fallback for raw frames
   out << "P6\n" << width_ << " " << height_ << "\n255\n";
@@ -251,8 +254,10 @@ std::vector<uint8_t> HeadlessRenderer::renderToBuffer(int frame) {
   for (int y = 0; y < height_; ++y) {
     for (int x = 0; x < width_; ++x) {
       size_t idx = (y * width_ + x) * 4;
-      pImpl->frameBuffer[idx + 0] = static_cast<uint8_t>((x * 255) / std::max(1, width_));
-      pImpl->frameBuffer[idx + 1] = static_cast<uint8_t>((y * 255) / std::max(1, height_));
+      pImpl->frameBuffer[idx + 0] =
+          static_cast<uint8_t>((x * 255) / std::max(1, width_));
+      pImpl->frameBuffer[idx + 1] =
+          static_cast<uint8_t>((y * 255) / std::max(1, height_));
       pImpl->frameBuffer[idx + 2] = static_cast<uint8_t>((frame * 10) % 256);
       pImpl->frameBuffer[idx + 3] = 255;
     }
@@ -260,12 +265,11 @@ std::vector<uint8_t> HeadlessRenderer::renderToBuffer(int frame) {
   return pImpl->frameBuffer;
 }
 
-void HeadlessRenderer::beginRender() {
-  currentFrame_ = 0;
-}
+void HeadlessRenderer::beginRender() { currentFrame_ = 0; }
 
 bool HeadlessRenderer::renderFrame() {
-  if (isFinished()) return false;
+  if (isFinished())
+    return false;
   renderToBuffer(currentFrame_);
   currentFrame_++;
   if (pImpl->progressCallback) {
@@ -278,9 +282,7 @@ bool HeadlessRenderer::isFinished() const {
   return currentFrame_ >= totalFrames_;
 }
 
-void HeadlessRenderer::endRender() {
-  currentFrame_ = totalFrames_;
-}
+void HeadlessRenderer::endRender() { currentFrame_ = totalFrames_; }
 
 void HeadlessRenderer::setProgressCallback(ProgressCallback callback) {
   pImpl->progressCallback = callback;
@@ -318,11 +320,13 @@ int getOptimalTextureSize(int displayWidth, int displayHeight, float quality) {
 }
 
 bool areDisplaysContiguous(const std::vector<DisplayInfo> &displays) {
-  if (displays.size() <= 1) return true;
+  if (displays.size() <= 1)
+    return true;
   for (size_t i = 0; i < displays.size(); ++i) {
     bool adjacent = false;
     for (size_t j = 0; j < displays.size(); ++j) {
-      if (i == j) continue;
+      if (i == j)
+        continue;
       // Check horizontal or vertical adjacency
       if ((displays[i].x + displays[i].width == displays[j].x ||
            displays[j].x + displays[j].width == displays[i].x) &&
@@ -362,11 +366,11 @@ void getBoundingBox(const std::vector<DisplayInfo> &displays, int &minX,
 
 bool hasConfigurationChanged(const std::vector<DisplayInfo> &oldConfig,
                              const std::vector<DisplayInfo> &newConfig) {
-  if (oldConfig.size() != newConfig.size()) return true;
+  if (oldConfig.size() != newConfig.size())
+    return true;
   for (size_t i = 0; i < oldConfig.size(); ++i) {
     if (oldConfig[i].id != newConfig[i].id ||
-        oldConfig[i].x != newConfig[i].x ||
-        oldConfig[i].y != newConfig[i].y ||
+        oldConfig[i].x != newConfig[i].x || oldConfig[i].y != newConfig[i].y ||
         oldConfig[i].width != newConfig[i].width ||
         oldConfig[i].height != newConfig[i].height ||
         oldConfig[i].refreshRate != newConfig[i].refreshRate ||
