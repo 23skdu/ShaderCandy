@@ -19,11 +19,11 @@
 #include <dirent.h>
 #include <fstream>
 #include <iostream>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <thread>
 #include <time.h>
+#include <unistd.h>
 
 using namespace ShaderCandy::Platform::Linux;
 
@@ -80,20 +80,20 @@ struct Uniforms {
 // Shader program with OpenGL ES support
 class GLESShaderProgram {
 public:
-   GLuint program = 0;
-   GLuint vertexShader = 0;
-   GLuint fragmentShader = 0;
-   GLuint ubo = 0;
-   
-   // Store original sources for reloading
-   std::string vertexSourceStr;
-   std::string fragmentSourceStr;
-   
-   Uniforms uniforms;
-   int frameCount = 0;
-   std::chrono::steady_clock::time_point startTime;
-   std::chrono::steady_clock::time_point lastFrame;
-   std::string name;
+  GLuint program = 0;
+  GLuint vertexShader = 0;
+  GLuint fragmentShader = 0;
+  GLuint ubo = 0;
+
+  // Store original sources for reloading
+  std::string vertexSourceStr;
+  std::string fragmentSourceStr;
+
+  Uniforms uniforms;
+  int frameCount = 0;
+  std::chrono::steady_clock::time_point startTime;
+  std::chrono::steady_clock::time_point lastFrame;
+  std::string name;
 
   ~GLESShaderProgram() { cleanup(); }
 
@@ -116,71 +116,71 @@ public:
     }
   }
 
-   bool loadShader(const char *vertexSource, const char *fragmentSource) {
-     // Store sources for potential reload
-     vertexSourceStr = vertexSource ? std::string(vertexSource) : "";
-     fragmentSourceStr = fragmentSource ? std::string(fragmentSource) : "";
-     
-     vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-     if (!vertexShader)
-       return false;
+  bool loadShader(const char *vertexSource, const char *fragmentSource) {
+    // Store sources for potential reload
+    vertexSourceStr = vertexSource ? std::string(vertexSource) : "";
+    fragmentSourceStr = fragmentSource ? std::string(fragmentSource) : "";
 
-     fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-     if (!fragmentShader) {
-       glDeleteShader(vertexShader);
-       vertexShader = 0;
-       return false;
-     }
+    vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+    if (!vertexShader)
+      return false;
 
-     program = glCreateProgram();
-     glAttachShader(program, vertexShader);
-     glAttachShader(program, fragmentShader);
-     glLinkProgram(program);
+    fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+    if (!fragmentShader) {
+      glDeleteShader(vertexShader);
+      vertexShader = 0;
+      return false;
+    }
 
-     GLint success;
-     glGetProgramiv(program, GL_LINK_STATUS, &success);
-     if (!success) {
-       char infoLog[512];
-       glGetProgramInfoLog(program, 512, nullptr, infoLog);
-       std::cerr << "Shader link error: " << infoLog << std::endl;
-       cleanup();
-       return false;
-     }
+    program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
 
-     glGenBuffers(1, &ubo);
-     glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+      char infoLog[512];
+      glGetProgramInfoLog(program, 512, nullptr, infoLog);
+      std::cerr << "Shader link error: " << infoLog << std::endl;
+      cleanup();
+      return false;
+    }
 
-     GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
-     if (blockIndex != GL_INVALID_INDEX) {
-       glUniformBlockBinding(program, blockIndex, 0);
-     }
+    glGenBuffers(1, &ubo);
+    glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
 
-     uniforms.speed = 1.0f;
-     uniforms.intensity = 1.0f;
-     uniforms.alpha = 1.0f;
-     uniforms.gravity = 1.0f;
-     uniforms.mouseButtons = 0.0f;
+    GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
+    if (blockIndex != GL_INVALID_INDEX) {
+      glUniformBlockBinding(program, blockIndex, 0);
+    }
 
-     startTime = std::chrono::steady_clock::now();
-     lastFrame = startTime;
+    uniforms.speed = 1.0f;
+    uniforms.intensity = 1.0f;
+    uniforms.alpha = 1.0f;
+    uniforms.gravity = 1.0f;
+    uniforms.mouseButtons = 0.0f;
 
-     return true;
-   }
-   
-   // Reload shader from stored sources
-   bool reload() {
-     if (vertexSourceStr.empty() || fragmentSourceStr.empty()) {
-       std::cerr << "Cannot reload shader: source not available" << std::endl;
-       return false;
-     }
-     
-     // Clean up old shader
-     cleanup();
-     
-     // Reload with stored sources
-     return loadShader(vertexSourceStr.c_str(), fragmentSourceStr.c_str());
-   }
+    startTime = std::chrono::steady_clock::now();
+    lastFrame = startTime;
+
+    return true;
+  }
+
+  // Reload shader from stored sources
+  bool reload() {
+    if (vertexSourceStr.empty() || fragmentSourceStr.empty()) {
+      std::cerr << "Cannot reload shader: source not available" << std::endl;
+      return false;
+    }
+
+    // Clean up old shader
+    cleanup();
+
+    // Reload with stored sources
+    return loadShader(vertexSourceStr.c_str(), fragmentSourceStr.c_str());
+  }
 
   std::string loadShaderWithIncludes(const char *path, int depth = 0) {
     if (depth > 10)
@@ -328,24 +328,24 @@ static bool g_hotReloadEnabled = true;
 
 // Shader hot-reload functionality
 void checkForShaderChanges() {
-    if (!g_hotReloadEnabled || !g_shader)
-        return;
-    if (g_currentShader.empty())
-        return;
-    struct stat st;
-    if (stat(g_currentShader.c_str(), &st) == 0) {
-        double modTime = st.st_mtime;
-        auto it = g_shaderModTimes.find(g_currentShader);
-        if (it != g_shaderModTimes.end() && modTime > it->second) {
-            if (g_shader->reload()) {
-                g_shaderModTimes[g_currentShader] = modTime;
-                // Show notification would go here - simplified for now
-                std::cout << "Reloaded shader: " << g_currentShader << std::endl;
-            }
-        } else if (it == g_shaderModTimes.end()) {
-            g_shaderModTimes[g_currentShader] = modTime;
-        }
+  if (!g_hotReloadEnabled || !g_shader)
+    return;
+  if (g_currentShader.empty())
+    return;
+  struct stat st;
+  if (stat(g_currentShader.c_str(), &st) == 0) {
+    double modTime = st.st_mtime;
+    auto it = g_shaderModTimes.find(g_currentShader);
+    if (it != g_shaderModTimes.end() && modTime > it->second) {
+      if (g_shader->reload()) {
+        g_shaderModTimes[g_currentShader] = modTime;
+        // Show notification would go here - simplified for now
+        std::cout << "Reloaded shader: " << g_currentShader << std::endl;
+      }
+    } else if (it == g_shaderModTimes.end()) {
+      g_shaderModTimes[g_currentShader] = modTime;
     }
+  }
 }
 static std::vector<std::string> g_shaderList;
 static size_t g_currentShaderIndex = 0;
@@ -403,7 +403,6 @@ static void handleGlobal(void *data, struct wl_registry *registry,
   } else if (strcmp(interface, wl_seat_interface.name) == 0) {
     g_wlSeat =
         (wl_seat *)wl_registry_bind(registry, name, &wl_seat_interface, 5);
-  }
 #ifdef __linux__
   } else if (strcmp(interface, "zext_idle_notifier_v1") == 0) {
     g_idleNotifier = (zext_idle_notifier_v1 *)wl_registry_bind(
@@ -428,7 +427,7 @@ static uint32_t g_keyboardMods = 0;
 static void takeScreenshot();
 
 static void handleKeyboardKeymap(void *data, struct wl_keyboard *keyboard,
-                                  uint32_t format, int fd, uint32_t size) {
+                                 uint32_t format, int fd, uint32_t size) {
   (void)data;
   (void)keyboard;
   if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1)
@@ -521,7 +520,7 @@ static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
   g_keyboardMods = modsDepressed | modsLatched | modsLocked;
 }
 static void handleKeyboardRepeatInfo(void *data, struct wl_keyboard *keyboard,
-                                      int32_t rate, int32_t delay) {
+                                     int32_t rate, int32_t delay) {
   (void)data;
   (void)keyboard;
   (void)rate;
@@ -872,7 +871,7 @@ static void takeScreenshot() {
 
   std::vector<unsigned char> pixels(g_width * g_height * 4);
   glReadPixels(0, 0, g_width, g_height, GL_RGBA, GL_UNSIGNED_BYTE,
-              pixels.data());
+               pixels.data());
 
   for (int y = 0; y < g_height / 2; y++) {
     for (int x = 0; x < g_width * 4; x++) {
@@ -1035,35 +1034,36 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-   // Main event loop
-   while (g_running) {
-     // Handle Wayland events (blocking with timeout)
-     wl_display_dispatch(g_wlDisplay);
+  // Main event loop
+  while (g_running) {
+    // Handle Wayland events (blocking with timeout)
+    wl_display_dispatch(g_wlDisplay);
 
-     // Check for shader hot-reload
-     checkForShaderChanges();
+    // Check for shader hot-reload
+    checkForShaderChanges();
 
-     // Check for shader auto-switch
-     auto now = std::chrono::steady_clock::now();
-     float shaderTime =
-         std::chrono::duration<float>(now - g_shaderStartTime).count();
-     if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1) {
-       goToNextShader();
-     }
-
-      // Render
-      renderFrame();
-
-      // Swap buffers
-      eglSwapBuffers(g_eglDisplay, g_eglSurface);
-
-      // Frame rate limiting based on target FPS
-      auto& config = ShaderCandy::Config::ConfigurationManager::getInstance();
-      int targetFPS = config.getSettings().targetFPS;
-      if (targetFPS <= 0) targetFPS = 60; // Safety fallback
-      uint32_t frameDelayMs = 1000 / targetFPS;
-      std::this_thread::sleep_for(std::chrono::milliseconds(frameDelayMs));
+    // Check for shader auto-switch
+    auto now = std::chrono::steady_clock::now();
+    float shaderTime =
+        std::chrono::duration<float>(now - g_shaderStartTime).count();
+    if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1) {
+      goToNextShader();
     }
+
+    // Render
+    renderFrame();
+
+    // Swap buffers
+    eglSwapBuffers(g_eglDisplay, g_eglSurface);
+
+    // Frame rate limiting based on target FPS
+    auto &config = ShaderCandy::Config::ConfigurationManager::getInstance();
+    int targetFPS = config.getSettings().targetFPS;
+    if (targetFPS <= 0)
+      targetFPS = 60; // Safety fallback
+    uint32_t frameDelayMs = 1000 / targetFPS;
+    std::this_thread::sleep_for(std::chrono::milliseconds(frameDelayMs));
+  }
 
   // Cleanup
   if (g_shader) {

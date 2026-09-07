@@ -24,16 +24,9 @@ public:
   bool initialize() override {
     // Scan common shader locations
     const std::vector<std::string> searchPaths = {
-        "shaders",
-        "shaders/effects",
-        "shaders/music",
-        "../shaders",
-        "../shaders/effects",
-        "../shaders/music",
-        "../../shaders",
-        "../../shaders/effects",
-        "../../shaders/music"
-    };
+        "shaders",       "shaders/effects",       "shaders/music",
+        "../shaders",    "../shaders/effects",    "../shaders/music",
+        "../../shaders", "../../shaders/effects", "../../shaders/music"};
 
     bool foundAny = false;
     for (const auto &dir : searchPaths) {
@@ -121,12 +114,11 @@ public:
     return false;
   }
 
-  std::string getActiveShader() const override {
-    return activeShader_;
-  }
+  std::string getActiveShader() const override { return activeShader_; }
 
   void render() override {
-    // Core manager coordinates state; platform renderers handle hardware dispatch
+    // Core manager coordinates state; platform renderers handle hardware
+    // dispatch
     if (hotReloadEnabled_) {
       reloadShaders();
     }
@@ -146,11 +138,13 @@ private:
             continue;
           }
           // Avoid overwriting if already discovered in higher-priority path
-          if (shaderPaths_.find(stem) == shaderPaths_.end()) {
-            shaderPaths_[stem] = entry.path().string();
+          auto [it, inserted] =
+              shaderPaths_.try_emplace(stem, entry.path().string());
+          if (inserted) {
             try {
               lastWriteTimes_[stem] = fs::last_write_time(entry.path());
-            } catch (...) {}
+            } catch (...) {
+            }
           }
         }
       }

@@ -184,7 +184,7 @@ bool WallpaperEngine::findRootWindow() {
   rootWindow = RootWindow(display, screen);
 
   // Get root window size
-  XWindowAttributes attr;
+  XWindowAttributes attr{};
   XGetWindowAttributes(display, rootWindow, &attr);
   width = attr.width;
   height = attr.height;

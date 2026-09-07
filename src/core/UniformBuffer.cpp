@@ -3,12 +3,9 @@
 
 namespace ShaderCandy {
 
-UniformBuffer::UniformBuffer() {
-  // Zero initialize
-  data_ = {};
-  startTime_ = std::chrono::high_resolution_clock::now();
-  lastFrameTime_ = startTime_;
-}
+UniformBuffer::UniformBuffer()
+    : data_{}, startTime_(std::chrono::high_resolution_clock::now()),
+      lastFrameTime_(startTime_) {}
 
 UniformBuffer::~UniformBuffer() = default;
 
@@ -19,7 +16,7 @@ void UniformBuffer::initialize() {
 
   // Set date
   std::time_t now = std::time(nullptr);
-  std::tm *localTime = std::localtime(&now);
+  const std::tm *localTime = std::localtime(&now);
   data_.date[0] = static_cast<float>(localTime->tm_year + 1900);
   data_.date[1] = static_cast<float>(localTime->tm_mon + 1);
   data_.date[2] = static_cast<float>(localTime->tm_mday);

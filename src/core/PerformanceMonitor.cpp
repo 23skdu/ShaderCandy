@@ -5,7 +5,7 @@
 namespace ShaderCandy {
 
 PerformanceMonitor::PerformanceMonitor(size_t historySize)
-    : historySize_(historySize) {
+    : historySize_(historySize), sortedTimes_{} {
   // deque doesn't need reserve
 }
 
