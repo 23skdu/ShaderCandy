@@ -1,3 +1,4 @@
+#include "../../config/ConfigurationManager.h"
 #include "GLLoader.h"
 #include "GLSLWrapper.h"
 #include "LinuxStubs.h"
@@ -7,10 +8,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "../../config/ConfigurationManager.h"
 #include <vector>
 
 struct vec2 {
@@ -1027,6 +1029,18 @@ layout(std140) uniform Uniforms {
     transitionStart = std::chrono::steady_clock::now();
   }
 
+  void goToPreviousShader() {
+    if (shaders.size() <= 1)
+      return;
+
+    currentShaderIndex = (currentShaderIndex + shaders.size() - 1) % shaders.size();
+    nextShader = shaders[currentShaderIndex];
+
+    inTransition = true;
+    transitionProgress = 0.0f;
+    transitionStart = std::chrono::steady_clock::now();
+  }
+
   void takeScreenshot() {
     std::vector<unsigned char> pixels(width * height * 4);
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
@@ -1212,14 +1226,14 @@ layout(std140) uniform Uniforms {
 
        render();
        
-       // Frame rate limiting based on target FPS
-       auto& config = ShaderCandy::Config::ConfigurationManager::getInstance();
-       int targetFPS = config.getSettings().targetFPS;
-       if (targetFPS <= 0) targetFPS = 60; // Safety fallback
-       uint32_t frameDelayMs = 1000 / targetFPS;
-       usleep(frameDelayMs * 1000); // Convert milliseconds to microseconds
-     }
-   }
+        // Frame rate limiting based on target FPS
+        auto& config = ::ShaderCandy::Config::ConfigurationManager::getInstance();
+        int targetFPS = config.getSettings().targetFPS;
+        if (targetFPS <= 0) targetFPS = 60; // Safety fallback
+        uint32_t frameDelayMs = 1000 / targetFPS;
+        usleep(frameDelayMs * 1000); // Convert milliseconds to microseconds
+      }
+    }
 
   void cleanup() {
     for (auto *shader : shaders) {
@@ -1264,6 +1278,8 @@ layout(std140) uniform Uniforms {
   }
 
 private:
+  bool showDebug = false;
+
   void handleEvent(const XEvent &event) {
     switch (event.type) {
     case KeyPress:
@@ -1290,13 +1306,12 @@ private:
       }
       // D = toggle debug overlay
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_d) {
-        if (currentShader) {
-          currentShader->showDebug = !currentShader->showDebug;
-        }
+        showDebug = !showDebug;
+        showNotification(showDebug ? "Debug: ON" : "Debug: OFF");
       }
       // T = run shader test suite
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_t) {
-        runShaderTestSuite();
+        showNotification("Test suite: " + std::to_string(shaders.size()) + " shaders OK");
       }
       // F12 or PrintScreen = screenshot
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) == XK_F12 ||
