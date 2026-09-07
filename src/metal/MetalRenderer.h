@@ -238,6 +238,9 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 @property(nonatomic, assign) BOOL variableRateShadingEnabled;
 @property(nonatomic, assign) float vrsPeripheralRate;
 
+// Compute-based post processing
+@property(nonatomic, assign) BOOL useComputeBloom;
+
 // Performance states
 @property(nonatomic, assign, readonly) BOOL isThermalThrottling;
 @property(nonatomic, assign, readonly) float thermalLevel;
