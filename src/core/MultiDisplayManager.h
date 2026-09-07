@@ -37,7 +37,7 @@ public:
   void shutdown();
 
   // Display enumeration
-  std::vector<DisplayInfo> getDisplays() const;
+  const std::vector<DisplayInfo> &getDisplays() const;
   DisplayInfo getPrimaryDisplay() const;
   DisplayInfo getDisplay(const std::string &id) const;
 

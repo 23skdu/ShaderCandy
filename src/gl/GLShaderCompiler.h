@@ -21,7 +21,7 @@ public:
                          const std::string &fragmentSource,
                          unsigned int &outProgram);
 
-  std::string getLastError() const { return lastError_; }
+  const std::string &getLastError() const { return lastError_; }
   bool hasErrors() const { return !lastError_.empty(); }
   void clearError() { lastError_.clear(); }
 

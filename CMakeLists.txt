@@ -27,10 +27,15 @@ option(BUILD_STANDALONE_PLAYER "Build Linux standalone player (requires GLFW)" O
 option(BUILD_WALLPAPER "Build Linux wallpaper mode" ON)
 option(ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
 
-# Coverage flags for Clang/macOS
-if(ENABLE_COVERAGE AND APPLE)
-    add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
-    add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+# Coverage flags
+if(ENABLE_COVERAGE)
+    if(APPLE)
+        add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+        add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+    else()
+        add_compile_options(--coverage)
+        add_link_options(--coverage)
+    endif()
     message(STATUS "Code coverage instrumentation: Enabled")
 endif()
 

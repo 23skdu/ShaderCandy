@@ -87,7 +87,7 @@ public:
   bool reloadCurrentShader();
   std::vector<std::string> availableShaderNames() const;
   bool setActiveShader(const std::string &name);
-  std::string activeShaderName() const { return currentShader_; }
+  const std::string &activeShaderName() const { return currentShader_; }
 
   // Rendering
   void render(float time);
@@ -136,7 +136,7 @@ public:
   void checkForShaderReload();
 
   // Error handling
-  GLRendererError getLastError() const { return lastError_; }
+  const GLRendererError &getLastError() const { return lastError_; }
   void clearError() { lastError_ = {GLRendererErrorCode::None, "", "", "", 0}; }
 
 private:

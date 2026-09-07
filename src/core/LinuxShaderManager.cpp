@@ -41,12 +41,10 @@ public:
     return true;
   }
 
-  bool loadShader(const std::string &name,
-                  const std::string &path) override {
+  bool loadShader(const std::string &name, const std::string &path) override {
     unsigned int program = 0;
 
-    // Load vertex shader
-    std::string vertexPath = "shaders/base/vertex.glsl";
+    // Load fragment shader
     std::string fragmentPath = path;
 
     if (!shaderCompiler_->compileFromFile(fragmentPath, program)) {
@@ -107,8 +105,7 @@ private:
       if (!std::filesystem::exists(dir))
         return;
 
-      for (const auto &entry :
-           std::filesystem::directory_iterator(dir)) {
+      for (const auto &entry : std::filesystem::directory_iterator(dir)) {
         if (entry.is_regular_file()) {
           auto ext = entry.path().extension();
           if (ext == ".frag" || ext == ".glsl") {
