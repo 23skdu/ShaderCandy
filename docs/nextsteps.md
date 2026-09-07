@@ -1,57 +1,51 @@
 # ShaderCandy: Roadmap for Performance & Stability
 
 **Last Updated:** September 6, 2026
-
 ---
 
-## 10-Part Engineering Improvement Plan
+## New 10-Part Engineering Improvement Plan
 
-Based on comprehensive deep code analysis of the Metal, OpenGL, Audio, Neural, and Platform subsystems, the following 10-part engineering roadmap defines the high-impact architectural and performance enhancements for ShaderCandy:
+Based on deep code analysis and status verification, the following 10-part roadmap outlines the remaining high-impact enhancements for ShaderCandy:
 
-### Part 1: Metal Compute Bloom & Post-Processing Pipeline Integration
-* **Status & Findings:** [COMPLETED] Integrated compute-based bloom kernels (`bloom_threshold_compute`, `bloom_blur_h_compute`, `bloom_blur_v_compute`) and `bloomComputePipeline:` directly into `MetalRenderer.mm` using 16x16 threadgroup tiles with automatic fallback to fragment passes when compute pipelines are unavailable.
-* **Objective:** Wire compute-based bloom directly into `MetalRenderer.mm`, dispatching compute commands using Apple Silicon threadgroup memory tiles (16x16). This eliminates redundant full-screen quad rasterization passes, minimizes memory bandwidth via on-chip tile memory, and reduces frame time during complex post-processing.
+### Part 1: GPU-Driven Resource Management & Descriptor Heaps
+* **Status & Findings:** [TODO] Design and implement GPU-driven descriptor heap management to reduce CPU overhead in binding frequent uniform buffers and textures across Metal, OpenGL, and Vulkan backends.
+* **Objective:** Decouple descriptor allocation from the per‑frame CPU pipeline, using GPU‑side heaps and async updates to minimize stalls during complex post‑processing pipelines.
 
-### Part 2: Hardware-Accelerated Variable Rate Shading (VRS)
-* **Status & Findings:** [COMPLETED] Implemented dynamic `MTLRasterizationRateMap` generation and binding on `MTLRenderPassDescriptor.rasterizationRateMap` in `MetalRenderer.mm` based on `_vrsPeripheralRate` and `_supportsVariableRateShading`.
-* **Objective:** Construct and bind a dynamic `MTLRasterizationRateMap` descriptor during render pass creation. Shading rate is downscaled in peripheral screen areas and high-speed motion regions, significantly reducing fragment shader workload for intensive raymarched fractals (`mandelbox`, `mandelbulb_3d`, `raymarch_sculpture`) with no perceptible visual degradation.
+### Part 2: Adaptive Ray Marching LoD & Thermal Scaling
+* **Status & Findings:** [TODO] Extend the dynamic LoD framework (Part 6) with per‑frame thermal metrics and GPU‑query‑driven step‑count adjustment.
+* **Objective:** Integrate `MTLQuery` results to dynamically scale `MAX_STEPS` and ray‑march epsilon, targeting a stable 60 FPS across all Apple Silicon tiers.
 
-### Part 3: Metal Indirect Command Buffers (ICB) for Dynamic Systems
-* **Status & Findings:** Particle rendering (`shaders/effects/particles.metal`) and dynamic particle bursts currently rely on host-side CPU recording of draw commands every frame.
-* **Objective:** Implement `MTLIndirectCommandBuffer` (ICB) for particle rendering and complex multi-object passes. Allow GPU compute kernels to reset, cull, and populate indirect draw arguments directly on the GPU timeline, reducing CPU-to-GPU synchronization and driver overhead to zero for dynamic systems.
+### Part 3: Parallel Command Encoding & Multi‑Queue Async Compute
+* **Status & Findings:** [TODO] Build on the single‑queue encoder model by introducing a second async compute queue for HDR tonemapping, bloom, and particle updates.
+* **Objective:** Utilize `MTLParallelRenderCommandEncoder` and `MTLSharedEvent` to record split render passes concurrently, reducing encoder bottlenecks.
 
-### Part 4: Metal Mesh Shaders for High-Geometry Fractals & Culling
-* **Status & Findings:** Capability detection exists for mesh shaders on Apple3+ GPUs (`_supportsMeshShaders = supportsApple3`), but all geometry pipelines currently use traditional vertex fetch and quad strip generation.
-* **Objective:** Implement object and mesh shader pipelines (`MTLMeshRenderPipelineState`) for 3D fractal meshes and particle systems on Apple Silicon M2/M3/M4 GPUs. Utilize object shaders for cluster frustum/occlusion culling and mesh shaders for amplified geometric detail and threadgroup-coalesced vertex generation.
+### Part 4: Mesh Shaders for High‑Geometry Fractals
+* **Status & Findings:** [TODO] Implement `MTLMeshRenderPipelineState` for 3D fractal meshes on Apple 3+ GPUs, enabling object‑and‑mesh shaders for culling and detail generation.
+* **Objective:** Provide hardware‑accelerated triangle generation and frustum/occlusion culling for complex fractal geometry.
 
-### Part 5: Parallel Command Encoding & Multi-Queue Async Compute
-* **Status & Findings:** All frame encoding is performed sequentially on a single thread using a single command buffer and queue, leading to encoder bottlenecks when HDR tonemapping, bloom, particles, and debug overlays are simultaneously active.
-* **Objective:** Introduce `MTLParallelRenderCommandEncoder` to record split render passes concurrently across multi-core CPU threads. Decouple audio FFT texture updates and offline CoreML style tensor prep onto a dedicated async compute queue with Metal shared events (`MTLSharedEvent`) for synchronization.
+### Part 5: Linux Native PipeWire Audio & Wayland Layer Shell
+* **Status & Findings:** [TODO] Replace ALSA/PulseAudio wrappers with native PipeWire 0.3 SPA protocol integration and generate Wayland protocol code via `wayland-scanner`.
+* **Objective:** Achieve sub‑millisecond audio reactivity and first‑class screensaver locking on GNOME, KDE Plasma 6, Sway, and Hyprland.
 
-### Part 6: Granular Dynamic Level of Detail (LoD) & Thermal Scaling
-* **Status & Findings:** Current thermal throttling (`MetalRenderer.mm:520-560`) only steps frame rate down to 30 FPS and disables bloom. Shader internal constants (raymarch step counts, raymarch epsilon) remain static, and audio FFT analysis runs identically at full resolution.
-* **Objective:** Implement multi-tiered dynamic LoD across `PerformanceMonitor`, `UniformBuffer`, and shaders:
-  1. Dynamically scale raymarch loop bounds (`MAX_STEPS` from 128 down to 48) and increase step epsilon under thermal or frame pacing pressure.
-  2. Scale audio FFT analysis bins (from 1024 to 256) adaptively based on CPU load.
-  3. Support dynamic resolution scaling (DRS) with bicubic upsampling to guarantee a stable 60 FPS on lower-tier hardware and high-DPI displays.
+### Part 6: Indirect Command Buffers for Particle Systems
+* **Status & Findings:** [TODO] Migrate particle draw command recording from host CPU to `MTLIndirectCommandBuffer`, allowing GPU‑side culling and population of draw arguments.
+* **Objective:** Eliminate per‑frame CPU‑to‑GPU synchronization for particle bursts, improving frame‑time consistency.
 
-### Part 7: Unified Cross-Platform Core ShaderManager Architecture
-* **Status & Findings:** [COMPLETED] Replaced empty stub with full `UnifiedShaderManager` in `src/core/ShaderManager.cpp`, featuring directory shader scanning, `#include` recursive resolution, uniform parsing, category indexing, and state management.
-* **Objective:** Consolidate shader catalog discovery, `#include` preprocessing, uniform reflection, and file-system watching into a centralized cross-platform `ShaderManager`. Eliminate redundant boilerplate across Linux and macOS platform entry points while providing a unified API for preset management and hot reloading.
+### Part 7: Dynamic Acoustic Room Geometry & CoreML Neural Engine Pipeline
+* **Status & Findings:** [TODO] Generate acoustic obstruction/reflection geometry from scene depth buffers and implement ANE‑accelerated CoreML style transfer with FP16 models and zero‑copy `CVPixelBuffer` pools.
+* **Objective:** Real‑time spatial audio coupling and visual stylization at 60 FPS.
 
-### Part 8: Multi-Display Spanning & Virtual Display Canvas Implementation
-* **Status & Findings:** [COMPLETED] Implemented `src/core/MultiDisplayManager.cpp` supporting display enumeration, layout spanning (`SpanAll`, `Clone`, `Independent`), bidirectional virtual-to-display coordinate mapping, and `HeadlessRenderer` offscreen multi-pass rendering.
-* **Objective:** Implement `MultiDisplayManager.mm` (using `NSScreen` and `CGGetActiveDisplayList` on macOS) and `MultiDisplayManager_Linux.cpp` (using XRandR and `wl_output`). Support synchronized seamless canvas spanning across multi-monitor setups with proper aspect-ratio preservation and per-display shader assignment.
+### Part 8: Multi‑Display Spanning Coordination Across Platforms
+* **Status & Findings:** [TODO] Unify macOS `NSScreen`/CGDisplayList and Linux XRandR/Wayland `wl_output` spanning logic within `MultiDisplayManager`, adding per‑display shader assignment and aspect‑ratio preservation.
+* **Objective:** Seamless canvas spanning across heterogeneous multi‑monitor setups on both macOS and Linux.
 
-### Part 9: Linux Modernization — Native PipeWire Audio & Wayland Layer Shell
-* **Status & Findings:** Linux audio relies on ALSA and PulseAudio compatibility wrappers, lacking native PipeWire SPA protocol integration. Wayland screensaver code required fallback guards in the absence of full wlroots headers.
-* **Objective:** Implement native PipeWire audio capture via `libpipewire-0.3` for sub-millisecond audio reactivity. Integrate CMake-driven `wayland-scanner` generation for `ext-idle-notify-v1` and `wlr-layer-shell-unstable-v1` protocols to ensure first-class screensaver locking across modern Wayland compositors (GNOME, KDE Plasma 6, Sway, Hyprland).
+### Part 9: Unified Cross‑Platform ShaderManager Refresh
+* **Status & Findings:** [TODO] Re‑factor `UnifiedShaderManager` to support incremental `#include` resolution, hot‑reload callbacks, and platform‑specific uniform parsing (MSL vs GLSL vs SPIR‑V).
+* **Objective:** Provide a single API for preset management, shader hot‑reloading, and cross‑platform file‑system watching.
 
-### Part 10: Dynamic Acoustic Room Geometry & CoreML Neural Engine Pipeline
-* **Status & Findings:** `AcousticSimulator.mm` uses a fixed 12-triangle cube room for spatial audio ray-tracing. `NeuralStyleEngine.mm` provides CoreML style transfer scaffolding but lacks real-time double-buffered pixel transfer pipelines and dynamic scene acoustic coupling.
-* **Objective:**
-  1. Dynamically generate acoustic obstruction and reflection geometry in `AcousticSimulator.mm` using depth buffers or scene bounding boxes from active shaders.
-  2. Optimize CoreML style transfer execution directly on the Apple Neural Engine (ANE) with FP16 quantized models and zero-copy `CVPixelBuffer` pool management to achieve real-time 60 FPS visual stylization.
+### Part 10: Dynamic VRS Integration with Motion‑Adaptive Rate Maps
+* **Status & Findings:** [TODO] Extend the existing VRS implementation (Part 2) with motion‑dependent peripheral rate adjustments and per‑frame rasterization rate map generation based on scene complexity metrics.
+* **Objective:** Further reduce fragment shader workload for raymarched fractals while maintaining visual fidelity through adaptive rate maps.
 
 ---
 
