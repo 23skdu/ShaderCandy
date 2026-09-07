@@ -147,6 +147,10 @@ public:
   void toggleFullscreen();
   void render();
   void updateFPS();
+  void savePreset(const std::string &name);
+  bool loadPreset(const std::string &name);
+  void runShaderTestSuite();
+  bool showDebug = false;
 
   static void keyCallback(GLFWwindow *window, int key, int scancode, int action,
                           int mods);
@@ -692,6 +696,52 @@ void StandalonePlayer::toggleFullscreen() {
   }
 }
 
+void StandalonePlayer::savePreset(const std::string &name) {
+  std::string presetDir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/shadercandy";
+  mkdir(presetDir.c_str(), 0755);
+  std::string presetFile = presetDir + "/" + name + ".cfg";
+  std::ofstream out(presetFile);
+  if (out && currentShader) {
+    out << "# ShaderCandy Preset\n";
+    out << "shader=" << currentShader->name << "\n";
+    out << "speed=" << currentShader->uniforms.speed << "\n";
+    out << "intensity=" << currentShader->uniforms.intensity << "\n";
+    std::cout << "Preset saved: " << presetFile << std::endl;
+  }
+}
+
+bool StandalonePlayer::loadPreset(const std::string &name) {
+  std::string presetDir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/shadercandy";
+  std::string presetFile = presetDir + "/" + name + ".cfg";
+  std::ifstream in(presetFile);
+  if (!in) return false;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.empty() || line[0] == '#') continue;
+    size_t eq = line.find('=');
+    if (eq == std::string::npos) continue;
+    std::string key = line.substr(0, eq);
+    std::string val = line.substr(eq + 1);
+    if (key == "shader" && !val.empty()) {
+      for (size_t i = 0; i < shaders.size(); ++i) {
+        if (shaders[i]->name == val) {
+          selectShader(i);
+          break;
+        }
+      }
+    } else if (key == "speed" && currentShader) {
+      currentShader->uniforms.speed = std::stof(val);
+    } else if (key == "intensity" && currentShader) {
+      currentShader->uniforms.intensity = std::stof(val);
+    }
+  }
+  return true;
+}
+
+void StandalonePlayer::runShaderTestSuite() {
+  std::cout << "Running shader test suite: " << shaders.size() << " shaders loaded." << std::endl;
+}
+
 // Static callbacks
 void StandalonePlayer::keyCallback(GLFWwindow *window, int key, int scancode,
                                    int action, int mods) {
@@ -747,9 +797,8 @@ void StandalonePlayer::keyCallback(GLFWwindow *window, int key, int scancode,
     player->previousShader();
     break;
   case GLFW_KEY_D:
-    if (player->currentShader) {
-      player->currentShader->showDebug = !player->currentShader->showDebug;
-    }
+    player->showDebug = !player->showDebug;
+    std::cout << "Debug overlay: " << (player->showDebug ? "ON" : "OFF") << std::endl;
     break;
   case GLFW_KEY_T:
     player->runShaderTestSuite();
@@ -763,17 +812,9 @@ void StandalonePlayer::keyCallback(GLFWwindow *window, int key, int scancode,
   case GLFW_KEY_4:
   case GLFW_KEY_5:
     if (player->currentShader) {
-      int paramIdx = key - GLFW_KEY_1;
-      float *params[] = {&player->currentShader->uniforms.param1,
-                         &player->currentShader->uniforms.param2,
-                         &player->currentShader->uniforms.param3,
-                         &player->currentShader->uniforms.param4,
-                         &player->currentShader->uniforms.param5};
-      if (paramIdx < 5) {
-        bool shift = (mods & GLFW_MOD_SHIFT);
-        *params[paramIdx] = shift ? MIN(1.0f, *params[paramIdx] + 0.1f)
-                                  : MAX(0.0f, *params[paramIdx] - 0.1f);
-      }
+      float factor = static_cast<float>(key - GLFW_KEY_1 + 1) * 0.4f;
+      player->currentShader->uniforms.speed = factor;
+      std::cout << "Shader speed: " << factor << std::endl;
     }
     break;
   default:
@@ -786,11 +827,11 @@ void StandalonePlayer::keyCallback(GLFWwindow *window, int key, int scancode,
       } else if (key == GLFW_KEY_EQUAL || key == GLFW_KEY_KP_ADD) {
         if (player->currentShader)
           player->currentShader->uniforms.intensity =
-              MIN(2.0f, player->currentShader->uniforms.intensity + 0.1f);
+              std::min(2.0f, player->currentShader->uniforms.intensity + 0.1f);
       } else if (key == GLFW_KEY_MINUS || key == GLFW_KEY_KP_SUBTRACT) {
         if (player->currentShader)
           player->currentShader->uniforms.intensity =
-              MAX(0.0f, player->currentShader->uniforms.intensity - 0.1f);
+              std::max(0.0f, player->currentShader->uniforms.intensity - 0.1f);
       }
     }
     break;

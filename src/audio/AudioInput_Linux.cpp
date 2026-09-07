@@ -249,6 +249,22 @@ void AudioInput::stop() { impl_->stop(); }
 bool AudioInput::isRunning() const { return impl_->running_.load(); }
 AudioData AudioInput::getCurrentData() const { return impl_->audioData_; }
 
+void AudioInput::onAudioData(const AudioData &audioData) {
+  std::lock_guard<std::mutex> lock(dataMutex_);
+  currentData_ = audioData;
+  if (callback_) {
+    callback_(audioData);
+  }
+}
+
+bool AudioInput::autoSelectDevice() {
+  auto devices = getAvailableDevices();
+  if (!devices.empty()) {
+    return selectDevice(devices[0]);
+  }
+  return false;
+}
+
 } // namespace Audio
 } // namespace ShaderCandy
 

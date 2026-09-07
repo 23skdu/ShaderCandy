@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
+#include <fstream>
 #include <iostream>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -682,6 +683,7 @@ static bool createWaylandSurface() {
   }
 
   // Try to create layer shell surface for screensaver overlay
+#ifdef WLR_FOUND
   if (g_layerShell) {
     g_layerSurface = zwlr_layer_shell_v1_get_layer_surface(
         g_layerShell, g_wlSurface, g_wlOutput,
@@ -703,6 +705,7 @@ static bool createWaylandSurface() {
                                          nullptr);
     }
   }
+#endif
 
   // Create EGL window
   g_eglWindow =
@@ -1092,14 +1095,18 @@ int main(int argc, char *argv[]) {
     wl_keyboard_destroy(g_wlKeyboard);
   if (g_wlSeat)
     wl_seat_destroy(g_wlSeat);
+#ifdef WLR_FOUND
   if (g_layerSurface)
     zwlr_layer_surface_v1_destroy(g_layerSurface);
+#endif
   if (g_wlSurface)
     wl_surface_destroy(g_wlSurface);
+#ifdef WLR_FOUND
   if (g_layerShell)
     zwlr_layer_shell_v1_destroy(g_layerShell);
   if (g_xdgWmBase)
     xdg_wm_base_destroy(g_xdgWmBase);
+#endif
   if (g_wlSubcompositor)
     wl_subcompositor_destroy(g_wlSubcompositor);
   if (g_wlCompositor)
