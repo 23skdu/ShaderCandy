@@ -72,8 +72,8 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 patternCol = mix(col, knotColor, pattern);
     
     // Add depth/shadow to interlacing
-    vec2 uv = p * 3.0;
-    float shadow = sin(uv.x * 6.0 + t) * sin(uv.y * 6.0);
+    vec2 knotUV = p * 3.0;
+    float shadow = sin(knotUV.x * 6.0 + t) * sin(knotUV.y * 6.0);
     patternCol += shadowColor * shadow * pattern * 0.2;
     
     // Highlight

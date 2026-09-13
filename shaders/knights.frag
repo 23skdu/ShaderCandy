@@ -71,7 +71,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     color = mix(color, knight2Color, knight2);
     
     // Lighting
-    vec3 lightPos = vec2(1.0, 1.5);
+    vec2 lightPos = vec2(1.0, 1.5);
     float diff = 0.3 + 0.7 * max(0.0, 1.0 - length(p - lightPos) * 0.3);
     color *= diff;
     

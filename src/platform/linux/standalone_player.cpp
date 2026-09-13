@@ -11,8 +11,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
@@ -230,6 +232,25 @@ std::string ShaderProgram::loadWithIncludes(const char *path, int depth) {
           fullPath = dir + includePath.substr(2);
         } else {
           fullPath = dir + includePath;
+        }
+
+        // Robust include fallback if not found directly
+        if (!std::filesystem::exists(fullPath)) {
+          std::vector<std::string> fallbacks = {
+              dir + "/../" + includePath,
+              dir + "/../../" + includePath,
+              "./shaders/" + includePath,
+              "../shaders/" + includePath,
+              "/usr/local/share/shadercandy/shaders/" + includePath,
+              "/usr/share/shadercandy/shaders/" + includePath,
+              std::string(getenv("HOME") ? getenv("HOME") : "") +
+                  "/.local/share/shadercandy/shaders/" + includePath};
+          for (const auto &fb : fallbacks) {
+            if (std::filesystem::exists(fb)) {
+              fullPath = fb;
+              break;
+            }
+          }
         }
 
         std::string includeContent =
@@ -539,45 +560,36 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
 }
 
 void StandalonePlayer::loadShaders() {
-  std::vector<std::string> shaderPaths = {
-      "./shaders", "./shaders/effects",
+  std::vector<std::string> shaderRootDirs = {
+      "./shaders",
+      "../shaders",
       std::string(getenv("HOME") ? getenv("HOME") : "") +
           "/.local/share/shadercandy/shaders",
-      "/usr/share/shadercandy/shaders", "/usr/local/share/shadercandy/shaders"};
+      "/usr/local/share/shadercandy/shaders",
+      "/usr/share/shadercandy/shaders"};
 
-  std::vector<std::string> shaderFiles = {"nebula.frag",
-                                          "mandelbrot_set.frag",
-                                          "julia_set.frag",
-                                          "mandelbulb_3d.frag",
-                                          "julia_3d.frag",
-                                          "starfield_warp.frag",
-                                          "voronoi_cells.frag",
-                                          "neon_pulse.frag",
-                                          "kaleidoscopic_tunnel.frag",
-                                          "reaction_diffusion.frag",
-                                          "fractal_zoom.frag",
-                                          "liquid_gradient.frag",
-                                          "bloom.frag",
-                                          "raymarch_sculpture.frag",
-                                          "dna_helix.frag",
-                                          "quantum_field.frag",
-                                          "fluid_dynamics.frag",
-                                          "audio_spectrum.frag",
-                                          "plasma.frag",
-                                          "tunnel.frag",
-                                          "spiral.frag",
-                                          "ripples.frag",
-                                          "checkerboard.frag",
-                                          "gradient_waves.frag",
-                                          "flying_toasters.frag"};
+  std::set<std::string> loadedNames;
 
-  for (const auto &dir : shaderPaths) {
-    for (const auto &file : shaderFiles) {
-      std::string fullPath = dir + "/" + file;
-      struct stat buffer;
-      if (stat(fullPath.c_str(), &buffer) == 0) {
+  for (const auto &rootDir : shaderRootDirs) {
+    std::error_code ec;
+    if (!std::filesystem::exists(rootDir, ec) ||
+        !std::filesystem::is_directory(rootDir, ec)) {
+      continue;
+    }
+
+    for (const auto &entry :
+         std::filesystem::recursive_directory_iterator(rootDir, ec)) {
+      if (ec)
+        break;
+      if (entry.is_regular_file(ec) && entry.path().extension() == ".frag") {
+        std::string shaderName = entry.path().stem().string();
+        if (loadedNames.find(shaderName) != loadedNames.end()) {
+          continue; // Deduplicate across directories
+        }
+
         ShaderProgram *shader = new ShaderProgram();
-        if (shader->loadFromFile(fullPath.c_str())) {
+        if (shader->loadFromFile(entry.path().string().c_str())) {
+          loadedNames.insert(shaderName);
           shaders.push_back(shader);
         } else {
           delete shader;
@@ -585,6 +597,15 @@ void StandalonePlayer::loadShaders() {
       }
     }
   }
+
+  // Sort discovered shaders alphabetically for predictable browsing
+  std::sort(shaders.begin(), shaders.end(),
+            [](const ShaderProgram *a, const ShaderProgram *b) {
+              return a->name < b->name;
+            });
+
+  std::cout << "Discovered and loaded " << shaders.size() << " unique shaders."
+            << std::endl;
 }
 
 void StandalonePlayer::run() {

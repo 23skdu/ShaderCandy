@@ -15,11 +15,6 @@ layout(std140) uniform AudioUniforms {
     float audioSpectrum[64];
 };
 
-float hsv2rgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
@@ -37,19 +32,19 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     for (int i = 0; i < 64; i++) {
         float fi = float(i);
-        float sample = audioSpectrum[i];
+        float audioSample = audioSpectrum[i];
         
         float xPos = (fi / 32.0 - 1.0);
-        float waveY1 = sample * 0.4 * sin(fi * 0.2 + t * 2.0);
-        float waveY2 = sample * 0.2 * sin(fi * 0.3 + t * 3.0 + bass * 5.0);
+        float waveY1 = audioSample * 0.4 * sin(fi * 0.2 + t * 2.0);
+        float waveY2 = audioSample * 0.2 * sin(fi * 0.3 + t * 3.0 + bass * 5.0);
         
         float dist = length(vec2(x - xPos, y - waveY1 - waveY2));
-        float g = exp(-dist * 30.0) * sample;
+        float g = exp(-dist * 30.0) * audioSample;
         
         glow += g;
         
         if (dist < 0.03) {
-            waveY = max(waveY, sample * (1.0 - dist * 30.0));
+            waveY = max(waveY, audioSample * (1.0 - dist * 30.0));
         }
     }
     
