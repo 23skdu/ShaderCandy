@@ -41,6 +41,8 @@ public:
       return false;
     }
 
+    audioData_.spectrum.resize(64, 0.0f);
+
     return true;
   }
 
@@ -187,6 +189,10 @@ public:
         band += mag;
       }
       audioData_.bands[i] = band / (end - start);
+    }
+
+    if (audioData_.spectrum.size() < 64) {
+      audioData_.spectrum.resize(64, 0.0f);
     }
 
     for (int i = 0; i < 64 && i < halfSize; ++i) {

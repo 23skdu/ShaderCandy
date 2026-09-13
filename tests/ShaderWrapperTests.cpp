@@ -27,16 +27,30 @@ public:
   }
 
 private:
+  static std::string resolveTestPath(const std::string &relPath) {
+    std::ifstream file(relPath);
+    if (file.is_open()) {
+      return relPath;
+    }
+    std::string fallback = "../" + relPath;
+    std::ifstream fileFallback(fallback);
+    if (fileFallback.is_open()) {
+      return fallback;
+    }
+    return relPath;
+  }
+
   TestResult testNoDuplicateUniformBlocks() {
     // Read the screensaver.cpp to check the wrapper
-    std::ifstream wrapperFile("src/platform/linux/screensaver.cpp");
+    std::ifstream wrapperFile(
+        resolveTestPath("src/platform/linux/screensaver.cpp"));
     TEST_ASSERT(wrapperFile.is_open(), "Failed to open screensaver.cpp");
 
     std::string wrapperContent((std::istreambuf_iterator<char>(wrapperFile)),
                                std::istreambuf_iterator<char>());
 
     // Find the wrappedFrag shader wrapper - this is where the issue was
-    size_t wrappedFragStart = wrapperContent.find("wrappedFrag = R");
+    size_t wrappedFragStart = wrapperContent.find("wrappedFrag = ");
     size_t fallbackStart = wrapperContent.find("createFallbackShader");
 
     // Extract only the wrappedFrag section (before fallback)
@@ -73,7 +87,7 @@ private:
 
   TestResult testCommonGLSLHasUniformBlock() {
     // Verify common.glsl defines the Uniforms block
-    std::ifstream commonFile("shaders/base/common.glsl");
+    std::ifstream commonFile(resolveTestPath("shaders/base/common.glsl"));
     TEST_ASSERT(commonFile.is_open(), "Failed to open common.glsl");
 
     std::string commonContent((std::istreambuf_iterator<char>(commonFile)),
@@ -106,20 +120,20 @@ private:
 
   TestResult testWrapperHasNoUniformBlock() {
     // This test specifically checks the wrappedFrag string in screensaver.cpp
-    std::ifstream wrapperFile("src/platform/linux/screensaver.cpp");
+    std::ifstream wrapperFile(
+        resolveTestPath("src/platform/linux/screensaver.cpp"));
     TEST_ASSERT(wrapperFile.is_open(), "Failed to open screensaver.cpp");
 
     std::string wrapperContent((std::istreambuf_iterator<char>(wrapperFile)),
                                std::istreambuf_iterator<char>());
 
     // Find the wrappedFrag string - look for the shader wrapper code
-    size_t wrappedFragStart = wrapperContent.find("wrappedFrag = R");
+    size_t wrappedFragStart = wrapperContent.find("wrappedFrag = ");
     TEST_ASSERT(wrappedFragStart != std::string::npos,
                 "Could not find wrappedFrag definition");
 
-    // Find the end of the wrapper fragment shader (before the closing
-    // paren-quote-semicolon)
-    size_t wrapperEnd = wrapperContent.find(")\";", wrappedFragStart);
+    // Find the end of the wrapper fragment shader (semicolon)
+    size_t wrapperEnd = wrapperContent.find(";", wrappedFragStart);
     TEST_ASSERT(wrapperEnd != std::string::npos,
                 "Could not find end of wrappedFrag definition");
 
@@ -140,7 +154,7 @@ private:
 
   TestResult testIncludeSystemNotDuplicatingUniforms() {
     // Simulate the include processing to check for duplicates
-    std::ifstream commonFile("shaders/base/common.glsl");
+    std::ifstream commonFile(resolveTestPath("shaders/base/common.glsl"));
     TEST_ASSERT(commonFile.is_open(), "Failed to open common.glsl");
 
     std::string commonContent((std::istreambuf_iterator<char>(commonFile)),
@@ -184,7 +198,7 @@ private:
 
   TestResult testShaderIncludeDepth() {
     // Test that shaders don't create circular includes or excessive depth
-    std::ifstream shaderFile("shaders/plasma.frag");
+    std::ifstream shaderFile(resolveTestPath("shaders/plasma.frag"));
     TEST_ASSERT(shaderFile.is_open(), "Failed to open plasma.frag");
 
     std::string shaderContent((std::istreambuf_iterator<char>(shaderFile)),
@@ -196,7 +210,7 @@ private:
                 "plasma.frag should include base/common.glsl");
 
     // Verify common.glsl doesn't include other files (to avoid circular deps)
-    std::ifstream commonFile("shaders/base/common.glsl");
+    std::ifstream commonFile(resolveTestPath("shaders/base/common.glsl"));
     TEST_ASSERT(commonFile.is_open(), "Failed to open common.glsl");
 
     std::string commonContent((std::istreambuf_iterator<char>(commonFile)),
@@ -214,13 +228,13 @@ private:
 
   TestResult testValidFragmentShaderCompilation() {
     // Test that a shader can be properly assembled
-    std::ifstream commonFile("shaders/base/common.glsl");
+    std::ifstream commonFile(resolveTestPath("shaders/base/common.glsl"));
     TEST_ASSERT(commonFile.is_open(), "Failed to open common.glsl");
 
     std::string commonContent((std::istreambuf_iterator<char>(commonFile)),
                               std::istreambuf_iterator<char>());
 
-    std::ifstream plasmaFile("shaders/plasma.frag");
+    std::ifstream plasmaFile(resolveTestPath("shaders/plasma.frag"));
     TEST_ASSERT(plasmaFile.is_open(), "Failed to open plasma.frag");
 
     std::string plasmaContent((std::istreambuf_iterator<char>(plasmaFile)),

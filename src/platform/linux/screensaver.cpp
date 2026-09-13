@@ -438,7 +438,7 @@ public:
 
     std::string vertexShaderStr = GLSLWrapper::getVertexShader();
     std::string wrappedFrag = "\
-#version 450 core\n";
+#version 330 core\n";
     wrappedFrag += fragStr;
 
     return loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str());
