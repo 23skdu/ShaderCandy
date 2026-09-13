@@ -31,6 +31,10 @@ bool GLRenderer::initialize(void *display, void *window, bool isGLES) {
     return true;
   }
 
+#if defined(__linux__)
+  InitializeGLLoader();
+#endif
+
   display_ = display;
   window_ = window;
   isGLES_ = isGLES;
