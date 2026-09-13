@@ -210,6 +210,24 @@ void AudioInput::setCallback(AudioCallback callback) {
   callback_ = callback;
 }
 
+void AudioInput::setSmoothing(float amount) {
+  smoothing_ = std::clamp(amount, 0.0f, 1.0f);
+}
+
+void AudioInput::setBeatThreshold(float threshold) {
+  beatThreshold_ = std::max(0.0f, threshold);
+}
+
+void AudioInput::setLowLatencyMode(bool enabled) {
+  if (enabled) {
+    bufferSize_ = 256;
+  }
+}
+
+bool AudioInput::isLowLatencyMode() const {
+  return bufferSize_ <= 256;
+}
+
 void AudioInput::performFFT(const std::vector<float> &samples) {
   std::lock_guard<std::mutex> lock(dataMutex_);
 

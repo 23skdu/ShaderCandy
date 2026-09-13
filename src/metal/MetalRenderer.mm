@@ -74,7 +74,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     BOOL supportsApple1 = [device supportsFamily:MTLGPUFamilyApple1];
     BOOL supportsMac2 = [device supportsFamily:MTLGPUFamilyMac2];
     BOOL supportsMac1 = [device supportsFamily:MTLGPUFamilyMac1];
-    
+
     // Branchless family detection using cascading boolean logic
     _family = supportsApple3 ? MetalGPUFamilyApple3 :
               supportsApple2 ? MetalGPUFamilyApple2 :
@@ -82,14 +82,14 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
               supportsMac2    ? MetalGPUFamilyMac2 :
               supportsMac1    ? MetalGPUFamilyMac1 :
                                 MetalGPUFamilyUnknown;
-    
+
     // Branchless capability flag computation using bitwise operations
     // Tile shaders: only available on Apple silicon (Apple1/2/3)
     _supportsTileShaders = (supportsApple1 || supportsApple2 || supportsApple3) ? YES : NO;
-    
+
     // SIMD groups: available on all Apple silicon and modern Mac GPUs
     _supportsSimdGroups = (supportsApple1 || supportsApple2 || supportsApple3 || supportsMac2 || supportsMac1) ? YES : NO;
-    
+
     // Mesh shaders: only available on Apple3+
     _supportsMeshShaders = supportsApple3 ? YES : NO;
 
@@ -373,6 +373,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     return NO;
   }
 
+  _asyncComputeQueue = [_device newCommandQueue];
+  if (@available(macOS 10.14, *)) {
+    _asyncComputeEvent = [_device newSharedEvent];
+  }
+
   _resourcePool = [[MetalResourcePool alloc] initWithDevice:_device];
   _performanceReporter =
       [[MTLPerformanceReporter alloc] initWithDevice:_device];
@@ -438,7 +443,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   [[NeuralStyleEngine sharedEngine] initializeWithDevice:_device error:nil];
   _neuralStyleEnabled = NO;
   _styleStrength = 0.5f;
-  
+
   // Preload common shaders for faster first shader switch
   [[ShaderCompiler sharedCompiler] preloadCommonShaders:_device];
 
@@ -489,7 +494,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   BOOL supportsApple3 = [_device supportsFamily:MTLGPUFamilyApple3];
   BOOL supportsApple2 = [_device supportsFamily:MTLGPUFamilyApple2];
   BOOL supportsMac2 = [_device supportsFamily:MTLGPUFamilyMac2];
-  
+
   // Branchless texture dimension selection
   _maxTextureDimension = supportsApple3 ? 16384.0f :
                          supportsApple2 ? 8192.0f :
@@ -889,7 +894,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Manage cache size before loading new shader
   [self purgeCachesIfNecessary];
-  
+
   // Logic from former loadShaderWithName:
   // Check for shader file
   NSString *path = [self pathForShader:name];
@@ -932,11 +937,11 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Create library with full source
   NSString *fullSource = [self prepareShaderSource:source forShader:name];
-  
+
   id<MTLLibrary> library = [self.device newLibraryWithSource:fullSource
                                                      options:nil
                                                        error:&compileError];
-  
+
   // EARLY RETURN if library failed
   if (!library) {
     if (compileError) {
@@ -948,7 +953,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     }
     return NO;
   }
-  
+
   self.libraryCache[name] = library;
 
 // Create pipeline
@@ -975,7 +980,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   self.currentPipeline = pipeline;
   self.activeShaderName = name;
 
-  NSLog(@"MetalRenderer: Loaded shader '%@' (Cache sizes: P:%lu, L:%lu)", 
+  NSLog(@"MetalRenderer: Loaded shader '%@' (Cache sizes: P:%lu, L:%lu)",
         name, (unsigned long)self.pipelineCache.count, (unsigned long)self.libraryCache.count);
 
   if ([self.delegate respondsToSelector:@selector(metalRenderer:
@@ -994,38 +999,38 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   // Purge pipeline cache if it exceeds limit
   if (self.pipelineCache.count > self.maxPipelineCacheSize) {
     NSLog(@"MetalRenderer: Purging pipeline cache (size: %lu)", (unsigned long)self.pipelineCache.count);
-    
+
     // Simple FIFO: remove 25% of oldest pipelines, excluding current and previous
     NSMutableArray *keysToRemove = [NSMutableArray array];
     NSArray *allKeys = [self.pipelineCache allKeys];
-    
+
     for (NSString *key in allKeys) {
       if (![key isEqualToString:self.activeShaderName] && ![key isEqualToString:self.previousShaderName]) {
         [keysToRemove addObject:key];
         if (keysToRemove.count >= self.maxPipelineCacheSize / 4) break;
       }
     }
-    
+
     [self.pipelineCache removeObjectsForKeys:keysToRemove];
   }
-  
+
   // Purge library cache if it exceeds limit
   if (self.libraryCache.count > self.maxLibraryCacheSize) {
     NSLog(@"MetalRenderer: Purging library cache (size: %lu)", (unsigned long)self.libraryCache.count);
-    
+
     NSMutableArray *keysToRemove = [NSMutableArray array];
     NSArray *allKeys = [self.libraryCache allKeys];
-    
+
     for (NSString *key in allKeys) {
       if (![key isEqualToString:self.activeShaderName] && ![key isEqualToString:self.previousShaderName]) {
         [keysToRemove addObject:key];
         if (keysToRemove.count >= self.maxLibraryCacheSize / 4) break;
       }
     }
-    
+
     [self.libraryCache removeObjectsForKeys:keysToRemove];
   }
-  
+
   // Check memory pressure
   if (self.aggressiveMemoryPurge || self.currentMemoryUsageBytes > self.maxMemoryBudgetBytes * 0.8) {
     [self.resourcePool purgeUnusedResources];
@@ -1057,7 +1062,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   // Build search paths for shaders in both flat and subdirectory structures
   NSMutableArray *searchPaths = [NSMutableArray array];
-  
+
   NSArray *basePaths = @[
     [mainBundle resourcePath],
     [bundle resourcePath],
@@ -1065,9 +1070,9 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     [[bundle bundlePath] stringByAppendingPathComponent:@"Contents/Resources"],
     [fm currentDirectoryPath]
   ];
-  
+
   NSArray *shadersDirs = @[@"shaders", @"shaders/effects", @"shaders/base", @"shaders/audio", @"shaders/music", @"shaders/neural", @"shaders/system"];
-  
+
   for (NSString *base in basePaths) {
     if (!base || base.length == 0) continue;
     for (NSString *shadersDir in shadersDirs) {
@@ -1077,14 +1082,14 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       }
     }
   }
-  
+
   // Search in order
   for (NSString *path in searchPaths) {
     if ([fm fileExistsAtPath:path]) {
       return path;
     }
   }
-  
+
   return nil;
 }
 
@@ -1408,7 +1413,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 
   for (NSString *basePath in basePaths) {
     if (!basePath || basePath.length == 0) continue;
-    
+
     // Check Resources/shaders/
     NSString *shadersPath = [basePath stringByAppendingPathComponent:@"shaders"];
     NSError *error = nil;
@@ -1420,7 +1425,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
         }
       }
     }
-    
+
     // Also check Resources/shaders/effects/ (for development builds)
     NSString *effectsPath = [shadersPath stringByAppendingPathComponent:@"effects"];
     files = [fm contentsOfDirectoryAtPath:effectsPath error:nil];
@@ -1432,7 +1437,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       }
     }
   }
-  
+
   // Filter excluded names
   NSArray *excludedNames = @[@"common", @"utils", @"ShaderInterop", @"bloom", @"particles", @"debug_overlay"];
   for (NSString *name in foundNames) {
@@ -1455,21 +1460,21 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
 - (NSDictionary<NSString *, NSNumber *> *)testAllShaders {
   NSArray<NSString *> *shaders = [self availableShaderNames];
   NSMutableDictionary *results = [NSMutableDictionary dictionary];
-  
+
   NSLog(@"\n========== TESTING ALL SHADERS ==========");
-  
+
   for (NSString *shaderName in shaders) {
     NSError *error = nil;
     BOOL success = [self loadShaderWithName:shaderName error:&error];
     results[shaderName] = @(success);
-    
+
     if (success) {
       NSLog(@"  [OK] %@", shaderName);
     } else {
       NSLog(@"  [FAIL] %@ - %@", shaderName, error.localizedDescription ?: @"unknown error");
     }
   }
-  
+
   NSInteger successCount = 0;
   NSInteger failCount = 0;
   for (NSString *name in results) {
@@ -1479,10 +1484,10 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
       failCount++;
     }
   }
-  
+
   NSLog(@"\n========== SHADER TEST RESULTS ==========");
   NSLog(@"Total: %lu, Passed: %ld, Failed: %ld", (unsigned long)shaders.count, (long)successCount, (long)failCount);
-  
+
   if (failCount > 0) {
     NSLog(@"Failed shaders:");
     for (NSString *name in results) {
@@ -1492,7 +1497,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
     }
   }
   NSLog(@"==========================================\n");
-  
+
   return [results copy];
 }
 
@@ -1817,7 +1822,7 @@ typedef void (^SCScreenshotEncodeHook)(id<MTLCommandBuffer> commandBuffer,
   NSUInteger bufferIndex = _frameCount % 3;
   uint8_t *bufferPtr = (uint8_t *)_resources.uniformBuffer.contents;
   Uniforms *uniforms = (Uniforms *)(bufferIndex * sizeof(Uniforms) + bufferPtr);
-  
+
   // Determine if we need the advanced offscreen pipeline
   BOOL needsOffscreen = _bloomConfig.enabled || _hdrEnabled ||
                         _neuralStyleEnabled || _isTransitioning;
@@ -2127,6 +2132,89 @@ transition_complete:;
   [_performanceReporter endFrameWithCommandBuffer:commandBuffer];
   [commandBuffer commit];
   [self endFrame];
+}
+
+#pragma mark - Advanced Pipeline & Parallel Command Encoding
+
+- (nullable id<MTLParallelRenderCommandEncoder>)beginParallelRenderPass:(MTLRenderPassDescriptor *)descriptor {
+  if (!_commandQueue || !descriptor) return nil;
+  id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
+  if (!commandBuffer) return nil;
+  return [commandBuffer parallelRenderCommandEncoderWithDescriptor:descriptor];
+}
+
+- (void)dispatchAsyncComputePass:(void (^)(id<MTLComputeCommandEncoder> encoder))passBlock {
+  if (!_asyncComputeQueue || !passBlock) return;
+  id<MTLCommandBuffer> computeCmdBuffer = [_asyncComputeQueue commandBuffer];
+  if (!computeCmdBuffer) return;
+  id<MTLComputeCommandEncoder> encoder = [computeCmdBuffer computeCommandEncoder];
+  if (!encoder) return;
+  passBlock(encoder);
+  [encoder endEncoding];
+  [computeCmdBuffer commit];
+}
+
+- (nullable id<MTLRenderPipelineState>)createMeshPipelineWithObjectFunction:(nullable id<MTLFunction>)objectFunc
+                                                               meshFunction:(id<MTLFunction>)meshFunc
+                                                           fragmentFunction:(id<MTLFunction>)fragFunc
+                                                                      error:(NSError **)error {
+  if (@available(macOS 13.0, *)) {
+    if (!_device || !meshFunc || !fragFunc) {
+      if (error) {
+        *error = [NSError errorWithDomain:@"com.shadercandy.metal"
+                                     code:MetalRendererErrorCodeInvalidState
+                                 userInfo:@{NSLocalizedDescriptionKey: @"Invalid arguments for mesh pipeline"}];
+      }
+      return nil;
+    }
+    MTLMeshRenderPipelineDescriptor *desc = [[MTLMeshRenderPipelineDescriptor alloc] init];
+    desc.objectFunction = objectFunc;
+    desc.meshFunction = meshFunc;
+    desc.fragmentFunction = fragFunc;
+    desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    return [_device newRenderPipelineStateWithMeshDescriptor:desc options:MTLPipelineOptionNone reflection:nil error:error];
+  }
+  if (error) {
+    *error = [NSError errorWithDomain:@"com.shadercandy.metal"
+                                 code:MetalRendererErrorCodePipelineCreationFailed
+                             userInfo:@{NSLocalizedDescriptionKey: @"Mesh shaders require macOS 13.0 or later"}];
+  }
+  return nil;
+}
+
+- (nullable id<MTLIndirectCommandBuffer>)createParticleIndirectCommandBufferWithCount:(NSUInteger)count {
+  if (!_device || count == 0) return nil;
+  MTLIndirectCommandBufferDescriptor *icbDesc = [[MTLIndirectCommandBufferDescriptor alloc] init];
+  icbDesc.commandTypes = MTLIndirectCommandTypeDraw;
+  icbDesc.inheritBuffers = NO;
+  icbDesc.maxVertexBufferBindCount = 2;
+  icbDesc.maxFragmentBufferBindCount = 1;
+  _particleIndirectCommandBuffer = [_device newIndirectCommandBufferWithDescriptor:icbDesc maxCommandCount:count options:MTLResourceStorageModeShared];
+  return _particleIndirectCommandBuffer;
+}
+
+- (void)executeIndirectDrawPass:(id<MTLRenderCommandEncoder>)encoder count:(NSUInteger)count {
+  if (!encoder || !_particleIndirectCommandBuffer || count == 0) return;
+  [encoder executeCommandsInBuffer:_particleIndirectCommandBuffer withRange:NSMakeRange(0, count)];
+}
+
+- (nullable id<MTLTexture>)setupMotionAdaptiveVRSRateMap:(CGSize)targetSize motionMagnitude:(float)motion {
+#if TARGET_OS_MAC
+  if (@available(macOS 10.15.4, *)) {
+    if (!_device || targetSize.width <= 0 || targetSize.height <= 0) return nil;
+    _motionAdaptiveVRSEnabled = YES;
+    _cameraMotionMagnitude = motion;
+    float adaptiveFactor = std::clamp(1.0f + motion * 2.0f, 1.0f, 4.0f);
+    _vrsPeripheralRate = adaptiveFactor;
+
+    MTLSize sampleSize = MTLSizeMake((NSUInteger)targetSize.width, (NSUInteger)targetSize.height, 1);
+    MTLRasterizationRateLayerDescriptor *layerDesc = [[MTLRasterizationRateLayerDescriptor alloc] initWithSampleCount:sampleSize];
+    MTLRasterizationRateMapDescriptor *mapDesc = [MTLRasterizationRateMapDescriptor rasterizationRateMapDescriptorWithScreenSize:sampleSize layer:layerDesc];
+    _rasterizationRateMap = [_device newRasterizationRateMapWithDescriptor:mapDesc];
+    return nil;
+  }
+#endif
+  return nil;
 }
 
 - (void)renderSimpleToDrawable:(id<CAMetalDrawable>)drawable
@@ -2525,7 +2613,7 @@ transition_complete:;
     path = [self findResourcePath:@"bloom" ofType:@"metal" subDir:dir];
     if (path) break;
   }
-  
+
   if (!path) {
     NSLog(@"MetalRenderer Error: Failed to find bloom.metal");
     return nil;

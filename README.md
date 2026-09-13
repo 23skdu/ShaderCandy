@@ -114,9 +114,13 @@ Rough performance metrics on reference hardware (4K resolution):
 
 ## Documentation
 
-* `docs/ShaderCandyMasterPlan.md`: Consolidated project architecture and roadmap.
-* `docs/LinuxFeatures.md`: Detailed Linux-specific implementation guide.
-* `docs/HdrImplementation.md`: High-bit-depth rendering documentation.
+* `docs/ShaderCandyMasterPlan.md`: Consolidated project architecture and feature status.
+* `docs/ArchitectureDiagrams.md`: Visual architecture diagrams for rendering, audio, and core systems.
+* `docs/ApplicationModesGuide.md`: User guide for Standalone Player, Wallpaper Mode, and Screensavers across macOS and Linux.
+* `docs/ShaderAuthoringGuide.md`: Developer guide for creating and translating shaders (Metal & GLSL).
+* `docs/LinuxFeatures.md`: Linux platform architecture, Wayland/X11 details, and build instructions.
+* `docs/HdrImplementation.md`: High-bit-depth rendering and tone mapping documentation.
+* `docs/nextsteps.md`: Active performance and stability engineering roadmap.
 
 ## License
 

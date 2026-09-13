@@ -209,17 +209,32 @@ public:
       fftw_destroy_plan(fftPlan_);
       fftPlan_ = nullptr;
     }
-    if (fftIn_)
+    if (fftIn_) {
       fftw_free(fftIn_);
-    if (fftOut_)
+      fftIn_ = nullptr;
+    }
+    if (fftOut_) {
       fftw_free(fftOut_);
+      fftOut_ = nullptr;
+    }
   }
 
-  AudioInput *parent_;
-  snd_pcm_t *pcmHandle_;
-  fftw_plan fftPlan_;
-  double *fftIn_;
-  fftw_complex *fftOut_;
+  AudioInput *parent_ = nullptr;
+  snd_pcm_t *pcmHandle_ = nullptr;
+  bool lowLatencyMode_ = false;
+
+  void setLowLatencyMode(bool enabled) {
+    lowLatencyMode_ = enabled;
+    if (enabled && bufferSize_ > 256) {
+      bufferSize_ = 256; // Sub-10ms buffer size
+    }
+  }
+
+  bool isLowLatencyMode() const { return lowLatencyMode_; }
+
+  fftw_plan fftPlan_ = nullptr;
+  double *fftIn_ = nullptr;
+  fftw_complex *fftOut_ = nullptr;
   std::vector<float> inputBuffer_;
   std::vector<float> fftWindow_;
 
@@ -233,21 +248,77 @@ public:
   AudioData audioData_;
 };
 
-AudioInput::AudioInput() : impl_(new Impl(this)) {}
-AudioInput::~AudioInput() = default;
+AudioInput::AudioInput()
+    : impl_(new Impl(this)), sampleRate_(44100), bufferSize_(1024),
+      smoothing_(0.8f), beatThreshold_(0.1f), running_(false) {}
+
+AudioInput::~AudioInput() {
+  stop();
+}
+
 bool AudioInput::initialize(int sampleRate, int bufferSize) {
+  sampleRate_ = sampleRate;
+  bufferSize_ = bufferSize;
   return impl_->initialize(sampleRate, bufferSize);
 }
+
 bool AudioInput::openDevice(const std::string &deviceName) {
   return impl_->openDevice(deviceName);
 }
+
 bool AudioInput::start() {
   impl_->start();
-  return impl_->running_.load();
+  running_ = impl_->running_.load();
+  return running_;
 }
-void AudioInput::stop() { impl_->stop(); }
+
+void AudioInput::stop() {
+  impl_->stop();
+  running_ = false;
+}
+
 bool AudioInput::isRunning() const { return impl_->running_.load(); }
-AudioData AudioInput::getCurrentData() const { return impl_->audioData_; }
+AudioData AudioInput::getCurrentData() const {
+  std::lock_guard<std::mutex> lock(dataMutex_);
+  return currentData_;
+}
+
+void AudioInput::setCallback(AudioCallback callback) {
+  std::lock_guard<std::mutex> lock(dataMutex_);
+  callback_ = std::move(callback);
+}
+
+void AudioInput::setSmoothing(float amount) {
+  smoothing_ = std::clamp(amount, 0.0f, 1.0f);
+}
+
+void AudioInput::setBeatThreshold(float threshold) {
+  beatThreshold_ = std::max(0.0f, threshold);
+}
+
+void AudioInput::setLowLatencyMode(bool enabled) {
+  impl_->setLowLatencyMode(enabled);
+}
+
+bool AudioInput::isLowLatencyMode() const {
+  return impl_->isLowLatencyMode();
+}
+
+void AudioInput::performFFT(const std::vector<float> &samples) {
+  if (samples.empty()) return;
+  std::lock_guard<std::mutex> lock(dataMutex_);
+  currentData_.waveform = samples;
+  float sum = 0.0f;
+  for (float s : samples) {
+    sum += std::abs(s);
+  }
+  currentData_.volume = sum / samples.size();
+  currentData_.volumeSmoothed =
+      currentData_.volumeSmoothed * smoothing_ + currentData_.volume * (1.0f - smoothing_);
+  if (callback_) {
+    callback_(currentData_);
+  }
+}
 
 void AudioInput::onAudioData(const AudioData &audioData) {
   std::lock_guard<std::mutex> lock(dataMutex_);

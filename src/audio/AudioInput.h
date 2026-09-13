@@ -61,6 +61,8 @@ public:
   void setCallback(AudioCallback callback);
   void setSmoothing(float amount); // 0-1, higher = smoother
   void setBeatThreshold(float threshold);
+  void setLowLatencyMode(bool enabled);
+  bool isLowLatencyMode() const;
 
   // Get current data (thread-safe)
   AudioData getCurrentData() const;

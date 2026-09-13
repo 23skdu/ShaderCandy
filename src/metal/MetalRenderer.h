@@ -237,6 +237,15 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
 // Variable Rate Shading (VRS)
 @property(nonatomic, assign) BOOL variableRateShadingEnabled;
 @property(nonatomic, assign) float vrsPeripheralRate;
+@property(nonatomic, assign) BOOL motionAdaptiveVRSEnabled;
+@property(nonatomic, assign) float cameraMotionMagnitude;
+
+// Multi-Queue Async Compute
+@property(nonatomic, strong, readonly, nullable) id<MTLCommandQueue> asyncComputeQueue;
+@property(nonatomic, strong, readonly, nullable) id<MTLSharedEvent> asyncComputeEvent;
+
+// Indirect Command Buffers
+@property(nonatomic, strong, nullable) id<MTLIndirectCommandBuffer> particleIndirectCommandBuffer;
 
 // Compute-based post processing
 @property(nonatomic, assign) BOOL useComputeBloom;
@@ -307,6 +316,21 @@ typedef NS_ENUM(NSInteger, MetalBloomQuality) {
  * Useful for screenshots and offline rendering.
  */
 - (void)renderToTexture:(id<MTLTexture>)texture;
+
+#pragma mark - Advanced Pipeline & Parallel Command Encoding
+
+- (nullable id<MTLParallelRenderCommandEncoder>)beginParallelRenderPass:(MTLRenderPassDescriptor *)descriptor;
+- (void)dispatchAsyncComputePass:(void (^)(id<MTLComputeCommandEncoder> encoder))passBlock;
+
+- (nullable id<MTLRenderPipelineState>)createMeshPipelineWithObjectFunction:(nullable id<MTLFunction>)objectFunc
+                                                               meshFunction:(id<MTLFunction>)meshFunc
+                                                           fragmentFunction:(id<MTLFunction>)fragFunc
+                                                                      error:(NSError **)error;
+
+- (nullable id<MTLIndirectCommandBuffer>)createParticleIndirectCommandBufferWithCount:(NSUInteger)count;
+- (void)executeIndirectDrawPass:(id<MTLRenderCommandEncoder>)encoder count:(NSUInteger)count;
+
+- (nullable id<MTLTexture>)setupMotionAdaptiveVRSRateMap:(CGSize)targetSize motionMagnitude:(float)motion;
 
 #pragma mark - Viewport
 

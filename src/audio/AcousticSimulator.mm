@@ -271,4 +271,32 @@
     // Update dynamic aspects of simulation
 }
 
+- (void)updateAcousticsFromSceneDepth:(const float *)depthBuffer width:(NSUInteger)width height:(NSUInteger)height {
+    if (!depthBuffer || width == 0 || height == 0) return;
+
+    // Dynamically derive acoustic room size and absorption based on depth buffer statistics
+    float minDepth = 1e6f;
+    float maxDepth = 0.0f;
+    float avgDepth = 0.0f;
+    size_t step = std::max<size_t>(1, (width * height) / 1024);
+    size_t samples = 0;
+
+    for (size_t i = 0; i < width * height; i += step) {
+        float d = depthBuffer[i];
+        if (d > 0.001f && d < 1e4f) {
+            minDepth = std::min(minDepth, d);
+            maxDepth = std::max(maxDepth, d);
+            avgDepth += d;
+            samples++;
+        }
+    }
+
+    if (samples > 0) {
+        avgDepth /= (float)samples;
+        _roomSize = std::clamp(avgDepth * 2.0f, 2.0f, 50.0f);
+        float depthVariance = maxDepth - minDepth;
+        _scattering = std::clamp(depthVariance / std::max(avgDepth, 1.0f) * 0.2f, 0.05f, 0.8f);
+    }
+}
+
 @end

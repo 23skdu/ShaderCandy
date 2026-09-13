@@ -77,4 +77,25 @@
   return [_heap newTextureWithDescriptor:descriptor];
 }
 
+- (nullable id<MTLBuffer>)newArgumentBufferWithLength:(NSUInteger)length {
+  MTLResourceOptions options = MTLResourceStorageModeShared | MTLResourceCPUCacheModeWriteCombined;
+  return [self newBufferWithLength:length options:options];
+}
+
+- (nullable id<MTLBuffer>)suballocateBufferWithLength:(NSUInteger)length
+                                            alignment:(NSUInteger)alignment
+                                               offset:(NSUInteger *)outOffset {
+  if (outOffset) {
+    *outOffset = 0;
+  }
+  MTLResourceOptions options = MTLResourceStorageModeShared;
+  MTLSizeAndAlign sizeAlign = [_device heapBufferSizeAndAlignWithLength:length options:options];
+  NSUInteger effectiveAlign = std::max<NSUInteger>(alignment, sizeAlign.align);
+  NSUInteger maxAvailable = [_heap maxAvailableSizeWithAlignment:effectiveAlign];
+  if (sizeAlign.size > maxAvailable) {
+    return nil;
+  }
+  return [_heap newBufferWithLength:length options:options];
+}
+
 @end

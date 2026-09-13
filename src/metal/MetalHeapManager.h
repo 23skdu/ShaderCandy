@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable id<MTLTexture>)newTextureWithDescriptor:
     (MTLTextureDescriptor *)descriptor;
 
+- (nullable id<MTLBuffer>)newArgumentBufferWithLength:(NSUInteger)length;
+- (nullable id<MTLBuffer>)suballocateBufferWithLength:(NSUInteger)length
+                                            alignment:(NSUInteger)alignment
+                                               offset:(NSUInteger *)outOffset;
+
 @end
 
 NS_ASSUME_NONNULL_END

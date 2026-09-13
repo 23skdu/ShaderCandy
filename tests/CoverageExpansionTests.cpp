@@ -340,8 +340,13 @@ private:
     TEST_ASSERT_TRUE(sm != nullptr);
     TEST_ASSERT_TRUE(sm->initialize());
 
+    std::string auroraPath = "shaders/aurora.frag";
+    if (!std::filesystem::exists(auroraPath) && std::filesystem::exists("../shaders/aurora.frag")) {
+      auroraPath = "../shaders/aurora.frag";
+    }
+
     // Test loading real shader
-    bool loaded = sm->loadShader("aurora_test", "shaders/aurora.frag");
+    bool loaded = sm->loadShader("aurora_test", auroraPath);
     TEST_ASSERT_TRUE(loaded);
 
     // Test loading non-existent shader (error branch)
@@ -374,7 +379,7 @@ private:
 
     // Test single standalone shader loading without initialize
     auto smAlone = createShaderManager();
-    smAlone->loadShader("only_shader", "shaders/aurora.frag");
+    smAlone->loadShader("only_shader", auroraPath);
     TEST_ASSERT_TRUE(smAlone->getActiveShader() == "only_shader");
 
     // Test reload on updated timestamp

@@ -35,5 +35,6 @@
 
 - (void)simulateReflections;
 - (void)updateSimulation:(float)deltaTime;
+- (void)updateAcousticsFromSceneDepth:(const float * _Nonnull)depthBuffer width:(NSUInteger)width height:(NSUInteger)height;
 
 @end

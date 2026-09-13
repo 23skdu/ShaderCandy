@@ -107,4 +107,39 @@ void PerformanceMonitor::updateSortedTimes() const {
   sortedDirty_ = false;
 }
 
+void PerformanceMonitor::calculateAdaptiveRayMarchLoD(
+    float thermalLevel, float p99LatencyMs, int &outMaxSteps,
+    float &outStepEpsilon, float &outLodScale) {
+  // Base configuration for nominal performance (60+ FPS)
+  outMaxSteps = 128;
+  outStepEpsilon = 0.001f;
+  outLodScale = 1.0f;
+
+  if (thermalLevel >= 0.85f || p99LatencyMs > 33.33f) {
+    // Critical thermal state or dropped below 30 FPS
+    outMaxSteps = 48;
+    outStepEpsilon = 0.005f;
+    outLodScale = 0.5f;
+  } else if (thermalLevel >= 0.66f || p99LatencyMs > 25.0f) {
+    // Serious thermal state or dropped below 40 FPS
+    outMaxSteps = 64;
+    outStepEpsilon = 0.0035f;
+    outLodScale = 0.65f;
+  } else if (thermalLevel >= 0.33f || p99LatencyMs > 16.67f) {
+    // Fair thermal state or slight frame pacing pressure
+    outMaxSteps = 96;
+    outStepEpsilon = 0.002f;
+    outLodScale = 0.85f;
+  }
+}
+
+float PerformanceMonitor::calculateDynamicResolutionScale(
+    float p99LatencyMs, float targetFrameTimeMs) {
+  if (p99LatencyMs <= targetFrameTimeMs) {
+    return 1.0f;
+  }
+  float scale = targetFrameTimeMs / p99LatencyMs;
+  return std::clamp(scale, 0.5f, 1.0f);
+}
+
 } // namespace ShaderCandy

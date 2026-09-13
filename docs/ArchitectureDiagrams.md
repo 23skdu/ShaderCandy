@@ -1,329 +1,331 @@
 # ShaderCandy Architecture Diagrams
 
-This document contains visual documentation of key systems in ShaderCandy.
+This document contains visual architectural specifications of key systems in ShaderCandy.
 
-## Rendering Pipeline
+---
 
-### macOS Metal Rendering Flow
+## 1. Rendering Pipelines
+
+### macOS Metal Advanced Rendering Flow
+Shows the full frame lifecycle on macOS including Dynamic Variable Rate Shading (VRS), Compute-Based Bloom, and HDR Tone Mapping:
 
 ```mermaid
 flowchart TD
-    A[ScreenSaverView / Standalone Window] --> B[MTKView]
-    B --> C[Metal Renderer]
-    C --> D[Shader Compiler]
-    D --> E[Render Pipeline State]
-    E --> F[Command Buffer]
-    F --> G[Render Encoder]
-    G --> H[Frame Rendered]
+    A[ScreenSaverView / Standalone Window / Wallpaper] --> B[MTKView]
+    B --> C[MetalRenderer.draw]
+    C --> D{VRS Supported?}
+    D -->|Yes| E["Create MTLRasterizationRateMap\n(Dynamic Peripheral Downscaling)"]
+    D -->|No| F[Standard Full-Rate Target]
+    E --> G[Setup RenderPassDescriptor]
+    F --> G
 
-    subgraph "Shader Pipeline"
-        I["Shader Source (.metal)"] --> J[Runtime Compilation]
-        J --> K[Function Library]
-        K --> L[Pipeline Cache]
-    end
+    G --> H[Encode Main Scene Pass]
+    H --> I[Shader Render Pipeline State]
+    I --> J[Draw Full-Screen Quad / March Rays]
+    J --> K[HDR Offscreen Texture: RGBA16Float]
 
-    subgraph "Uniform Management"
-        M[Uniform Buffer] --> N["CPU -> GPU Upload"]
-        N --> O[Shader Uniforms]
-    end
+    K --> L{Bloom Enabled?}
+    L -->|Yes| M["Dispatch Compute Bloom Kernel\n(16x16 Threadgroup Shared Memory)"]
+    L -->|No| N[Skip Bloom]
+    M --> O[Blended HDR Texture]
+    N --> O
 
-    D --> I
-    L --> E
-    M --> O
+    O --> P[Encode Tone Mapping Pass]
+    P --> Q["Tone Map (ACES / Filmic / Reinhard / Hable)"]
+    Q --> R["Drawable Present (EDR Headroom to 1600 nits)"]
 ```
 
 ### Linux OpenGL Rendering Flow
+Shows X11 / Wayland surface binding and OpenGL 3.3+ frame execution:
 
 ```mermaid
 flowchart TD
-    A[X11 Window / Wayland Surface] --> B[OpenGL Context]
-    B --> C[GL Renderer]
-    C --> D[Shader Compiler]
-    D --> E[Shader Program]
-    E --> F[Render Loop]
-    F --> G[Draw Calls]
-    G --> H[Frame Rendered]
+    A[X11 Window / Wayland Layer Surface] --> B[EGL / GLX Context]
+    B --> C[GLRenderer.render]
+    C --> D[Bind Framebuffer Object]
+    D --> E[ShaderManager.getActiveProgram]
+    E --> F[Uniform Upload via UniformBuffer]
+    F --> G[Draw Full-Screen Quad]
+    G --> H[Fragment Shader Execution]
+    H --> I[HDR Tone Mapping Pass]
+    I --> J[Swap Buffers / Present Surface]
 
-    subgraph "Shader Pipeline"
-        I["Shader Source (.frag/.glsl)"] --> J[GLSL Compilation]
-        J --> K[Program Object]
-        K --> L[Program Cache]
+    subgraph "GLSL Compilation & Program Cache"
+        K[Shader Source .frag] --> L[Unified Include Resolver]
+        L --> M[GLSL Compilation]
+        M --> N[Program Object Link]
+        N --> O[GL Pipeline Cache]
     end
 
-    subgraph "Uniform Management"
-        M[Uniform Variables] --> N["CPU -> GPU Upload"]
-        N --> O[Shader Uniforms]
-    end
-
-    D --> I
-    L --> E
-    M --> O
+    E -.-> O
 ```
 
-## Audio System
+---
 
-### Audio Input Processing Flow
+## 2. Multi-Display Virtual Canvas & Spanning System
+
+The `MultiDisplayManager` coordinates display geometry, virtual-to-physical coordinate transformations, and headless offscreen rendering across heterogeneous monitor setups:
 
 ```mermaid
 flowchart TD
-    A[Microphone Input] --> B[Audio Input System]
-    B --> C[FFT Processing]
-    C --> D[Frequency Bands]
-    D --> E[Beat Detection]
-    E --> F[Audio Reactivity Data]
-    F --> G[Shader Uniforms]
-
-    subgraph "Audio Analysis"
-        H[Raw Audio Samples] --> I[Windowing Function]
-        I --> J[FFT Transform]
-        J --> K[Spectrum Analysis]
+    subgraph "Display Enumeration"
+        OS["OS Display Subsystem\n(NSScreen / XRandR / wl_output)"] --> MDM[MultiDisplayManager]
+        MDM --> DList["std::vector<DisplayInfo>\n(Positions, Resolutions, ScaleFactors)"]
     end
 
-    subgraph "Reactivity Mapping"
-        L[Bass Response] --> M[Low Frequency Uniforms]
-        N[Mid Response] --> O[Mid Frequency Uniforms]
-        P[High Response] --> Q[High Frequency Uniforms]
+    subgraph "Virtual Canvas Geometry"
+        DList --> BB["Compute Bounding Box\n(minX, minY, maxX, maxY)"]
+        BB --> VW["Virtual Canvas Width: max(1, maxX - minX)"]
+        BB --> VH["Virtual Canvas Height: max(1, maxY - minY)"]
+        VW & VH --> AR["Virtual Aspect Ratio: VW / VH"]
     end
 
-    A --> H
-    K --> L
-    K --> N
-    K --> P
-    M --> G
-    O --> G
-    Q --> G
+    subgraph "Coordinate Mapping Modes"
+        MDM --> SM{SpanMode}
+        SM -->|Single| S1["One Shader on Primary Display"]
+        SM -->|SpanAll| S2["Stretched Across All Displays\n(virtualToDisplay & displayToVirtual)"]
+        SM -->|Clone| S3["Identical Frame Broadcast to All Outputs"]
+        SM -->|Independent| S4["Per-Display Unique Shader & Parameter Assignment"]
+    end
+
+    subgraph "Headless / Offscreen Renderer"
+        MDM --> HR[HeadlessRenderer]
+        HR --> FBO[Offscreen Target FBO / Texture]
+        FBO --> PBO[Pixel Buffer Readback]
+        PBO --> CB[Progress & Frame Callback]
+    end
 ```
 
-## Neural Style Transfer System
+---
 
-### CoreML Style Transfer Pipeline
+## 3. Dynamic VRS & Compute-Based Bloom Pipeline
+
+Illustrates how Apple Silicon hardware features (Tile Memory and Variable Rate Shading) optimize fragment workload:
+
+```mermaid
+flowchart LR
+    subgraph "1. Rate Map Generation"
+        PM[PerformanceMonitor] --> VRS["VRS Tier Selector\n(M1+: 1/2, 1/4 Peripheral Rates)"]
+        VRS --> RMD["MTLRasterizationRateMapDescriptor"]
+        RMD --> RMap["MTLRasterizationRateMap Alloc"]
+    end
+
+    subgraph "2. Primary Render Pass"
+        RMap --> RP["MTLRenderPassDescriptor\n.rasterizationRateMap = RMap"]
+        RP --> FS["Fragment Shader / Raymarcher\n(Coarser Shading in Periphery)"]
+        FS --> OutTex["HDR Render Target\n(RGBA16Float)"]
+    end
+
+    subgraph "3. Tile Compute Bloom"
+        OutTex --> CS["Compute Command Encoder"]
+        CS --> TG["16x16 Threadgroup Tile Memory\n(Zero Intermediate Fullscreen Quads)"]
+        TG --> Bright["Bright Pass Threshold"]
+        Bright --> Blur["Two-Pass Separable Gaussian Blur"]
+        Blur --> BloomTex["Final Bloom Texture"]
+    end
+
+    subgraph "4. Composite & Present"
+        OutTex & BloomTex --> Comp["Composite & Tone Map Pass"]
+        Comp --> BackBuffer["MTKView Current Drawable"]
+    end
+```
+
+---
+
+## 4. Audio Processing & MPS Spatial Audio Pipeline
+
+### FFT Audio Reactivity System
+Translates raw microphone or system audio input into spectral energy bands and beat uniforms:
 
 ```mermaid
 flowchart TD
-    A[Input Frame] --> B[Neural Style Engine]
-    B --> C[Style Model Loader]
-    C --> D[Model Selection]
-    D --> E[CoreML Inference]
-    E --> F[Style Transfer]
-    F --> G[Output Frame]
+    A[Microphone / System Audio Input] --> B["Audio Input Subsystem\n(AVFoundation / ALSA)"]
+    B --> C[Circular Sample Buffer]
+    C --> D[Hann Window Function]
+    D --> E["FFT Spectrum Analysis\n(vDSP / FFTW3)"]
+    E --> F[Magnitude Spectrum: 256 / 1024 Bins]
+
+    F --> G[Bass Band: 20-250 Hz]
+    F --> H[Mid Band: 250-4000 Hz]
+    F --> I[Treble Band: 4000-16000 Hz]
+
+    G --> J[Energy History Buffer]
+    J --> K["Spectral Flux Beat Detection\n(Threshold > Variance * Sensitivity)"]
+
+    G & H & I & K --> U["UniformBuffer Audio Uniforms\n(bass, mid, treble, beat, audioData[256])"]
+    U --> S[Shader Access in Fragment Stage]
+```
+
+### Metal Performance Shaders (MPS) Spatial Audio Ray-Tracing
+Hardware-accelerated acoustic room simulation for realistic spatial reflection and occlusion:
+
+```mermaid
+flowchart TD
+    subgraph "Scene & Acoustic Geometry"
+        RG["Room Geometry\n(Walls, Floors, Obstacles)"] --> VT["Vertex & Index Buffers"]
+        VT --> AS["MTLAccelerationStructure\n(Bottom-Level Bounding Volume Hierarchy)"]
+        AS --> BLAS["Built via MPSTriangleAccelerationStructure"]
+    end
+
+    subgraph "Ray Generation & Intersection"
+        Src["Sound Source Position"] --> RGK["Ray Generation Kernel"]
+        RGK --> RBuf["MPSRay Buffer\n(origin, direction, minDistance, maxDistance)"]
+        RBuf --> Intersector["MPSRayIntersector.encodeIntersection"]
+        BLAS --> Intersector
+        Intersector --> IBuf["MPSIntersection Buffer\n(distance, primitiveIndex, coordinates)"]
+    end
+
+    subgraph "Acoustic Impulse Response"
+        IBuf --> Material["Material Absorption Coefficients"]
+        Material --> EarlyRefl["Calculate Early Reflections"]
+        EarlyRefl --> Reverb["Synthesize B-Format Ambisonic IR"]
+        Reverb --> Out["Spatial Audio Spatializer Output"]
+    end
+```
+
+---
+
+## 5. Neural Style Transfer System
+
+GPU-accelerated CoreML style transfer pipeline running on Apple Neural Engine (ANE) and Metal:
+
+```mermaid
+flowchart TD
+    A[Raw Shader Frame: MTLTexture] --> B[NeuralStyleEngine.applyStyle]
+    B --> C["Preprocess Pass\n(Color Space Conversion & Resize to 512x512)"]
+    C --> D["CVPixelBuffer Pool Allocation\n(Zero-Copy Shared Memory)"]
+
+    subgraph "CoreML / Apple Neural Engine (ANE)"
+        D --> ML["CoreML Model: StyleTransferModel\n(FP16 Quantized Weights)"]
+        ML --> Inf["Model Inference on ANE / GPU"]
+        Inf --> OutPB["Styled Output CVPixelBuffer"]
+    end
+
+    OutPB --> E["Postprocess Compute Pass\n(neural_style_blend.metal)"]
+    E --> F["Alpha Blend with Original Shader Frame\n(Weighted by styleStrength)"]
+    F --> G[Styled Output MTLTexture]
 
     subgraph "Model Management"
-        H[".mlmodel Files"] --> I[Model Library]
-        I --> J[Model Cache]
-        J --> D
-    end
-
-    subgraph "Style Parameters"
-        K[Style Intensity] --> L[Uniform Buffer]
-        M[Style Selection] --> L
-        N[Blend Mode] --> L
-        L --> E
+        M1[Starry Night] & M2[Monet] & M3[Picasso] & M4[Hokusai] & M5[Cyberpunk] --> Lib[Model Library]
+        Lib --> Cache[Model Cache]
+        Cache --> ML
     end
 ```
 
-## Shader Management System
+---
 
-### Shader Compilation and Caching
+## 6. Unified ShaderManager & Hot-Reload Observer Pattern
+
+The cross-platform `UnifiedShaderManager` provides centralized discovery, recursive include resolution, and hot reloading:
 
 ```mermaid
 flowchart TD
-    A[Shader Source Files] --> B[Shader Manager]
-    B --> C[File Watcher]
-    C --> D[Hot Reload Trigger]
-    D --> E[Shader Compiler]
-    E --> F[Compilation Result]
-    F --> G{Success?}
-    G -->|Yes| H[Update Pipeline Cache]
-    G -->|No| I[Error Handling]
-    I --> J[Fallback to Previous]
-    J --> K[Error Reporting]
-
-    subgraph "Platform-Specific Compilation"
-        L[Metal Compiler] --> M[.metallib Generation]
-        N[GLSL Compiler] --> O[Program Object]
+    subgraph "Discovery & File System Watching"
+        FS["File System: shaders/ (base, effects, music)"] --> Scan["UnifiedShaderManager.scanDirectory"]
+        Scan --> Catalog["Shader Catalog Map\n(Name -> FilePath, LastWriteTime)"]
+        Timer["Frame Loop / Render Tick"] --> Watch["UnifiedShaderManager.reloadShaders"]
+        Catalog --> Watch
+        Watch --> Mod{File Timestamp > LastWriteTime?}
     end
 
-    E --> L
-    E --> N
-    H --> P[Render System]
+    subgraph "Compilation & Dependency Resolution"
+        Mod -->|Yes| Read[Read Shader Source]
+        Read --> Inc["Recursive #include Resolver\n(common.metal / common.glsl)"]
+        Inc --> Comp{Compile Shader Source}
+        Comp -->|Success| UpdCache["Update Pipeline State Cache"]
+        Comp -->|Failure| Rollback["Log Error & Rollback to Previous Valid State"]
+    end
+
+    subgraph "Observer Notification"
+        UpdCache --> CB["Invoke shaderChangedCallback_"]
+        CB --> Rend["Renderer Pipeline Invalidation"]
+        CB --> UI["OSD Notification Update"]
+    end
 ```
 
-## Uniform Buffer Management
+---
 
-### CPU to GPU Data Flow
+## 7. Uniform Buffer Data Flow
+
+Double-buffered CPU-to-GPU data synchronization ensuring zero frame tearing:
 
 ```mermaid
 flowchart TD
-    A[Frame Start] --> B[Update Uniforms]
-    B --> C[CPU State]
-    C --> D[Uniform Buffer]
-    D --> E[GPU Upload]
-    E --> F[Shader Access]
+    A[Frame Start] --> B[UniformBuffer.update]
 
-    subgraph "Buffer Strategy"
-        G[Double Buffering] --> H[Frame N Buffer]
-        G --> I[Frame N+1 Buffer]
-        H --> E
-        I --> E
+    subgraph "CPU State Aggregation"
+        T[Time & DeltaTime] --> Agg[Aggregate Uniform Struct]
+        Res[Resolution & Aspect Ratio] --> Agg
+        M[Mouse & Interaction State] --> Agg
+        Acoustic[Audio Bands & FFT Spectrum] --> Agg
+        OSD[Dynamic Parameters: Speed, Intensity] --> Agg
     end
 
-    subgraph "Uniform Types"
-        J[Time / Resolution] --> K[Global Uniforms]
-        L[Camera / View] --> K
-        M[Mouse / Input] --> K
-        N[Audio Data] --> K
-        O[Custom Params] --> K
+    Agg --> C["Copy to Active Ring Buffer Slot\n(Frame N % 2)"]
+
+    subgraph "GPU Memory Strategy"
+        C --> B0["Buffer Slot 0 (MTLStorageModeShared / GL UBO)"]
+        C --> B1["Buffer Slot 1 (MTLStorageModeShared / GL UBO)"]
     end
 
-    K --> D
+    B0 -.->|Frame Even| GPU[Shader Stage Access: buffer 0]
+    B1 -.->|Frame Odd| GPU
 ```
 
-## Platform Abstraction Layer
+---
 
-### Cross-Platform Architecture
+## 8. Test Framework & Regression Architecture
+
+Comprehensive test suite integrating unit validation, coverage expansion, and compilation regression checks:
 
 ```mermaid
 flowchart TD
-    A[Application Layer] --> B[Platform Abstraction]
-    B --> C[macOS Metal Backend]
-    B --> D[Linux OpenGL Backend]
-    B --> E[Linux Wayland Backend]
-
-    subgraph "Shared Core"
-        F[Math Utilities]
-        G[Shader Manager]
-        H[Performance Monitor]
-        I[Configuration]
+    subgraph "Test Suite Runner (shadercandy-test)"
+        Main[tests/main.cpp] --> Reg[Test Registry]
+        Reg --> S1["Math & SIMD Tests\n(AVX2 / NEON / Scalar)"]
+        Reg --> S2["Logic & Uniform Tests\n(Alignment, Presets, Math)"]
+        Reg --> S3["Shader Compilation Tests\n(52+ Fragment Shaders)"]
+        Reg --> S4["Renderer Feature Tests\n(Resolution, Thermal, MultiDisplay)"]
+        Reg --> S5["Coverage Expansion Tests\n(Core Modules 99% Coverage)"]
+        Reg --> S6["Shader Regression Detector\n(Compile-Time Benchmark Threshold: 20%)"]
     end
 
-    C --> F
-    C --> G
-    C --> H
-    C --> I
-
-    D --> F
-    D --> G
-    D --> H
-    D --> I
-
-    E --> F
-    E --> G
-    E --> H
-    E --> I
-
-    subgraph "Platform-Specific"
-        J[ScreenSaverView] --> C
-        K[Standalone App] --> C
-        L[X11 Screensaver] --> D
-        M[Wayland Screensaver] --> E
-    end
+    S1 & S2 & S3 & S4 & S5 & S6 --> Runner[TestSuite.run]
+    Runner --> Results["std::vector<TestResult>"]
+    Results --> Format["Console Summary & Exit Code Report"]
 ```
 
-## Performance Monitoring System
+---
 
-### Frame Timing and Metrics
-
-```mermaid
-flowchart TD
-    A[Frame Start] --> B["PerformanceMonitor.beginFrame"]
-    B --> C[Render Pass]
-    C --> D["PerformanceMonitor.endFrame"]
-    D --> E[Calculate Metrics]
-    E --> F[Update History]
-    F --> G[Generate Reports]
-
-    subgraph "Metrics Collected"
-        H[Frame Time] --> I[Average FPS]
-        J[GPU Time] --> K[P99 Frame Time]
-        L[CPU Time] --> M[Dropped Frames]
-    end
-
-    subgraph "Reporting"
-        N[Real-time Display] --> O[Debug Overlay]
-        P[Logging] --> Q[Performance Log]
-        R[Regression Detection] --> S[Alert System]
-    end
-
-    E --> H
-    E --> J
-    E --> L
-    F --> N
-    F --> P
-    F --> R
-```
-
-## File Structure Overview
-
-### Directory Layout
+## 9. Project Directory Layout
 
 ```mermaid
 graph TD
-    A[ShaderCandy] --> B[src]
-    A --> C[shaders]
-    A --> D[tests]
-    A --> E[docs]
-    A --> F[install]
+    Root[ShaderCandy Repository] --> Shaders[shaders/]
+    Root --> Src[src/]
+    Root --> Tests[tests/]
+    Root --> Docs[docs/]
+    Root --> Install[install/]
 
-    B --> G[core]
-    B --> H[metal]
-    B --> I[gl]
-    B --> J[platform]
-    B --> K[audio]
-    B --> L[neural]
-    B --> M[config]
+    Shaders --> SBase["base/ (common.metal, common.glsl, utils)"]
+    Shaders --> SEffects["effects/ (raymarching, fractals, visual effects)"]
+    Shaders --> SMusic["music/ (audio-reactive genre shaders)"]
 
-    C --> N[base]
-    C --> O[effects]
+    Src --> Core["core/ (ShaderManager, MultiDisplay, Uniforms, Performance)"]
+    Src --> Metal["metal/ (MetalRenderer, PipelineCache, HeapManager)"]
+    Src --> GL["gl/ (GLRenderer, GLShaderCompiler)"]
+    Src --> Platform["platform/ (macos, linux x11/wayland)"]
+    Src --> Audio["audio/ (AudioInput, AcousticSimulator)"]
+    Src --> Neural["neural/ (NeuralStyleEngine, StyleModel)"]
+    Src --> Config["config/ (ConfigurationManager, Presets)"]
 
-    subgraph "Core Libraries"
-        G --> P[MathUtils]
-        G --> Q[ShaderManager]
-        G --> R[PerformanceMonitor]
-        G --> S[UniformBuffer]
-    end
-
-    subgraph "Platform Backends"
-        H --> T[MetalRenderer]
-        I --> U[GLRenderer]
-    end
+    Docs --> D1["nextsteps.md (Active Roadmap)"]
+    Docs --> D2["ShaderCandyMasterPlan.md (Architecture Master)"]
+    Docs --> D3["ArchitectureDiagrams.md (This Document)"]
+    Docs --> D4["ApplicationModesGuide.md (User Guide)"]
+    Docs --> D5["ShaderAuthoringGuide.md (Developer Guide)"]
+    Docs --> D6["LinuxFeatures.md (Linux Platform)"]
+    Docs --> D7["HdrImplementation.md (HDR Specification)"]
+    Docs --> D8["NeuralEffectsGuide.md (CoreML System)"]
+    Docs --> D9["shaders.md (110+ Shader Catalog)"]
 ```
-
-## Key Design Patterns
-
-### Observer Pattern for Hot Reload
-
-```mermaid
-flowchart TD
-    A[File Watcher] --> B[Subject]
-    B --> C["Shader Manager (Observer)"]
-    B --> D["Renderer (Observer)"]
-    B --> E["UI (Observer)"]
-
-    C --> F[Recompile Shaders]
-    D --> G[Update Pipeline]
-    E --> H[Show Status]
-```
-
-### Strategy Pattern for Tone Mapping
-
-```mermaid
-flowchart TD
-    A[Tone Mapping Controller] --> B{Strategy Selection}
-    B --> C[ACES Filmic]
-    B --> D[Reinhard]
-    B --> E[Reinhard-Jodie]
-    B --> F[Hable]
-
-    C --> G[Apply Tone Mapping]
-    D --> G
-    E --> G
-    F --> G
-
-    G --> H[Final Color]
-```
-
-## Notes
-
-- All diagrams use Mermaid syntax for rendering
-- Diagrams can be rendered using Mermaid live editor or any Mermaid-compatible tool
-- Update these diagrams when architecture changes significantly
