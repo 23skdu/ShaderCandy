@@ -126,13 +126,30 @@ def generate_thumbnail(shader_name):
         return False
     
     try:
+        from PIL import Image
+        im = Image.open(screenshot)
+        thumb = im.resize((300, 168), Image.Resampling.LANCZOS)
+        thumb.save(thumbnail, format="PNG", optimize=True)
+        return True
+    except Exception:
+        pass
+
+    try:
         subprocess.run([
             "sips", "-Z", "300",
             str(screenshot),
             "--out", str(thumbnail)
         ], capture_output=True, check=True)
         return True
-    except:
+    except Exception:
+        pass
+
+    try:
+        subprocess.run([
+            "convert", str(screenshot), "-resize", "300x168", str(thumbnail)
+        ], capture_output=True, check=True)
+        return True
+    except Exception:
         return False
 
 def main():

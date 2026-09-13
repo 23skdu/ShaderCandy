@@ -27,7 +27,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         vec2 ribbonPos = vec2(sin(t * 0.5 + offset) * 0.4, fi * 0.25 - 0.5);
         float ribbon = max(abs(ribbonP.x - ribbonPos.x) - ribbonWidth, 
                           abs(ribbonP.y - ribbonPos.y) - ribbonHeight);
-        ribbon = smoothstep(0.03, 0.0, -ribbon);
+        ribbon = smoothstep(0.03, 0.0, ribbon);
         
         vec3 ribbonCol1 = mix(vec3(0.95, 0.85, 0.5), vec3(0.9, 0.75, 0.3), sin(t + fi) * 0.5 + 0.5);
         vec3 ribbonCol2 = mix(vec3(1.0, 0.98, 0.9), vec3(0.95, 0.9, 0.8), uv.y);
@@ -53,7 +53,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         stemP /= noteScale;
         float stem = max(abs(stemP.x) - 0.02, abs(stemP.y) - 0.25);
         
-        float note = min(smoothstep(0.02, 0.0, -noteHead), smoothstep(0.02, 0.0, -stem));
+        float note = max(smoothstep(0.02, 0.0, noteHead), smoothstep(0.02, 0.0, stem));
         
         // Flag for eighth notes
         float noteType = fract(fi * 0.618);
