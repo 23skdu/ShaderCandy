@@ -118,3 +118,4 @@ Detailed engineering objectives are maintained in **[nextsteps.md](./nextsteps.m
 | **[NeuralEffectsGuide.md](./NeuralEffectsGuide.md)** | CoreML style transfer engine, built-in styles, and ANE integration |
 | **[shaders.md](./shaders.md)** | Complete catalog of 110+ procedural shaders with features and categories |
 | **[release_notes_0_1_0.md](./release_notes_0_1_0.md)** | Release notes for v0.1.0 |
+| **[release_notes_0_2_0.md](./release_notes_0_2_0.md)** | Release notes for v0.2.0 |
