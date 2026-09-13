@@ -1,6 +1,6 @@
 #version 450 core
 
-#include "../base/common.glsl"
+#include "base/common.glsl"
 
 // CapMan - Pacman-inspired shader
 
@@ -13,9 +13,7 @@ uniform float lives;
 uniform float level;
 
 // Utility functions
-float random(vec2 st) {
-    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.453);
-}
+
 
 vec2 pacman(vec2 uv, float t) {
     // Pacman mouth animation

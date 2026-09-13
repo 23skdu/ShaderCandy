@@ -119,12 +119,10 @@ private:
     return {__func__, true, "Shader syntax validation passed", 0.0};
   }
 
-  // Discover and validate all .frag shaders in shaders/effects/
+  // Discover and validate all .frag shaders recursively
   TestResult testAllFragmentShaders() {
     std::vector<std::string> searchPaths = {
-        "shaders/effects",
         "shaders",
-        "../shaders/effects",
         "../shaders"
     };
 
@@ -132,7 +130,7 @@ private:
     for (const auto &path : searchPaths) {
       if (!std::filesystem::exists(path)) continue;
 
-      for (const auto &entry : std::filesystem::directory_iterator(path)) {
+      for (const auto &entry : std::filesystem::recursive_directory_iterator(path)) {
         if (entry.path().extension() == ".frag") {
           fragFiles.push_back(entry.path().string());
         }

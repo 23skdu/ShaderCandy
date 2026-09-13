@@ -2,11 +2,7 @@
 
 // cosmic_kaleido - 3D kaleidoscopic spherical projection
 
-vec3 hsv2rgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
+// hsv2rgb provided by common.glsl
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
@@ -38,8 +34,8 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         kuv = vec2(kuv.x * c - kuv.y * s, kuv.x * s + kuv.y * c);
         
         float d = length(kuv);
-        vec3 c = hsv2rgb(vec3(fract(d + t * 0.1 + fi * 0.2), 0.7, 1.0));
-        color += c * (0.01 / (abs(d - 0.2) + 0.02));
+        vec3 col = hsv2rgb(vec3(fract(d + t * 0.1 + fi * 0.2), 0.7, 1.0));
+        color += col * (0.01 / (abs(d - 0.2) + 0.02));
     }
     
     // Vignette

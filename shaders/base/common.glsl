@@ -16,6 +16,15 @@ layout(std140) uniform Uniforms {
     float deltaTime;
     float alpha;         // Cross-fade factor
     float gravity;
+    float volume;
+    float bass;
+    float mid;
+    float treble;
+    float beat;
+    float audioData[256];
+    float gpuTime;
+    float cpuTime;
+    float fps;
 };
 
 layout(std140) uniform ShaderParams {
@@ -37,9 +46,13 @@ uniform sampler2D prevFrame;
 // Utility functions
 #define PI 3.14159265359
 #define TWO_PI 6.28318530718
+#define atan2(y, x) atan(y, x)
 
 // Hash functions
 float hash(float n) { return fract(sin(n) * 43758.5453123); }
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123); }
+float random(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123); }
+float random(float n) { return fract(sin(n) * 43758.5453123); }
 
 vec2 hash2(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -143,8 +156,7 @@ float fbm(vec3 x, int octaves) {
         v += a * snoise(x);
         x = x * 2.0 + shift;
         a *= 0.5;
-}
-#endif // COMMON_GLSL
+    }
     return v;
 }
 
@@ -221,3 +233,5 @@ void main() {
     
     fragColor = effect_main(centered, uv);
 }
+
+#endif // COMMON_GLSL

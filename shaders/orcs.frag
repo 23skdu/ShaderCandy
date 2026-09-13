@@ -93,8 +93,6 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         float shoulder = length(shoulderLP) - 0.1;
         shoulder = max(shoulder, length(shoulderRP) - 0.1);
         shoulder = smoothstep(0.02, 0.0, -shoulder);
-        float shoulder = length(shoulderP) - 0.1;
-        shoulder = smoothstep(0.02, 0.0, -shoulder);
         
         // Battle axe
         vec2 axeP = orcP - vec2(0.32, -0.15);
