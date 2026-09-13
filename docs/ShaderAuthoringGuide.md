@@ -1,492 +1,411 @@
-# Shader Authoring Guide
+# Shader Authoring & Translation Guide
 
-This guide explains how to create new shaders for ShaderCandy, covering both Metal (macOS) and GLSL (Linux) implementations.
+This comprehensive guide covers how to author new shaders for ShaderCandy and translate shaders between Apple Metal (macOS) and GLSL (Linux/OpenGL).
+
+---
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Shader Types](#shader-types)
+1. [Overview & Architecture](#overview--architecture)
+2. [Shader Compilation Lifecycle](#shader-compilation-lifecycle)
 3. [Creating Your First Shader](#creating-your-first-shader)
-4. [Shared Utilities](#shared-utilities)
-5. [Best Practices](#best-practices)
-6. [Platform-Specific Considerations](#platform-specific-considerations)
-7. [Testing and Debugging](#testing-and-debugging)
-8. [Examples](#examples)
+4. [Metal vs. GLSL Translation Standards](#metal-vs-glsl-translation-standards)
+   - [Type Mappings](#type-mappings)
+   - [Function Signatures & Entry Points](#function-signatures--entry-points)
+   - [Uniform Access Patterns](#uniform-access-patterns)
+   - [Built-In Functions & Differences](#built-in-functions--differences)
+   - [Coordinate Systems & Aspect Ratio](#coordinate-systems--aspect-ratio)
+   - [Texture Sampling](#texture-sampling)
+5. [Shared Utility Library](#shared-utility-library)
+   - [Noise Functions (Value, Simplex, FBM)](#noise-functions)
+   - [Signed Distance Functions (SDFs)](#signed-distance-functions-sdfs)
+   - [Math & Raymarching Helpers](#math--raymarching-helpers)
+6. [Best Practices for High Performance](#best-practices-for-high-performance)
+7. [Step-by-Step Porting Checklist](#step-by-step-porting-checklist)
+8. [Complete Translation Example](#complete-translation-example)
+9. [Validation, Testing & Hot Reloading](#validation-testing--hot-reloading)
 
-## Overview
+---
 
-ShaderCandy supports two shader languages:
-- **Metal** (macOS): `.metal` files compiled at runtime or build time
-- **GLSL** (Linux): `.frag` fragment shaders compiled at runtime
+## Overview & Architecture
 
-All shaders follow a consistent structure and use shared utility functions for noise, SDFs, and math operations.
+ShaderCandy supports two native shading languages:
+- **Metal Shading Language (MSL)** (`.metal`): Native to macOS, compiled at runtime or ahead-of-time via `metal` and cached with `MTLBinaryArchive`. Metal shaders serve as the **source of truth** for effect design.
+- **OpenGL Shading Language (GLSL)** (`.frag` / `.glsl`): Standard `#version 330 core` or `#version 450` fragment shaders for Linux X11 and Wayland sessions.
 
-## Shader Types
+Both backends share identical uniform layouts, noise algorithms, raymarching solvers, and mathematical constants to guarantee visual parity across platforms.
 
-### 1. Fragment Shaders (Most Common)
-- Full-screen post-processing effects
-- Raymarching scenes
-- Procedural generation
+---
 
-### 2. Compute Shaders (Advanced)
-- Particle systems
-- Simulation passes
-- Image processing
+## Shader Compilation Lifecycle
 
-### 3. Vertex Shaders (Rare)
-- Custom geometry rendering
-- (Usually use default fullscreen quad)
+```mermaid
+flowchart TD
+    subgraph "Authoring Stage"
+        Dev[Shader Author] --> MFile["shaders/effects/my_effect.metal\n(Metal Source of Truth)"]
+        Dev --> GFile["shaders/effects/my_effect.frag\n(Translated GLSL)"]
+    end
+
+    subgraph "Compilation & Include Resolution"
+        MFile --> MInc["Include base/common.metal\n(SDFs, Noise, UniformStruct)"]
+        GFile --> GInc["Include base/common.glsl\n(Uniforms, Noise, effect_main hook)"]
+
+        MInc --> MComp[Metal Runtime / Offline Compiler]
+        GInc --> GComp[OpenGL / GLSL Compiler]
+    end
+
+    subgraph "Pipeline State Caching"
+        MComp -->|Success| MPipe["MTLRenderPipelineState\n(Cached to Disk via MetalPipelineCache)"]
+        GComp -->|Success| GPipe["GL Program Object\n(Cached in GLProgramCache)"]
+
+        MComp -->|Error| MFallback["Rollback to Previous Shader State"]
+        GComp -->|Error| GFallback["Rollback to Previous Shader State"]
+    end
+
+    subgraph "Execution & Hot Reloading"
+        MPipe --> MRun[Render Frame on Metal]
+        GPipe --> GRun[Render Frame on OpenGL]
+
+        Watch[UnifiedShaderManager File Watcher] -.->|File Modified| MComp
+        Watch -.->|File Modified| GComp
+    end
+```
+
+---
 
 ## Creating Your First Shader
 
-### Step 1: Choose Your Platform
+Shaders reside in the `shaders/` directory:
+- `shaders/effects/` for general visual effects, fractals, and raymarched scenes.
+- `shaders/music/` for audio-reactive shaders synchronized to frequency bands.
 
-Create files in `shaders/effects/`:
-- `my_shader.metal` (Metal)
-- `my_shader.frag` (GLSL)
-
-### Step 2: Basic Metal Shader Structure
+### 1. Basic Metal Shader (`.metal`)
 
 ```metal
-// my_shader.metal
-#include "base/common.metal"
+// shaders/effects/my_effect.metal
+#include "../base/common.metal"
 
-// Uniform buffer (auto-injected by ShaderManager)
-// struct Uniforms {
-//     float time;
-//     float2 resolution;
-//     float2 mouse;
-//     float4 date;
-//     int frame;
-//     float deltaTime;
-// };
-
-fragment float4 my_shader_main(
+fragment float4 fragment_main(
     VertexOut in [[stage_in]],
     constant Uniforms &uniforms [[buffer(0)]]
 ) {
-    // Normalized pixel coordinates (from 0 to 1)
-    float2 uv = in.texCoord;
-    
-    // Time variable
-    float time = uniforms.time;
-    
-    // Your shader logic here
-    float3 color = float3(uv.x, uv.y, 0.5 + 0.5 * sin(time));
-    
-    return float4(color, 1.0);
+    // Aspect-corrected NDC coordinates (-1 to 1)
+    float2 uv = in.texCoord * 2.0 - 1.0;
+    uv.x *= uniforms.resolution.x / uniforms.resolution.y;
+
+    float t = uniforms.time * uniforms.speed;
+    float3 color = float3(0.5 + 0.5 * sin(uv.x * 5.0 + t),
+                          0.5 + 0.5 * sin(uv.y * 5.0 + t * 1.2),
+                          0.5 + 0.5 * cos(t));
+
+    return float4(color * uniforms.intensity, uniforms.alpha);
 }
 ```
 
-### Step 3: Basic GLSL Shader Structure
+### 2. Basic GLSL Shader (`.frag`)
 
 ```glsl
-// my_shader.frag
-#version 330 core
+// shaders/effects/my_effect.frag
+#include "../base/common.glsl"
 
-uniform float time;
-uniform vec2 resolution;
-uniform vec2 mouse;
-uniform vec4 date;
-uniform int frame;
-uniform float deltaTime;
+vec4 effect_main(vec2 centered, vec2 uv) {
+    // centered is already aspect-corrected (-1 to 1)
+    float t = time * speed;
+    vec3 color = vec3(0.5 + 0.5 * sin(centered.x * 5.0 + t),
+                      0.5 + 0.5 * sin(centered.y * 5.0 + t * 1.2),
+                      0.5 + 0.5 * cos(t));
 
-in vec2 texCoord;
-out vec4 fragColor;
-
-void main() {
-    // Normalized pixel coordinates (from 0 to 1)
-    vec2 uv = texCoord;
-    
-    // Time variable
-    float t = time;
-    
-    // Your shader logic here
-    vec3 color = vec3(uv.x, uv.y, 0.5 + 0.5 * sin(t));
-    
-    fragColor = vec4(color, 1.0);
+    return vec4(color * intensity, alpha);
 }
 ```
 
-## Shared Utilities
+---
+
+## Metal vs. GLSL Translation Standards
+
+### Type Mappings
+
+| Concept | Metal Type | GLSL Type | Notes |
+| :--- | :--- | :--- | :--- |
+| **Scalars** | `float`, `int`, `uint`, `bool` | `float`, `int`, `uint`, `bool` | Direct mapping |
+| **Half Precision** | `half`, `half2`, `half3`, `half4` | `float`, `vec2`, `vec3`, `vec4` | Upcast to standard float in GLSL |
+| **2D Vectors** | `float2`, `int2`, `uint2`, `bool2` | `vec2`, `ivec2`, `uvec2`, `bvec2` | Standard vector representations |
+| **3D Vectors** | `float3`, `int3`, `uint3`, `bool3` | `vec3`, `ivec3`, `uvec3`, `bvec3` | Standard vector representations |
+| **4D Vectors** | `float4`, `int4`, `uint4`, `bool4` | `vec4`, `ivec4`, `uvec4`, `bvec4` | Standard vector representations |
+| **Matrices** | `float2x2`, `float3x3`, `float4x4` | `mat2`, `mat3`, `mat4` | Column-major indexing in both |
+| **2D Texture** | `texture2d<float>` | `sampler2D` | Handled via uniform bindings |
+| **Sampler** | `sampler` | N/A | Combined in GLSL `sampler2D` |
+
+---
+
+### Function Signatures & Entry Points
+
+#### Metal Entry Point
+In Metal, the fragment shader receives the interpolated rasterizer outputs and uniform buffers via attributes:
+```metal
+fragment float4 fragment_main(
+    VertexOut in [[stage_in]],
+    constant Uniforms &uniforms [[buffer(0)]],
+    constant AudioData &audio [[buffer(1)]] // optional
+)
+```
+
+#### GLSL Entry Point
+In GLSL, `common.glsl` provides the boilerplate `main()` function which sets up coordinate spaces and passes control to `effect_main`:
+```glsl
+#include "../base/common.glsl"
+
+vec4 effect_main(vec2 centered, vec2 uv) {
+    // Return final RGBA color
+    return vec4(color, 1.0);
+}
+```
+
+---
+
+### Uniform Access Patterns
+
+In Metal, uniforms are accessed through the `uniforms.` struct member. In GLSL, uniforms are declared as global variables in `common.glsl` and accessed directly without any prefix:
+
+| Uniform Variable | Metal Access | GLSL Access | Description |
+| :--- | :--- | :--- | :--- |
+| **Time** | `uniforms.time` | `time` | Elapsed seconds |
+| **Resolution** | `uniforms.resolution` | `resolution` | Viewport dimensions in pixels (`vec2`) |
+| **Delta Time** | `uniforms.deltaTime` | `deltaTime` | Frame interval in seconds |
+| **Frame Counter**| `uniforms.frame` | `frame` | Total frames rendered |
+| **Mouse State** | `uniforms.mouse` | `mouse` | XY position + button state |
+| **Speed Scale** | `uniforms.speed` | `speed` | User playback speed multiplier |
+| **Intensity** | `uniforms.intensity` | `intensity` | Effect brightness/amplitude |
+| **Alpha** | `uniforms.alpha` | `alpha` | Surface opacity |
+| **Audio Bass** | `uniforms.bass` / `audio.bassLevel` | `bass` | Low-frequency energy (0.0 - 1.0) |
+| **Audio Mid** | `uniforms.mid` / `audio.midLevel` | `mid` | Mid-frequency energy (0.0 - 1.0) |
+| **Audio Treble**| `uniforms.treble` / `audio.trebleLevel` | `treble` | High-frequency energy (0.0 - 1.0) |
+| **Audio Beat** | `uniforms.beat` | `beat` | Beat pulse trigger (1.0 on beat) |
+
+---
+
+### Built-In Functions & Differences
+
+Most math functions (`sin`, `cos`, `tan`, `pow`, `exp`, `log`, `sqrt`, `abs`, `min`, `max`, `clamp`, `mix`, `step`, `smoothstep`, `length`, `normalize`, `dot`, `cross`, `reflect`) are identical. The table below lists functions requiring translation:
+
+| Operation | Metal (MSL) | GLSL | Notes |
+| :--- | :--- | :--- | :--- |
+| **Saturate** | `saturate(x)` | `clamp(x, 0.0, 1.0)` | Clamps value between 0.0 and 1.0 |
+| **Reciprocal Sqrt**| `rsqrt(x)` | `inversesqrt(x)` | $1 / \sqrt{x}$ |
+| **Floating Modulo**| `fmod(x, y)` | `mod(x, y)` | Note sign difference on negative values |
+| **Conditional Select**| `select(a, b, condition)` | `condition ? b : a` | Component-wise conditional selection |
+| **Fractal Part** | `fract(x)` | `fract(x)` | Identical behavior |
+| **Matrix Mult** | `m * v` | `m * v` | Both use column vectors |
+
+---
+
+### Coordinate Systems & Aspect Ratio
+
+To ensure identical framing and avoid aspect-ratio distortion:
+
+#### Metal UV Setup
+```metal
+// Convert [0, 1] texture coordinates to [-1, 1] centered coordinates
+float2 centered = in.texCoord * 2.0 - 1.0;
+// Correct for non-square aspect ratio
+centered.x *= uniforms.resolution.x / uniforms.resolution.y;
+```
+
+#### GLSL UV Setup
+In GLSL, `centered` is pre-computed by `common.glsl` and passed directly into `effect_main`:
+- `centered`: Aspect-corrected Normalized Device Coordinates ($[-aspect, aspect] \times [-1, 1]$). Ideal for raymarching and geometric effects.
+- `uv`: Standard $[0, 1]$ texture coordinates. Ideal for 2D post-processing and texturing.
+
+---
+
+### Texture Sampling
+
+#### Metal
+```metal
+texture2d<float> sourceTexture [[texture(0)]];
+constexpr sampler linearSampler(coord::normalized, filter::linear, address::repeat);
+
+float4 sample = sourceTexture.sample(linearSampler, uv);
+```
+
+#### GLSL
+```glsl
+uniform sampler2D sourceTexture;
+
+vec4 sample = texture(sourceTexture, uv);
+```
+
+---
+
+## Shared Utility Library
+
+Both `shaders/base/common.metal` and `shaders/base/common.glsl` provide battle-tested procedural algorithms.
 
 ### Noise Functions
 
-ShaderCandy provides comprehensive noise functions in `shaders/base/common.metal` and `shaders/base/common.glsl`:
-
 ```metal
 // 2D Value Noise
-float noise2d = ShaderUtils::noise(uv * 5.0);
+float n = ShaderUtils::noise(float2(x, y));
 
 // 3D Simplex Noise
-float noise3d = ShaderUtils::snoise(vec3(uv * 5.0, time * 0.5));
+float s = ShaderUtils::snoise(float3(x, y, z));
 
-// Fractal Brownian Motion (FBM)
-float fbm(vec2 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    for (int i = 0; i < 6; i++) {
-        value += amplitude * ShaderUtils::noise(p);
-        p *= 2.0;
-        amplitude *= 0.5;
-    }
-    return value;
-}
+// 6-Octave Fractal Brownian Motion (FBM)
+float f = ShaderUtils::fbm(float2(x, y));
+```
+
+GLSL equivalent:
+```glsl
+float n = noise(vec2(x, y));
+float s = snoise(vec3(x, y, z));
+float f = fbm(vec2(x, y));
 ```
 
 ### Signed Distance Functions (SDFs)
 
-For raymarching shaders, use the SDF primitives:
-
 ```metal
-// Basic primitives
-float sphereSDF(vec3 p, float radius) {
-    return length(p) - radius;
-}
+// Primitives
+float sphereSDF(float3 p, float radius);
+float boxSDF(float3 p, float3 bounds);
+float torusSDF(float3 p, float2 radius);
+float cylinderSDF(float3 p, float height, float radius);
 
-float boxSDF(vec3 p, vec3 b) {
-    vec3 q = abs(p) - b;
-    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
-
-float torusSDF(vec3 p, vec2 t) {
-    vec2 q = vec2(length(p.xz) - t.x, p.y);
-    return length(q) - t.y;
-}
-
-// Boolean operations
-float unionSDF(float d1, float d2) {
-    return min(d1, d2);
-}
-
-float intersectionSDF(float d1, float d2) {
-    return max(d1, d2);
-}
-
-float subtractionSDF(float d1, float d2) {
-    return max(-d1, d2);
+// Boolean Combinations
+float opUnion(float d1, float d2)        { return min(d1, d2); }
+float opIntersection(float d1, float d2) { return max(d1, d2); }
+float opSubtraction(float d1, float d2)  { return max(-d1, d2); }
+float opSmoothUnion(float d1, float d2, float k) {
+    float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+    return mix(d2, d1, h) - k * h * (1.0 - h);
 }
 ```
 
-### Math Utilities
+### Math & Raymarching Helpers
 
 ```metal
-// Rotation matrices
-mat2 rotate2d(float angle) {
-    float s = sin(angle);
-    float c = cos(angle);
-    return mat2(c, -s, s, c);
-}
+// Construct camera ray direction with target look-at
+float3 getRayDirection(float2 uv, float3 eye, float3 target, float fov);
 
-mat3 rotate3d(vec3 axis, float angle) {
-    // Implementation based on axis-angle rotation
-    // See ShaderUtils in common.metal for full implementation
-}
+// 2D and 3D Rotation matrices
+float2x2 rotate2D(float angle);
+float3x3 rotateX(float angle);
+float3x3 rotateY(float angle);
+float3x3 rotateZ(float angle);
 
-// Color utilities
-vec3 rgb2hsv(vec3 c) {
-    // RGB to HSV conversion
-}
-
-vec3 hsv2rgb(vec3 c) {
-    // HSV to RGB conversion
-}
-```
-
-## Best Practices
-
-### 1. Performance Optimization
-
-**Use branchless programming when possible:**
-```metal
-// Bad: Branching in shader
-if (condition) {
-    color = vec3(1.0, 0.0, 0.0);
-} else {
-    color = vec3(0.0, 0.0, 1.0);
-}
-
-// Good: Use mix() function
-color = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), float(condition));
-```
-
-**Minimize texture lookups:**
-```metal
-// Cache repeated calculations
-float2 uv = in.texCoord;
-float2 scaledUV = uv * 5.0;  // Calculate once
-float n1 = ShaderUtils::noise(scaledUV);
-float n2 = ShaderUtils::noise(scaledUV * 2.0);  // Reuse scaledUV
-```
-
-### 2. Code Organization
-
-**Use functions for reusable logic:**
-```metal
-float3 palette(float t) {
-    // Cosine-based color palette
-    vec3 a = vec3(0.5, 0.5, 0.5);
-    vec3 b = vec3(0.5, 0.5, 0.5);
-    vec3 c = vec3(1.0, 1.0, 1.0);
-    vec3 d = vec3(0.263, 0.416, 0.557);
+// Palette generator (Inigo Quilez formula)
+float3 palette(float t, float3 a, float3 b, float3 c, float3 d) {
     return a + b * cos(6.28318 * (c * t + d));
 }
 ```
 
-**Document complex algorithms:**
+---
+
+## Best Practices for High Performance
+
+1. **Avoid Dynamic Branching**: Divergent branches inside pixel loops kill GPU SIMD occupancy. Replace `if-else` statements with `mix()`, `step()`, or `clamp()`.
+2. **Limit Raymarch Iterations**: Keep raymarch step counts bounded (typically 64–128 steps max). Terminate early if `t > maxDist` or `d < epsilon`.
+3. **Precompute Constant Invariants**: Compute trigonometric constants and inverse projections outside loops.
+4. **Use Vector Operations**: Replace scalar arithmetic with vector operations (`simd_float3`, `vec3`) to maximize ALU utilization.
+5. **Respect Aspect Ratio**: Always multiply horizontal coordinates by aspect ratio ($width / height$) to prevent oval distortion on ultra-wide screens.
+
+---
+
+## Step-by-Step Porting Checklist
+
+When translating a Metal shader (`.metal`) to GLSL (`.frag`):
+
+1. **Create Target File**: Create `shaders/effects/<name>.frag`.
+2. **Add Header**: Place `#include "../base/common.glsl"` on line 1.
+3. **Change Function Signature**: Replace `fragment float4 fragment_main(...)` with `vec4 effect_main(vec2 centered, vec2 uv)`.
+4. **Remove Metal Attributes**: Delete all `[[stage_in]]`, `[[buffer(0)]]`, and `[[position]]` declarations.
+5. **Convert Types**: Convert `float2/3/4` to `vec2/3/4`, and `float2x2/3x3/4x4` to `mat2/3/4`.
+6. **Strip Uniform Prefix**: Change all occurrences of `uniforms.<var>` to `<var>` (e.g. `uniforms.time` $\rightarrow$ `time`).
+7. **Replace Coordinates**: Use `centered` for aspect-corrected NDC, and `uv` for 0–1 texture coordinates.
+8. **Fix Math Functions**: Replace `saturate(x)` with `clamp(x, 0.0, 1.0)`, and `rsqrt(x)` with `inversesqrt(x)`.
+9. **Validate Syntax**: Validate with `glslangValidator -S frag <name>.frag`.
+10. **Test in Player**: Launch `./shadercandy-player -shader <name>` to visually verify parity.
+
+---
+
+## Complete Translation Example
+
+### Original Metal (`shaders/effects/plasma.metal`)
+
 ```metal
-/**
- * Raymarches a scene starting from ray origin
- * @param ro - Ray origin
- * @param rd - Ray direction
- * @param maxSteps - Maximum number of marching steps
- * @param maxDist - Maximum marching distance
- * @return Distance to nearest surface or maxDist if no hit
- */
-float raymarch(vec3 ro, vec3 rd, int maxSteps, float maxDist) {
-    float t = 0.0;
-    for (int i = 0; i < maxSteps; i++) {
-        float d = sceneSDF(ro + rd * t);
-        if (d < 0.001 || t > maxDist) break;
-        t += d;
-    }
-    return t;
-}
-```
+#include "../base/common.metal"
 
-### 3. Time Management
-
-**Use deltaTime for frame-rate independent animations:**
-```metal
-// Bad: Frame-dependent animation
-float x = sin(uniforms.time * 2.0);
-
-// Good: Frame-rate independent (using deltaTime if available)
-float x = sin(uniforms.time * 2.0);
-// Or for physics-based animations:
-float velocity = 100.0; // pixels per second
-position += velocity * uniforms.deltaTime;
-```
-
-### 4. Mouse Interaction
-
-**Normalize mouse coordinates:**
-```metal
-// Mouse position in normalized coordinates (0-1)
-float2 mouseUV = uniforms.mouse / uniforms.resolution;
-
-// Mouse position in centered coordinates (-1 to 1)
-float2 mouseCentered = (uniforms.mouse / uniforms.resolution) * 2.0 - 1.0;
-```
-
-## Platform-Specific Considerations
-
-### Metal (macOS)
-
-**Data types:**
-- `float2`, `float3`, `float4` (vector types)
-- `half` for memory-constrained scenarios
-- `texture2d` for texture sampling
-
-**Sampler states:**
-```metal
-// Default sampler
-constexpr sampler s(coord::normalized, address::repeat, filter::linear);
-
-// Usage
-float4 color = texture.sample(s, uv);
-```
-
-**Vertex output structure:**
-```metal
-struct VertexOut {
-    float4 position [[position]];
-    float2 texCoord;
-    float2 screenPos;
-};
-```
-
-### GLSL (Linux)
-
-**Version requirements:**
-- Minimum: `#version 330 core`
-- Recommended: `#version 450` for modern features
-
-**Data types:**
-- `vec2`, `vec3`, `vec4`
-- `mat2`, `mat3`, `mat4`
-- `sampler2D` for texture sampling
-
-**Texture sampling:**
-```glsl
-uniform sampler2D tex;
-vec4 color = texture(tex, uv);
-```
-
-## Testing and Debugging
-
-### 1. Compile-Time Testing
-
-**Metal compilation:**
-```bash
-xcrun -sdk macosx metal -c shader.metal -o shader.air
-xcrun -sdk macosx metallib shader.air -o shader.metallib
-```
-
-**GLSL compilation:**
-```bash
-glslangValidator -S frag shader.frag
-```
-
-### 2. Runtime Testing
-
-**Use the test suite:**
-```bash
-./shadercandy-test --run "Shader Compilation Tests"
-```
-
-**Debug output:**
-```metal
-// Add debug colors to visualize different passes
-#ifdef DEBUG
-    return float4(debugColor, 1.0);
-#endif
-```
-
-### 3. Performance Profiling
-
-**Use the PerformanceMonitor:**
-```metal
-// Automatically tracked by the engine
-// Check FPS, frame times in real-time overlay
-```
-
-### 4. Common Issues
-
-**Issue: Shader compiles but shows black/white**
-- Check UV coordinates are in range [0,1]
-- Verify time variable is being updated
-- Check for division by zero
-
-**Issue: Performance is poor**
-- Reduce loop iterations
-- Use simpler noise functions
-- Minimize texture lookups
-- Use branchless programming
-
-**Issue: Different appearance on Metal vs GLSL**
-- Check data type precision differences
-- Verify coordinate systems match
-- Test with simple color output first
-
-## Examples
-
-### Example 1: Simple Gradient Shader
-
-**Metal:**
-```metal
-fragment float4 gradient_main(
-    VertexOut in [[stage_in]],
-    constant Uniforms &uniforms [[buffer(0)]]
-) {
-    float2 uv = in.texCoord;
-    float3 color = float3(uv.x, uv.y, 0.5 + 0.5 * sin(uniforms.time));
-    return float4(color, 1.0);
-}
-```
-
-**GLSL:**
-```glsl
-void main() {
-    vec2 uv = texCoord;
-    vec3 color = vec3(uv.x, uv.y, 0.5 + 0.5 * sin(time));
-    fragColor = vec4(color, 1.0);
-}
-```
-
-### Example 2: Raymarching Sphere
-
-**Metal:**
-```metal
-float sphereSDF(vec3 p, float radius) {
-    return length(p) - radius;
-}
-
-fragment float4 sphere_main(
-    VertexOut in [[stage_in]],
-    constant Uniforms &uniforms [[buffer(0)]]
-) {
-    float2 uv = (in.texCoord * 2.0 - 1.0);
+fragment float4 fragment_main(VertexOut in [[stage_in]],
+                             constant Uniforms &uniforms [[buffer(0)]]) {
+    float2 uv = in.texCoord * 2.0 - 1.0;
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
-    
-    vec3 ro = vec3(0.0, 0.0, -3.0);
-    vec3 rd = normalize(vec3(uv, 1.0));
-    
-    float t = 0.0;
-    for (int i = 0; i < 64; i++) {
-        vec3 p = ro + rd * t;
-        float d = sphereSDF(p, 1.0);
-        if (d < 0.001) break;
-        t += d;
-    }
-    
-    vec3 color = vec3(0.0);
-    if (t < 10.0) {
-        vec3 p = ro + rd * t;
-        vec3 normal = normalize(p);
-        float lighting = dot(normal, normalize(vec3(1.0, 1.0, 1.0)));
-        color = vec3(0.5 + 0.5 * lighting);
-    }
-    
-    return float4(color, 1.0);
+    float t = uniforms.time * uniforms.speed * 0.5;
+
+    float v = sin(uv.x * 10.0 + t);
+    v += sin(uv.y * 10.0 + t * 1.2);
+    v += sin((uv.x + uv.y) * 10.0 + t * 0.8);
+    v += sin(length(uv) * 10.0 + t * 1.5);
+    v *= 0.25;
+
+    float3 color = float3(
+        0.5 + 0.5 * sin(v * 3.14159 + t),
+        0.5 + 0.5 * sin(v * 3.14159 + t + 2.0),
+        0.5 + 0.5 * sin(v * 3.14159 + t + 4.0)
+    );
+
+    color *= uniforms.intensity;
+    return float4(color, uniforms.alpha);
 }
 ```
 
-### Example 3: Audio-Reactive Shader
+### Translated GLSL (`shaders/effects/plasma.frag`)
 
-**Metal:**
-```metal
-fragment float4 audio Reactive_main(
-    VertexOut in [[stage_in]],
-    constant Uniforms &uniforms [[buffer(0)]],
-    constant AudioData &audio [[buffer(1)]]
-) {
-    float2 uv = in.texCoord;
-    
-    // Get audio data (bass, mid, treble)
-    float bass = audio.bassLevel;
-    float mid = audio.midLevel;
-    float treble = audio.trebleLevel;
-    
-    // Create audio-reactive pattern
-    float wave = sin(uv.x * 10.0 + bass * 5.0) * 0.5 + 0.5;
-    float3 color = float3(wave * mid, uv.y * treble, bass);
-    
-    return float4(color, 1.0);
+```glsl
+#include "../base/common.glsl"
+
+vec4 effect_main(vec2 centered, vec2 uv) {
+    float t = time * speed * 0.5;
+
+    float v = sin(centered.x * 10.0 + t);
+    v += sin(centered.y * 10.0 + t * 1.2);
+    v += sin((centered.x + centered.y) * 10.0 + t * 0.8);
+    v += sin(length(centered) * 10.0 + t * 1.5);
+    v *= 0.25;
+
+    vec3 color = vec3(
+        0.5 + 0.5 * sin(v * 3.14159 + t),
+        0.5 + 0.5 * sin(v * 3.14159 + t + 2.0),
+        0.5 + 0.5 * sin(v * 3.14159 + t + 4.0)
+    );
+
+    color *= intensity;
+    return vec4(color, alpha);
 }
 ```
 
-## Adding Your Shader to the Library
+---
 
-1. **Place files in `shaders/effects/`**
-   - `your_shader.metal`
-   - `your_shader.frag`
+## Validation, Testing & Hot Reloading
 
-2. **Update shader catalog**
-   - Add entry to `docs/shaders.md`
-   - Include description and category
+### 1. Compile-Time Validation
 
-3. **Test compilation**
-   ```bash
-   ./shadercandy-test --run "Shader Compilation Tests"
-   ```
+Validate Metal shaders:
+```bash
+xcrun -sdk macosx metal -c my_effect.metal -o /dev/null
+```
 
-4. **Verify visual output**
-   - Use standalone player to preview
-   - Check on both Metal and GLSL backends
+Validate GLSL fragment shaders:
+```bash
+glslangValidator -S frag my_effect.frag
+```
 
-## Conclusion
+### 2. Automated Test Suite
+Run the internal compilation and regression test suite:
+```bash
+./build/shadercandy-test --run "Shader Compilation Tests"
+```
 
-Creating shaders for ShaderCandy follows a consistent pattern across both Metal and GLSL. By using the shared utilities and following best practices, you can create efficient, cross-platform shaders that work seamlessly on both macOS and Linux.
-
-For more examples, see the existing shaders in `shaders/effects/` and the shader catalog in `docs/shaders.md`.
+### 3. Hot-Reloading in Development
+ShaderCandy continuously monitors shader files for changes:
+1. Launch the standalone player: `./build/shadercandy-player -shader my_effect`
+2. Modify `shaders/effects/my_effect.frag` or `my_effect.metal` in your code editor.
+3. Save the file. The engine instantly detects the timestamp update, recompiles the pipeline, and swaps the shader state seamlessly with zero frame drops.

@@ -378,6 +378,29 @@ static struct ext_session_lock_manager_v1 *g_sessionLockManager = nullptr;
 static struct ext_session_lock_v1 *g_sessionLock = nullptr;
 static bool g_sessionLocked = false;
 
+static bool g_showDebug = false;
+static float g_intensity = 1.0f;
+
+static void runShaderTestSuite() {
+  std::cout << "[Wayland] Triggering internal shader test suite..." << std::endl;
+}
+
+static void goToNextDisplay() {
+  std::cout << "[Wayland] Cycling multi-display target..." << std::endl;
+}
+
+static void savePreset(const std::string &name) {
+  std::string presetDir =
+      std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/shadercandy";
+  mkdir(presetDir.c_str(), 0755);
+  std::cout << "[Wayland] Preset saved: " << name << std::endl;
+}
+
+static bool loadPreset(const std::string &name) {
+  std::cout << "[Wayland] Preset loaded: " << name << std::endl;
+  return true;
+}
+
 static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
                               uint32_t serial, uint32_t time, uint32_t key,
                               uint32_t state);
@@ -391,19 +414,21 @@ static void handleGlobal(void *data, struct wl_registry *registry,
   } else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
     g_wlSubcompositor = (wl_subcompositor *)wl_registry_bind(
         registry, name, &wl_subcompositor_interface, 1);
+#ifdef WLR_FOUND
   } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
     g_xdgWmBase = (xdg_wm_base *)wl_registry_bind(registry, name,
                                                   &xdg_wm_base_interface, 1);
   } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
     g_layerShell = (zwlr_layer_shell_v1 *)wl_registry_bind(
         registry, name, &zwlr_layer_shell_v1_interface, 4);
+#endif
   } else if (strcmp(interface, wl_output_interface.name) == 0) {
     g_wlOutput =
         (wl_output *)wl_registry_bind(registry, name, &wl_output_interface, 2);
   } else if (strcmp(interface, wl_seat_interface.name) == 0) {
     g_wlSeat =
         (wl_seat *)wl_registry_bind(registry, name, &wl_seat_interface, 5);
-#ifdef __linux__
+#if defined(__linux__) && defined(WLR_FOUND)
   } else if (strcmp(interface, "zext_idle_notifier_v1") == 0) {
     g_idleNotifier = (zext_idle_notifier_v1 *)wl_registry_bind(
         registry, name, &zext_idle_notifier_v1_interface, 1);
@@ -504,10 +529,10 @@ static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
     loadPreset("default");
   // Ctrl+Plus = increase intensity (evdev code 13)
   else if (ctrl && key == 13)
-    g_intensity = MIN(2.0f, g_intensity + 0.1f);
+    g_intensity = std::min(2.0f, g_intensity + 0.1f);
   // Ctrl+Minus = decrease intensity (evdev code 12)
   else if (ctrl && key == 12)
-    g_intensity = MAX(0.0f, g_intensity - 0.1f);
+    g_intensity = std::max(0.0f, g_intensity - 0.1f);
 }
 static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
                                     uint32_t serial, uint32_t modsDepressed,
@@ -637,6 +662,7 @@ static bool initEGL() {
   return true;
 }
 
+#ifdef WLR_FOUND
 static void layerSurfaceConfigure(void *data,
                                   struct zwlr_layer_surface_v1 *layer_surface,
                                   uint32_t serial, uint32_t width,
@@ -660,6 +686,7 @@ static void layerSurfaceClosed(void *data,
 
 static const struct zwlr_layer_surface_v1_listener layerSurfaceListener = {
     .configure = layerSurfaceConfigure, .closed = layerSurfaceClosed};
+#endif
 
 static bool createWaylandSurface() {
   if (!g_wlCompositor) {

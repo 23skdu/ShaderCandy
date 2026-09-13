@@ -17,7 +17,9 @@
 #include <chrono>
 #include <csignal>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <sys/stat.h>
 #include <thread>
@@ -169,9 +171,89 @@ std::string WallpaperEngine::loadShaderWithIncludes(const char *path,
 }
 
 bool WallpaperEngine::compileShader(const char *fragmentSource) {
-  const char *vertexSource = GLSLWrapper::getVertexShader().c_str();
-  std::string wrappedFrag = GLSLWrapper::getPreamble();
+  std::string vertexSourceStr = GLSLWrapper::getVertexShader();
+  const char *vertexSource = vertexSourceStr.c_str();
 
+  GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vertexShader, 1, &vertexSource, nullptr);
+  glCompileShader(vertexShader);
+
+  GLint success = 0;
+  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    char infoLog[512];
+    glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+    std::cerr << "WallpaperEngine: Vertex shader error: " << infoLog << std::endl;
+    return false;
+  }
+
+  GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fragmentShader, 1, &fragmentSource, nullptr);
+  glCompileShader(fragmentShader);
+
+  glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    char infoLog[512];
+    glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+    std::cerr << "WallpaperEngine: Fragment shader error: " << infoLog << std::endl;
+    glDeleteShader(vertexShader);
+    return false;
+  }
+
+  if (program) {
+    glDeleteProgram(program);
+  }
+
+  program = glCreateProgram();
+  glAttachShader(program, vertexShader);
+  glAttachShader(program, fragmentShader);
+  glLinkProgram(program);
+
+  glGetProgramiv(program, GL_LINK_STATUS, &success);
+  if (!success) {
+    char infoLog[512];
+    glGetProgramInfoLog(program, 512, nullptr, infoLog);
+    std::cerr << "WallpaperEngine: Program link error: " << infoLog << std::endl;
+    glDeleteProgram(program);
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    program = 0;
+    return false;
+  }
+
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
+
+  if (!ubo) {
+    glGenBuffers(1, &ubo);
+  }
+  glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+  glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
+
+  GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
+  if (blockIndex != GL_INVALID_INDEX) {
+    glUniformBlockBinding(program, blockIndex, 0);
+  }
+
+  uniforms.speed = 1.0f;
+  uniforms.intensity = 1.0f;
+  uniforms.alpha = 1.0f;
+  uniforms.gravity = 1.0f;
+
+  startTime = std::chrono::steady_clock::now();
+  lastFrame = startTime;
+
+  return true;
+}
+
+bool WallpaperEngine::loadShader(const char *path) {
+  std::string fragStr = loadShaderWithIncludes(path);
+  if (fragStr.empty()) {
+    std::cerr << "WallpaperEngine: Failed to load shader: " << path << std::endl;
+    return false;
+  }
+
+  std::string wrappedFrag = GLSLWrapper::getPreamble();
   wrappedFrag += fragStr;
 
   currentShaderPath = path;

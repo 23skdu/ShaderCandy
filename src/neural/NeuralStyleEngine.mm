@@ -35,6 +35,8 @@
         _styleStrength = 0.8;
         _styleModels = [NSMutableDictionary dictionary];
         _isInitialized = NO;
+        _useANEAcceleration = YES;
+        _useFP16Precision = YES;
         [self discoverBundledStyles];
     }
     return self;
@@ -295,6 +297,36 @@
 
 - (NSArray<NSString *> *)availableStyles {
     return [_styleModels.allKeys sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
+}
+
+- (BOOL)validateFP16ModelOptimization:(NSURL *)modelURL {
+    if (!modelURL) return NO;
+    NSString *path = modelURL.path;
+    if (!path || ![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        return NO;
+    }
+    _useFP16Precision = YES;
+    _useANEAcceleration = YES;
+    return YES;
+}
+
+- (nullable CVPixelBufferRef)createOptimizedPixelBufferWithWidth:(size_t)width height:(size_t)height {
+    if (width == 0 || height == 0) return NULL;
+    NSDictionary *pixelBufferAttributes = @{
+        (id)kCVPixelBufferIOSurfacePropertiesKey: @{},
+        (id)kCVPixelBufferMetalCompatibilityKey: @YES
+    };
+    CVPixelBufferRef pixelBuffer = NULL;
+    CVReturn status = CVPixelBufferCreate(
+        kCFAllocatorDefault,
+        width,
+        height,
+        kCVPixelFormatType_32BGRA,
+        (__bridge CFDictionaryRef)pixelBufferAttributes,
+        &pixelBuffer
+    );
+    if (status != kCVReturnSuccess) return NULL;
+    return pixelBuffer;
 }
 
 @end

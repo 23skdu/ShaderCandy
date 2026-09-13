@@ -1,332 +1,207 @@
-# ShaderCandy Linux Features
+# ShaderCandy Linux Architecture & Platform Features
 
-This document describes the Linux-specific features implemented for ShaderCandy.
+This document provides a technical overview of the Linux architecture, display server backends, audio drivers, and build configurations in ShaderCandy.
 
-## Overview
+---
 
-ShaderCandy on Linux now supports the following features that were previously macOS-only:
+## 1. Linux Graphics & Audio Architecture
 
-1. **Audio Reactivity** - Real-time audio input with FFT spectrum analysis
-2. **Standalone Player** - Windowed application for browsing shaders
-3. **Wallpaper Mode** - Set shaders as desktop background
-4. **Hot Reloading** - Automatic shader recompilation on file changes
-5. **Wayland Support** - Native Wayland compositor support (sway, GNOME, KDE)
+ShaderCandy on Linux runs on modern 64-bit Linux distributions with full support for both legacy X11 and native Wayland environments:
 
-## Audio Reactivity
+```mermaid
+flowchart TD
+    App[Linux Application Entry Points\nscreensaver / player / wallpaper / wayland] --> DisplaySelect{Display Server}
 
-The Linux audio implementation uses ALSA for audio capture and FFTW3 for Fast Fourier Transform processing.
+    subgraph "Display & Windowing Subsystem"
+        DisplaySelect -->|X11 Session| X11["X11 Backend\n(Xlib / GLX / XScreenSaver / XComposite)"]
+        DisplaySelect -->|Wayland Session| WL["Wayland Backend\n(EGL / wlr-layer-shell / ext-idle-notify)"]
+        DisplaySelect -->|Standalone GLFW| GLFW["GLFW Window Manager\n(X11 & Wayland EGL)"]
+    end
 
-### Requirements
+    subgraph "Rendering Core"
+        X11 & WL & GLFW --> GL["GLRenderer (OpenGL 3.3+ Core Profile)"]
+        GL --> Prog["GLShaderCompiler\n(Unified Include Resolver & Shader Cache)"]
+    end
 
-```bash
-# Debian/Ubuntu
-sudo apt-get install libasound2-dev libfftw3-dev
+    subgraph "Audio Capture Subsystem"
+        Audio["System Audio / Microphone"] --> AudioChoice{Audio Backend}
+        AudioChoice -->|Default| ALSA["ALSA Direct Capture + FFTW3"]
+        AudioChoice -->|Pulse/PipeWire| PW["PulseAudio Wrapper / PipeWire 0.3 SPA"]
+        ALSA & PW --> FFT["Spectral Analysis (256 FFT Bins, Bass/Mid/Treble/Beat)"]
+    end
 
-# Fedora
-sudo dnf install alsa-lib-devel fftw-devel
-
-# Arch Linux
-sudo pacman -S alsa-lib fftw
+    GL & FFT --> Core["ShaderCandy Core Modules (src/core/)"]
 ```
 
-### Usage
+---
 
-Enable audio reactivity with the `-audio` flag:
+## 2. Key Linux Features
 
+1. **Native Wayland Support**: Direct surface allocation and protocol handling via EGL and Wayland layer-shell (`wlr-layer-shell-unstable-v1` / `ext-idle-notify-v1`) for modern compositors (Sway, Hyprland, GNOME, KDE Plasma 6).
+2. **X11 Screensaver & Root Window Integration**: Seamless attachment to XScreenSaver or direct root window rendering via XComposite extension.
+3. **Low-Latency Audio Reactivity**: Direct ALSA sample capture processed through FFTW3 with 256 spectrum bins and beat detection.
+4. **Standalone Player & Wallpaper Modes**: Full windowed browser and dynamic live desktop background. *(For user controls and configuration, see [ApplicationModesGuide.md](./ApplicationModesGuide.md)).*
+5. **Runtime Shader Hot Reloading**: Timestamp-based directory watcher automatically recompiles GLSL files on save with immediate fallback on syntax error.
+
+---
+
+## 3. Audio Reactivity
+
+The Linux audio implementation utilizes ALSA for direct hardware sample streaming and FFTW3 for Fast Fourier Transform spectral decomposition.
+
+### Uniform Layout in GLSL Shaders
+
+When audio is enabled (via the `-audio` CLI flag), the following global uniforms are available in shaders:
+
+```glsl
+uniform float volume;          // Overall audio volume (0.0 - 1.0)
+uniform float bass;            // Low frequency energy (20-250 Hz, 0.0 - 1.0)
+uniform float mid;             // Mid frequency energy (250-4000 Hz, 0.0 - 1.0)
+uniform float treble;          // High frequency energy (4000-16000 Hz, 0.0 - 1.0)
+uniform float beat;            // Beat detection pulse (1.0 on beat, 0.0 otherwise)
+uniform float audioData[256];  // Raw FFT magnitude spectrum
+```
+
+### Usage Examples
 ```bash
-# Screensaver with audio
+# Screensaver with audio visualization
 shadercandy-screensaver -audio
 
 # Standalone player with audio
-shadercandy-player -audio
+shadercandy-player -shader electronic -audio
 
-# Wallpaper with audio
-shadercandy-wallpaper -shader ./shaders/audio_spectrum.frag -audio
+# Live wallpaper with audio
+shadercandy-wallpaper -shader ./shaders/effects/audio_spectrum.frag -audio
 ```
 
-### Audio Uniforms
+---
 
-When audio is enabled, the following uniforms are available in shaders:
+## 4. Wayland Compositor Integration
 
-```glsl
-uniform float volume;       // Overall volume (0.0 - 1.0)
-uniform float bass;         // Bass frequency energy (0.0 - 1.0)
-uniform float mid;          // Mid frequency energy (0.0 - 1.0)
-uniform float treble;       // Treble frequency energy (0.0 - 1.0)
-uniform float beat;         // Beat detection (1.0 on beat, 0.0 otherwise)
-uniform float audioData[256]; // FFT spectrum data
-```
+ShaderCandy provides first-class native Wayland support without requiring XWayland.
 
-See `shaders/effects/audio_spectrum.frag` for an example audio-reactive shader.
+### Supported Compositors
+- **Sway**: Native `wlr-layer-shell` support.
+- **Hyprland**: Full layer-shell and fractional scaling support.
+- **GNOME Shell**: Wayland session compatible.
+- **KDE Plasma 6**: Native Wayland idle detection and lock-screen support.
+- **River / Wayfire**: Standard wlroots-based compositors.
 
-## Standalone Player
-
-The standalone player (`shadercandy-player`) is a windowed application for browsing and viewing shaders outside of screensaver mode.
-
-### Features
-
-- Browse through available shaders with arrow keys or mouse wheel
-- Fullscreen toggle (F or F11)
-- Pause/Resume animation (Space)
-- Reload current shader (R)
-- Audio reactivity support (-audio flag)
-- Shader hot-reloading
-
-### Usage
-
+### Wayland Launch Commands
 ```bash
-# Basic usage
-shadercandy-player
-
-# Start with specific shader
-shadercandy-player -shader nebula
-
-# Start fullscreen with audio
-shadercandy-player -fullscreen -audio
-
-# Custom window size
-shadercandy-player -width 1920 -height 1080
-
-# Show help
-shadercandy-player --help
-```
-
-### Controls
-
-| Key | Action |
-|-----|--------|
-| Arrow Keys / Mouse Wheel | Change shader |
-| F / F11 | Toggle fullscreen |
-| Space | Pause/Resume animation |
-| R | Reload current shader |
-| ESC | Quit |
-
-## Wallpaper Mode
-
-The wallpaper mode (`shadercandy-wallpaper`) renders shaders as your desktop background.
-
-### Requirements
-
-- X11 with composite extension (for transparency)
-- A compositor running (compton, picom, etc.)
-- Optional: xwinwrap for better desktop integration
-
-### Usage
-
-```bash
-# Basic usage (requires compositor)
-shadercandy-wallpaper -shader ./shaders/nebula.frag
-
-# With audio reactivity
-shadercandy-wallpaper -shader ./shaders/audio_spectrum.frag -audio
-
-# Using xwinwrap (recommended for better compatibility)
-xwinwrap -ov -fs -- shadercandy-wallpaper -shader ./shaders/plasma.frag
-
-# With audio via xwinwrap
-xwinwrap -ov -fs -- shadercandy-wallpaper -shader ./shaders/audio_spectrum.frag -audio
-```
-
-### Desktop Integration
-
-For persistent wallpaper across reboots, add to your window manager's startup scripts:
-
-```bash
-# ~/.xinitrc or ~/.xsession
-xwinwrap -ov -fs -- shadercandy-wallpaper -shader /usr/share/shadercandy/shaders/nebula.frag &
-```
-
-### Tips
-
-- Use shaders with darker colors for better desktop icon visibility
-- The `nebula.frag` and `deep_ocean_pulse.frag` shaders work well as wallpapers
-- Audio-reactive wallpapers work best with ambient/electronic music
-
-## Wayland Support
-
-ShaderCandy includes native Wayland support for modern Linux distributions.
-
-### Requirements
-
-```bash
-# Debian/Ubuntu
-sudo apt-get install libwayland-dev libegl-dev libgles2-dev
-
-# Fedora
-sudo dnf install wayland-devel mesa-libEGL-devel mesa-libGLES-devel
-
-# Arch Linux
-sudo pacman -S wayland mesa libglvnd
-```
-
-Optional wlroots for enhanced compositor features:
-
-```bash
-# Debian/Ubuntu
-sudo apt-get install libwlroots-dev
-
-# Fedora
-sudo dnf install wlroots-devel
-```
-
-### Usage
-
-```bash
-# Basic usage (requires Wayland session)
+# Launch default screensaver under Wayland
 shadercandy-wayland
 
-# With specific shader
-shadercandy-wayland --shader ./shaders/plasma.glsl
+# Target specific shader
+shadercandy-wayland --shader ./shaders/effects/nebula.frag
 
-# List available shaders
+# Query available shaders
 shadercandy-wayland --list
 ```
 
-### Controls
+---
 
-| Key | Action |
-|-----|--------|
-| Space | Next shader |
-| b | Previous shader |
-| h | Toggle metrics |
-| +/- | Adjust speed |
-| i/o | Adjust intensity |
-| ESC / q | Quit |
+## 5. Building on Linux
 
-### Supported Compositors
+### Package Dependencies
 
-- **sway** - wlroots-based tiling window manager
-- **GNOME** - Via GNOME Shell extensions
-- **KDE Plasma** - Via Wayland session
-- **Hyprland** - wlroots-based
-- **River** - wlroots-based
-- Other Wayland-compliant compositors
-
-### Building with Wayland Support
-
+#### Debian / Ubuntu / Mint
 ```bash
-cmake .. -DBUILD_SCREENSAVER_WAYLAND=ON
-make shadercandy-wayland
+# Core build tools and X11
+sudo apt-get update
+sudo apt-get install -y build-essential cmake pkg-config \
+    libx11-dev libgl1-mesa-dev libxcomposite-dev libxrender-dev libxext-dev
+
+# Audio support
+sudo apt-get install -y libasound2-dev libfftw3-dev
+
+# Standalone player (GLFW)
+sudo apt-get install -y libglfw3-dev
+
+# Wayland support
+sudo apt-get install -y libwayland-dev libegl-dev libgles2-dev libwayland-egl1-mesa
 ```
 
-Note: The Wayland screensaver requires an active Wayland session (not X11).
-
-## Building
-
-### Prerequisites
-
-All features require:
-
+#### Fedora / RHEL
 ```bash
-sudo apt-get install build-essential cmake pkg-config
-sudo apt-get install libx11-dev libgl1-mesa-dev libxcomposite-dev libxrender-dev
+sudo dnf install -y gcc-c++ cmake pkgconfig \
+    libX11-devel mesa-libGL-devel libXcomposite-devel libXrender-devel \
+    alsa-lib-devel fftw-devel glfw-devel \
+    wayland-devel mesa-libEGL-devel mesa-libGLES-devel
 ```
 
-Audio features additionally require:
-
+#### Arch Linux / Manjaro
 ```bash
-sudo apt-get install libasound2-dev libfftw3-dev
+sudo pacman -S --needed base-devel cmake pkgconf \
+    libx11 mesa libxcomposite libxrender \
+    alsa-lib fftw glfw-x11 \
+    wayland mesa libglvnd
 ```
 
-Standalone player additionally requires:
+### Compilation
 
 ```bash
-sudo apt-get install libglfw3-dev
-```
-
-Wayland screensaver additionally requires:
-
-```bash
-sudo apt-get install libwayland-dev libegl-dev libgles2-dev
-```
-
-### Compile
-
-```bash
-mkdir build && cd build
+mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 
-# Install
+# Install binaries to /usr/local/bin
 sudo make install
 ```
 
-### Build Options
+### CMake Build Flags
 
-```bash
-# Disable audio support
-cmake .. -DBUILD_AUDIO=OFF
+| Option | Default | Description |
+| :--- | :---: | :--- |
+| `BUILD_SCREENSAVER_LINUX` | `ON` | Build X11 screensaver (`shadercandy-screensaver`) |
+| `BUILD_SCREENSAVER_WAYLAND`| `ON` | Build Wayland screensaver (`shadercandy-wayland`) |
+| `BUILD_STANDALONE_PLAYER` | `ON` | Build GLFW windowed player (`shadercandy-player`) |
+| `BUILD_WALLPAPER` | `ON` | Build desktop wallpaper (`shadercandy-wallpaper`) |
+| `BUILD_AUDIO` | `ON` | Enable ALSA and FFTW3 audio reactivity |
+| `BUILD_TESTS` | `ON` | Build unit test and regression suite (`shadercandy-test`)|
 
-# Disable standalone player
-cmake .. -DBUILD_STANDALONE_PLAYER=OFF
+---
 
-# Disable wallpaper mode
-cmake .. -DBUILD_WALLPAPER=OFF
+## 6. Linux Differences from macOS
 
-# Disable X11 screensaver
-cmake .. -DBUILD_SCREENSAVER_LINUX=OFF
+| Architectural Area | macOS Backend | Linux Backend | Design Rationale |
+| :--- | :--- | :--- | :--- |
+| **Graphics API** | Metal 3 | OpenGL 3.3+ Core / 4.5 | Direct hardware access on Apple Silicon vs universal Linux driver support |
+| **Display Server** | AppKit / Quartz / MetalKit | Wayland / X11 | Dual backend ensures compatibility on legacy X11 and modern Wayland |
+| **Audio Input** | AVFoundation | ALSA / PipeWire + FFTW3 | Native driver capture with zero runtime overhead |
+| **Audio Ray-Tracing** | Metal Performance Shaders | Simplified Acoustic Model | MPS relies on Apple Silicon hardware ray-tracing |
+| **Neural Effects** | Apple Neural Engine (CoreML)| Not Supported | CoreML is proprietary to Apple Silicon hardware |
+| **HDR Output** | EDR up to 1600 nits (10-bit) | Tone-Mapped SDR (10-bit WIP)| Consistent tone mapping (ACES/Filmic) without fragile driver requirements |
+| **Note on Vulkan** | N/A | Evaluated & Retired | Vulkan was removed in favor of robust OpenGL 3.3+/Wayland integration |
 
-# Disable Wayland screensaver
-cmake .. -DBUILD_SCREENSAVER_WAYLAND=OFF
+---
 
-# Enable Wayland (default on Linux)
-cmake .. -DBUILD_SCREENSAVER_WAYLAND=ON
-```
+## 7. Troubleshooting
 
-## Troubleshooting
+### Audio Not Reacting
+1. List available recording devices: `arecord -l`
+2. Check ALSA capture levels: `alsamixer` (ensure Capture volume is not muted).
+3. If using PipeWire: verify `pipewire-alsa` compatibility package is installed.
 
-### No audio input detected
+### Wallpaper Mode Does Not Render
+1. Verify compositor is active: `pgrep -a picom || pgrep -a compton`
+2. Use the `xwinwrap` wrapper to bypass window manager desktop icon painting:
+   ```bash
+   xwinwrap -ov -fs -- shadercandy-wallpaper -shader ./shaders/effects/plasma.frag
+   ```
 
-1. Check ALSA is installed: `arecord -l`
-2. Check microphone permissions: `pactl list sources`
-3. Try specifying a device: Modify the auto-detect code or use `hw:0,0`
+### GLSL Compilation Errors
+1. Validate fragment shader syntax directly with `glslangValidator`:
+   ```bash
+   glslangValidator -S frag shaders/effects/your_shader.frag
+   ```
+2. Verify OpenGL driver version: `glxinfo | grep "OpenGL version"` (must be $\ge 3.3$).
 
-### Wallpaper doesn't appear
+---
 
-1. Ensure a compositor is running: `pgrep compton || pgrep picom`
-2. Try with xwinwrap: `xwinwrap -ov -fs -- shadercandy-wallpaper ...`
-3. Check XComposite extension: `xdpyinfo | grep -i composite`
+## 8. See Also
 
-### Shader compilation errors
-
-1. Check OpenGL 3.3+ support: `glxinfo | grep "OpenGL version"`
-2. Verify shader file exists and is readable
-3. Check shader syntax with `glslangValidator` if available
-
-### Performance issues
-
-1. Reduce resolution for fullscreen modes
-2. Disable audio if not needed
-3. Use simpler shaders (avoid heavy raymarching)
-4. Ensure GPU drivers are up to date
-
-## Differences from macOS Version
-
-The Linux implementation differs from macOS in the following ways:
-
-| Feature | macOS | Linux |
-|---------|-------|-------|
-| Audio API | AVFoundation | ALSA + FFTW3 |
-| Windowing | AppKit/MetalKit | X11/Wayland + OpenGL |
-| Standalone UI | Native AppKit | GLFW |
-| Wallpaper | Native NSWindow | X11/Wayland |
-| Neural Effects | CoreML | Not available |
-| HDR | 10-bit Metal | Limited OpenGL support |
-| Ray-Traced Audio | Yes | Not available |
-| Wayland Support | N/A | Yes |
-
-## Future Enhancements
-
-Planned improvements for Linux:
-
-1. **ImGui Integration** - Add proper shader browser UI to standalone player
-2. **PipeWire** - Alternative to ALSA for audio
-3. **HDR Support** - 10-bit color via OpenGL
-4. **Multi-Monitor** - Per-monitor wallpapers and improved sync
-5. **Vulkan Backend** - Replace OpenGL with Vulkan for better performance
-
-## See Also
-
-- [ShaderCandyMasterPlan.md](../docs/ShaderCandyMasterPlan.md) - Overall project status
-- [LinuxPortSummary.md](../docs/archive/LinuxPortSummary.md) - Original Linux port details
-- [ShaderTranslationStandards.md](../docs/ShaderTranslationStandards.md) - Metal to GLSL translation guide
+- **[ApplicationModesGuide.md](./ApplicationModesGuide.md)**: Usage guide for player, wallpaper, and screensaver modes.
+- **[ShaderAuthoringGuide.md](./ShaderAuthoringGuide.md)**: Developer guide for creating and translating GLSL shaders.
+- **[ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md)**: Master architecture plan and feature matrix.
+- **[nextsteps.md](./nextsteps.md)**: Active engineering roadmap.
