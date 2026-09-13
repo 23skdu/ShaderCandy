@@ -43,6 +43,16 @@ public:
   // Reset statistics
   void reset();
 
+  // Adaptive Ray Marching LoD calculation based on thermal state and frame pacing
+  static void calculateAdaptiveRayMarchLoD(float thermalLevel,
+                                           float p99LatencyMs, int &outMaxSteps,
+                                           float &outStepEpsilon,
+                                           float &outLodScale);
+
+  // Dynamic resolution scaling calculation
+  static float calculateDynamicResolutionScale(float p99LatencyMs,
+                                               float targetFrameTimeMs = 16.67f);
+
   // Enable/disable monitoring
   void setEnabled(bool enabled) { enabled_ = enabled; }
   bool isEnabled() const { return enabled_; }

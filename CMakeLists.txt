@@ -600,6 +600,7 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
                         ${ALSALIB_LIBRARIES}
                         ${FFTW3_LIBRARIES}
                     )
+                    target_compile_definitions(shadercandy-player PRIVATE HAS_AUDIO=1)
                 endif()
                 target_compile_options(shadercandy-player PRIVATE
                     ${GLFW_CFLAGS_OTHER}
@@ -647,6 +648,7 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
                 ${ALSALIB_LIBRARIES}
                 ${FFTW3_LIBRARIES}
             )
+            target_compile_definitions(shadercandy-wallpaper PRIVATE HAS_AUDIO=1)
         endif()
         
         install(TARGETS shadercandy-wallpaper
@@ -719,6 +721,7 @@ if(LINUX AND BUILD_SCREENSAVER_WAYLAND)
                 ${ALSALIB_LIBRARIES}
                 ${FFTW3_LIBRARIES}
             )
+            target_compile_definitions(shadercandy-wayland PRIVATE HAS_AUDIO=1)
         endif()
         
         if(WLROOTS_FOUND)
@@ -779,6 +782,10 @@ if(BUILD_TESTS)
     
     if(BUILD_OPENGL)
         target_link_libraries(shadercandy-test PRIVATE shadercandy_gl)
+    endif()
+
+    if(BUILD_AUDIO_ACTUAL)
+        target_link_libraries(shadercandy-test PRIVATE shadercandy_audio_linux)
     endif()
     
     # XCTest bundle for Xcode integration (native macOS only, not cross-compile)

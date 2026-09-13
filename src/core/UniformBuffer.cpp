@@ -40,6 +40,13 @@ void UniformBuffer::updateFrame(int32_t frame) { data_.frame = frame; }
 
 void UniformBuffer::updateDeltaTime(float dt) { data_.deltaTime = dt; }
 
+void UniformBuffer::updateRayMarchLoD(int32_t maxSteps, float stepEpsilon,
+                                      float lodScale) {
+  data_.maxSteps = maxSteps;
+  data_.stepEpsilon = stepEpsilon;
+  data_.lodScale = lodScale;
+}
+
 void UniformBuffer::advanceFrame() {
   auto now = std::chrono::high_resolution_clock::now();
 

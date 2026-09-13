@@ -18,7 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
     commandQueue;
 @property(nonatomic, strong, readonly, nullable) MLModel *currentModel;
 @property(nonatomic, assign) float styleStrength;
-@property(nonatomic, strong, readonly) NSArray<NSString *> *availableStyles;
+@property(nonatomic, assign) BOOL useANEAcceleration;
+@property(nonatomic, assign) BOOL useFP16Precision;
 
 + (instancetype)sharedEngine;
 
@@ -27,6 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)loadModelAtPath:(NSURL *)modelURL error:(NSError **)error;
 - (BOOL)loadStyleNamed:(NSString *)styleName error:(NSError **)error;
+- (BOOL)validateFP16ModelOptimization:(NSURL *)modelURL;
+- (nullable CVPixelBufferRef)createOptimizedPixelBufferWithWidth:(size_t)width height:(size_t)height;
 
 - (nullable id<MTLTexture>)applyStyle:(id<MTLTexture>)inputTexture
                         commandBuffer:(id<MTLCommandBuffer>)commandBuffer;

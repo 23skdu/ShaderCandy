@@ -18,7 +18,7 @@ We are thrilled to announce the v0.1.0 release of ShaderCandy! This release mark
 
 ## 🗺 Roadmap Status
 
-Our updated Master Plan places all core rendering, standalone apps, and screensaver implementations into *Production Ready* status. We are now focusing on Universal Preset API integrations, Vulkan backend support for Linux HDR, and community distribution channels (Flatpak/App Store).
+Our updated Master Plan places all core rendering, standalone apps, and screensaver implementations into *Production Ready* status. We are focusing on Universal Preset API integrations, modern Linux audio and Wayland improvements, and community distribution channels (Flatpak/App Store).
 
 ---
-*For a complete architectural overview and future steps, see the `docs/ArchitectureDiagrams.md` and `docs/ShaderCandyMasterPlan.md`.*
+*For a complete architectural overview and future steps, see [ArchitectureDiagrams.md](./ArchitectureDiagrams.md), [ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md), and [nextsteps.md](./nextsteps.md).*

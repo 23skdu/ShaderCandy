@@ -13,7 +13,10 @@ struct UniformData {
   float date[4]; // year, month, day, seconds
   int32_t frame;
   float deltaTime;
-  float padding[2];
+  float lodScale = 1.0f;
+  int32_t maxSteps = 128;
+  float stepEpsilon = 0.001f;
+  float padding[1];
 };
 
 class UniformBuffer {
@@ -27,6 +30,11 @@ public:
   void updateMouse(float x, float y);
   void updateFrame(int32_t frame);
   void updateDeltaTime(float dt);
+  void updateRayMarchLoD(int32_t maxSteps, float stepEpsilon, float lodScale = 1.0f);
+
+  int32_t getMaxSteps() const { return data_.maxSteps; }
+  float getStepEpsilon() const { return data_.stepEpsilon; }
+  float getLodScale() const { return data_.lodScale; }
 
   // Get current uniform data
   const UniformData &getData() const { return data_; }
