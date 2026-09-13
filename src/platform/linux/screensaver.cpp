@@ -649,16 +649,16 @@ public:
     bool useRootWindow = false;
 
     for (int i = 1; i < argc; i++) {
-      if (strcmp(argv[i], "-window-id") == 0 && i + 1 < argc) {
+      if ((strcmp(argv[i], "-window-id") == 0 || strcmp(argv[i], "--window-id") == 0) && i + 1 < argc) {
         parent = strtoul(argv[i + 1], nullptr, 0);
-      } else if (strcmp(argv[i], "-root") == 0) {
+      } else if (strcmp(argv[i], "-root") == 0 || strcmp(argv[i], "--root") == 0) {
         // Run on root window
         useRootWindow = true;
-      } else if (strcmp(argv[i], "-shader") == 0 && i + 1 < argc) {
+      } else if ((strcmp(argv[i], "-shader") == 0 || strcmp(argv[i], "--shader") == 0) && i + 1 < argc) {
         initialShader = argv[++i];
-      } else if (strcmp(argv[i], "-shader-dir") == 0 && i + 1 < argc) {
+      } else if ((strcmp(argv[i], "-shader-dir") == 0 || strcmp(argv[i], "--shader-dir") == 0) && i + 1 < argc) {
         addShaderDirectory(argv[++i]);
-      } else if (strcmp(argv[i], "-audio") == 0) {
+      } else if (strcmp(argv[i], "-audio") == 0 || strcmp(argv[i], "--audio") == 0) {
         enableAudio = true;
       }
     }
