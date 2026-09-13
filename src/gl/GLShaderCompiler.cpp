@@ -25,6 +25,10 @@ bool GLShaderCompiler::initialize() {
     return true;
   }
 
+#if defined(__linux__)
+  InitializeGLLoader();
+#endif
+
   preamble_ = R"(
         #version 330 core
         precision highp float;

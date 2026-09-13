@@ -9,6 +9,8 @@
 #include "RendererFeatureTests.cpp"
 #include "CoverageExpansionTests.cpp"
 #include "ShaderRegressionTests.cpp"
+#include "ShaderWrapperTests.cpp"
+#include "LinuxPlatformCoverageTests.cpp"
 
 using namespace ShaderCandy::Test;
 
@@ -63,6 +65,19 @@ void listTests() {
   std::cout << "   - ShaderManager hot reload\n";
   std::cout << "   - Color conversion edge cases\n";
   std::cout << "   - SIMD alignment with odd counts\n\n";
+
+  std::cout << "6. Shader Wrapper Tests\n";
+  std::cout << "   - Duplicate uniform block prevention\n";
+  std::cout << "   - Common GLSL uniform block validation\n";
+  std::cout << "   - Include system hierarchy\n\n";
+
+  std::cout << "7. Linux Platform & Audio Coverage Tests\n";
+  std::cout << "   - GLSL wrapper code generation\n";
+  std::cout << "   - Shared memory IPC\n";
+  std::cout << "   - Audio input and FFT synthesis\n";
+  std::cout << "   - GLShaderCompiler compilation and error handling\n";
+  std::cout << "   - GLRenderer rendering, post-processing, metrics\n";
+  std::cout << "   - Configuration and ShaderManager edge cases\n\n";
 }
 
 int main(int argc, char **argv) {

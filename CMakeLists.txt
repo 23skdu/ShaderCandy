@@ -744,6 +744,7 @@ endif()
 
 # Test executable
 if(BUILD_TESTS)
+    enable_testing()
     set(TEST_SOURCES
         tests/TestFramework.cpp
     )
@@ -759,10 +760,16 @@ if(BUILD_TESTS)
     endif()
     
     add_executable(shadercandy-test ${TEST_SOURCES})
+    target_include_directories(shadercandy-test PRIVATE src/core src/platform/linux src/audio src/gl)
+    target_link_libraries(shadercandy-test PRIVATE shadercandy_core)
+    add_test(NAME shadercandy-test COMMAND shadercandy-test)
+    set_tests_properties(shadercandy-test PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     
     add_executable(linux-logic-test tests/LinuxLogicTests.cpp)
     target_link_libraries(linux-logic-test shadercandy_core)
     target_include_directories(linux-logic-test PRIVATE src/platform/linux)
+    add_test(NAME linux-logic-test COMMAND linux-logic-test)
+    set_tests_properties(linux-logic-test PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     
     if(MACOS AND BUILD_METAL)
         target_link_libraries(shadercandy-test PRIVATE 
