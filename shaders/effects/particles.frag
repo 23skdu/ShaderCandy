@@ -35,9 +35,9 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         vec2 particlePos = vel * 0.5 + offset;
         
         // Mouse interaction
-        vec2 mouse = (u_mouse / resolution - 0.5) * 2.0;
-        mouse.x *= resolution.x / resolution.y;
-        vec2 toMouse = mouse - particlePos;
+        vec2 mPos = (mouse - 0.5) * 2.0;
+        mPos.x *= resolution.x / resolution.y;
+        vec2 toMouse = mPos - particlePos;
         float dist = length(toMouse) + 0.01;
         particlePos += normalize(toMouse) * 0.05 / dist;
         

@@ -2,11 +2,7 @@
 
 // punk - Raw, aggressive aesthetic with DIY energy
 
-vec3 hsv2rgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
+// hsv2rgb provided by common.glsl
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
@@ -65,7 +61,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     color += vec3(0.9, 0.2, 0.1) * splatter * 0.4;
     
     // Random scratches
-    float scratch = step(0.7, fract(sin(dot(floor(p * 30.0), vec2(12.9898, 78.233))) * 43758.5453);
+    float scratch = step(0.7, fract(sin(dot(floor(p * 30.0), vec2(12.9898, 78.233))) * 43758.5453));
     color += vec3(0.5) * scratch * 0.1;
     
     // Vignette

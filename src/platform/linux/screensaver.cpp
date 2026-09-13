@@ -673,8 +673,11 @@ public:
       // System directories
       addShaderDirectory("/usr/share/shadercandy/shaders");
       addShaderDirectory("/usr/local/share/shadercandy/shaders");
-      // Home directory
-      addShaderDirectory("/home/rsd/.local/share/shadercandy/shaders");
+      const char *home = getenv("HOME");
+      if (home) {
+        addShaderDirectory(std::string(home) +
+                           "/.local/share/shadercandy/shaders");
+      }
     }
 
     // Open display
@@ -971,9 +974,21 @@ layout(std140) uniform Uniforms {
     }
   }
 
+  bool hasShader(const std::string &shaderName) const {
+    for (const auto *s : shaders) {
+      if (s->name == shaderName)
+        return true;
+    }
+    return false;
+  }
+
   void loadShader(const std::string &path) {
     auto *shader = new GLShaderProgram();
     if (shader->loadShaderFromFile(path.c_str())) {
+      if (hasShader(shader->name)) {
+        delete shader;
+        return;
+      }
       shaders.push_back(shader);
       std::cout << "Loaded shader: " << shader->name << std::endl;
     } else {

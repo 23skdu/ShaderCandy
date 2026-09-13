@@ -58,7 +58,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         bubbleP.y = fract(bubbleP.y + fi * 0.3 + 0.5) - 0.5;
         bubbleP.x += sin(t * 0.5 + fi * 3.0) * 0.1 * (1.0 + bubbleDepth);
         
-        float2 gridPos = vec2(mod(fi * 0.7 + sin(fi * 2.0) * 0.5, 2.0) - 1.0, 0.0);
+        vec2 gridPos = vec2(mod(fi * 0.7 + sin(fi * 2.0) * 0.5, 2.0) - 1.0, 0.0);
         bubbleP -= gridPos * (0.5 + bubbleDepth * 0.5);
         
         float dist = length(bubbleP);
