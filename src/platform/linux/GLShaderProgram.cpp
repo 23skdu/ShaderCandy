@@ -299,8 +299,8 @@ void GLShaderProgram::updateUniforms(int width, int height, float mouseX,
       static_cast<float>(lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec);
 
   if (audioDataPtr) {
-    const auto *ad = static_cast<const ShaderCandy::Audio::AudioData *>(
-        audioDataPtr);
+    const auto *ad =
+        static_cast<const ShaderCandy::Audio::AudioData *>(audioDataPtr);
     uniforms.volume = ad->volume;
     uniforms.bass = ad->bass;
     uniforms.mid = ad->mid;

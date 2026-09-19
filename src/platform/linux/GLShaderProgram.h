@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "AudioData.h"
 #include "GLLoader.h"
 #include "GLSLWrapper.h"
 #include <chrono>

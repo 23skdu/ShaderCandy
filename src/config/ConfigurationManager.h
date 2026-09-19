@@ -68,7 +68,7 @@ struct AppSettings {
   bool adaptiveQuality = true;
   bool showFPS = false;
   bool limitGPU = false;
-  float autoScaleFPSThreshold = 45.0f;
+  float autoScaleFPSThreshold = 55.0f;
 
   // Shaders
   std::string defaultShader;

@@ -350,7 +350,7 @@ void checkForShaderChanges() {
 static std::vector<std::string> g_shaderList;
 static size_t g_currentShaderIndex = 0;
 static std::chrono::steady_clock::time_point g_shaderStartTime;
-static float g_shaderDisplayTime = 30.0f;
+static float g_shaderDisplayTime = 60.0f;
 static float g_mouseX = 0, g_mouseY = 0;
 static int g_width = 1920, g_height = 1080;
 static EGLDisplay g_eglDisplay = EGL_NO_DISPLAY;

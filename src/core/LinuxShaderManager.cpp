@@ -15,6 +15,10 @@
 #include <filesystem>
 #include <iostream>
 
+#ifdef __linux__
+#include <GL/gl.h>
+#endif
+
 namespace ShaderCandy {
 
 class LinuxShaderManager : public ShaderManager {
@@ -23,7 +27,9 @@ public:
   ~LinuxShaderManager() override {
     shaderCompiler_.reset();
     for (auto &program : shaderPrograms_) {
-      // glDeleteProgram(program.second); // Requires GL context
+      if (program.second) {
+        glDeleteProgram(program.second);
+      }
     }
     shaderPrograms_.clear();
   }
@@ -63,13 +69,13 @@ public:
 
   bool reloadShaders() override {
     for (const auto &[name, path] : shaderPaths_) {
-      // Delete old program
       auto it = shaderPrograms_.find(name);
       if (it != shaderPrograms_.end()) {
-        // glDeleteProgram(it->second); // Would need GL context
+        if (it->second) {
+          glDeleteProgram(it->second);
+        }
       }
 
-      // Reload
       if (!loadShader(name, path)) {
         std::cerr << "LinuxShaderManager: Failed to reload shader '" << name
                   << "'" << std::endl;

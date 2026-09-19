@@ -1,6 +1,6 @@
 # ShaderCandy
 
-ShaderCandy is a cross-platform screensaver application that renders real-time procedural graphics using native GPU APIs. It supports macOS (Metal) and Linux (OpenGL/X11).
+ShaderCandy is a cross-platform screensaver application that renders real-time procedural graphics using native GPU APIs. It supports macOS (Metal) and Linux (OpenGL/X11/Wayland).
 
 ## Key Features
 
@@ -12,43 +12,28 @@ ShaderCandy is a cross-platform screensaver application that renders real-time p
 * **Neural Effects**: Integrated CoreML neural style transfer engine on macOS.
 * **Dynamic Control Systems**: Configurable UI for shader selection, preset save/load, multi-display support, screenshot hotkeys, and OSD notifications.
 * **Advanced Particle Systems**: High-performance compute shader integration for generative multi-million particle simulations.
+* **Shader Cycling**: Configurable per-shader duration with smooth crossfade transitions between effects.
 
 ## Architecture
 
-The project is structured as follows:
-
 ```
 ShaderCandy/
-├── shaders/                # Shader source files
+├── shaders/                # Shader source files (111 effects)
 │   ├── base/               # Shared utility functions (common.metal, common.glsl)
-│   └── effects/            # Individual visual effects (fragment shaders)
+│   ├── effects/            # Individual visual effects (fragment shaders)
+│   └── music/              # Audio-reactive music visualization shaders
 ├── src/                    # C++/Objective-C++ source code
 │   ├── core/               # Platform-independent core logic (Math, Performance, Utils)
+│   ├── config/             # Configuration and preset management
+│   ├── audio/              # Audio input, FFT, and spatial audio
+│   ├── gl/                 # Linux OpenGL backend (renderer, shader compiler)
 │   ├── metal/              # macOS Metal backend implementation
-│   ├── gl/                 # Linux OpenGL backend implementation
-│   └── platform/           # OS-specific entry points (ScreenSaverView, X11)
+│   └── platform/           # OS-specific entry points (ScreenSaverView, X11, Wayland)
 ├── tests/                  # Unit and integration tests
-├── install/                # Installation scripts
-└── docs/                   # Documentation and roadmaps
+├── install/                # Automated install scripts (Linux & macOS)
+├── docs/                   # Documentation and roadmaps
+└── thumbnails/             # Preview images for each shader
 ```
-
-**Note on Vulkan**: A Vulkan backend was considered for Linux HDR support (`VK_KHR_swapchain`, `VK_EXT_swapchain_colorspace`) but was removed. OpenGL 3.3+ with GLSL provides adequate cross-platform shader support. Vulkan may be revisited if Linux HDR becomes a primary target.
-
-## Technical Implementation
-
-### Rendering Pipeline
-
-* **macOS**: Implements the `ScreenSaverView` interface. Uses a `MTKView` backed by valid Metal device. Renders a full-screen quad using a custom render pipeline state.
-* **Linux**: Creates an X11 window or targets the root window for screensaver mode. Initializes an OpenGL 3.3+ context.
-
-### Mathematics
-
-The application implements several mathematical concepts for procedural generation:
-
-* **Noise Functions**: Value Noise, Perlin Noise, Simplex Noise, and Fractal Brownian Motion (FBM).
-* **Signed Distance Functions (SDFs)**: Primitives (Sphere, Box, Torus) and boolean operations (Union, Intersection, Subtraction) for ray marching.
-* **Fractals**: 3D fractal rendering including the Mandelbulb.
-* **Reaction-Diffusion**: Gray-Scott model simulation.
 
 ## Building and Installation
 
@@ -60,20 +45,16 @@ The application implements several mathematical concepts for procedural generati
 ### macOS Build
 
 ```bash
-git clone https://github.com/yourusername/ShaderCandy.git
+git clone https://github.com/23skdu/ShaderCandy.git
 cd ShaderCandy
-
-# Automated build and install
 ./install/install_macos.sh
 ```
 
 ### Linux Build
 
 ```bash
-git clone https://github.com/yourusername/ShaderCandy.git
+git clone https://github.com/23skdu/ShaderCandy.git
 cd ShaderCandy
-
-# Automated build and install
 ./install/install_linux.sh
 ```
 
@@ -85,9 +66,18 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-## Testing
+### Build Options
 
-The project includes a test suite covering math operations, shader compilation, and core functionality.
+| Option | Default | Description |
+|--------|---------|-------------|
+| `BUILD_TESTS` | ON | Build test suite |
+| `BUILD_AUDIO` | ON | Build audio support (ALSA/PulseAudio + FFTW3) |
+| `BUILD_SCREENSAVER_LINUX` | ON | Build X11 screensaver |
+| `BUILD_SCREENSAVER_WAYLAND` | ON | Build Wayland screensaver |
+| `BUILD_STANDALONE_PLAYER` | ON | Build standalone player (requires GLFW) |
+| `BUILD_WALLPAPER` | ON | Build wallpaper mode |
+
+## Testing
 
 ```bash
 # Build with tests enabled
@@ -101,6 +91,23 @@ make
 ./shadercandy-test --run "Math & SIMD Tests"
 ```
 
+## Keyboard Controls (Screensaver)
+
+| Key | Action |
+|-----|--------|
+| Right Arrow / Space / P | Next shader |
+| Left Arrow / N | Previous shader |
+| D | Toggle debug overlay |
+| T | Run test suite |
+| F12 / PrintScreen | Screenshot |
+| 1-4 | Adjust parameters |
+| 5 | Cycle color palette |
+| Tab | Switch display |
+| Ctrl+S | Save preset |
+| Ctrl+O | Load preset |
+| Ctrl+/- | Adjust intensity |
+| ESC / Q / Click | Quit |
+
 ## Performance Benchmarks
 
 Rough performance metrics on reference hardware (4K resolution):
@@ -112,15 +119,32 @@ Rough performance metrics on reference hardware (4K resolution):
 | RTX 3060 | Ray March | 60 |
 | Intel Iris Xe | Nebula | ~45 |
 
+## Shader Gallery
+
+ShaderCandy ships with **111 shaders** across four categories:
+
+* **Fractals**: Mandelbulb, Mandelbrot, Julia Set variants, Burning Ship, Sierpinski
+* **Audio-Reactive**: Audio bars, spectrum, wave, ray tracing, circular visualizer
+* **Music**: Genre-themed effects (jazz, hip-hop, electronic, classical, etc.)
+* **Abstract**: Plasma, kaleidoscope, vortex, reaction-diffusion, fluid dynamics
+
 ## Documentation
 
-* `docs/ShaderCandyMasterPlan.md`: Consolidated project architecture and feature status.
-* `docs/ArchitectureDiagrams.md`: Visual architecture diagrams for rendering, audio, and core systems.
-* `docs/ApplicationModesGuide.md`: User guide for Standalone Player, Wallpaper Mode, and Screensavers across macOS and Linux.
-* `docs/ShaderAuthoringGuide.md`: Developer guide for creating and translating shaders (Metal & GLSL).
-* `docs/LinuxFeatures.md`: Linux platform architecture, Wayland/X11 details, and build instructions.
-* `docs/HdrImplementation.md`: High-bit-depth rendering and tone mapping documentation.
-* `docs/nextsteps.md`: Active performance and stability engineering roadmap.
+* `docs/ShaderCandyMasterPlan.md` -- Consolidated project architecture and feature status
+* `docs/ArchitectureDiagrams.md` -- Visual architecture diagrams for rendering, audio, and core systems
+* `docs/ApplicationModesGuide.md` -- User guide for Standalone Player, Wallpaper Mode, and Screensavers
+* `docs/ShaderAuthoringGuide.md` -- Developer guide for creating and translating shaders (Metal & GLSL)
+* `docs/LinuxFeatures.md` -- Linux platform architecture, Wayland/X11 details, and build instructions
+* `docs/HdrImplementation.md` -- High-bit-depth rendering and tone mapping documentation
+* `docs/nextsteps.md` -- Active performance and stability engineering roadmap
+
+## CI/CD
+
+GitHub Actions CI runs on every push and PR:
+- Builds on Ubuntu with full dependency matrix
+- Runs the full test suite
+- Static analysis with clang-tidy and cppcheck
+- Memory leak detection with valgrind
 
 ## License
 
