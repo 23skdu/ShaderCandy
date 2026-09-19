@@ -27,14 +27,6 @@ using namespace ShaderCandy::Audio;
 // Stubs when audio is not available
 namespace ShaderCandy {
 namespace Audio {
-struct AudioData {
-  float volume = 0.0f;
-  float bass = 0.0f;
-  float mid = 0.0f;
-  float treble = 0.0f;
-  float beat = 0.0f;
-  std::vector<float> spectrum;
-};
 class AudioInput {
 public:
   AudioInput() {}
@@ -128,7 +120,7 @@ private:
   bool inTransition = false;
   float transitionDuration = 2.0f;
   std::chrono::steady_clock::time_point transitionStart;
-  float timePerShader = 30.0f; // Seconds before auto-switch
+  float timePerShader = 60.0f; // Seconds before auto-switch
   std::chrono::steady_clock::time_point shaderStartTime;
 
   // OSD notification
@@ -706,7 +698,23 @@ layout(std140) uniform Uniforms {
     return true;
   }
 
-  void checkForShaderReload() {}
+  void checkForShaderReload() {
+    if (!hotReloadEnabled || !currentShader || currentShader->path.empty())
+      return;
+
+    struct stat st;
+    if (stat(currentShader->path.c_str(), &st) == 0) {
+      double modTime = st.st_mtime;
+      auto it = shaderModTimes.find(currentShader->path);
+      if (it != shaderModTimes.end() && modTime > it->second) {
+        currentShader->reload();
+        shaderModTimes[currentShader->path] = modTime;
+        showNotification("Reloaded: " + currentShader->name);
+      } else if (it == shaderModTimes.end()) {
+        shaderModTimes[currentShader->path] = modTime;
+      }
+    }
+  }
 
   void renderNotification() {
     if (notificationText.empty())
