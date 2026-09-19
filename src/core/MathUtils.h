@@ -1,4 +1,13 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #pragma once
+
+/// @file MathUtils.h
+/// @brief SIMD-accelerated math utilities for ShaderCandy.
+/// @details Provides Vec2/Vec3 types, dot/cross products, and dispatch wrappers
+///          for NEON (ARM), AVX2 (x86), and scalar fallbacks. Also includes
+///          RGB<->HSV color space conversion.
 
 #include <algorithm>
 #include <cmath>

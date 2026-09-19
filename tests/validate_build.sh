@@ -16,7 +16,9 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-cd /Users/rsd/REPOS/ShaderCandy/build
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT/build"
 
 # Test 1: Build validation
 echo "Test 1: Checking build artifacts..."
@@ -94,7 +96,7 @@ REQUIRED_FILES=(
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
-    if [ -f "/Users/rsd/REPOS/ShaderCandy/$file" ]; then
+    if [ -f "$PROJECT_ROOT/$file" ]; then
         echo -e "${GREEN}✓${NC} $file"
     else
         echo -e "${RED}✗${NC} $file (missing)"
@@ -116,7 +118,7 @@ DOCS=(
 )
 
 for doc in "${DOCS[@]}"; do
-    if [ -f "/Users/rsd/REPOS/ShaderCandy/$doc" ]; then
+    if [ -f "$PROJECT_ROOT/$doc" ]; then
         echo -e "${GREEN}✓${NC} $doc"
     else
         echo -e "${RED}✗${NC} $doc (missing)"

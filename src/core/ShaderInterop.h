@@ -1,5 +1,13 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #ifndef SHADER_INTEROP_H
 #define SHADER_INTEROP_H
+
+/// @file ShaderInterop.h
+/// @brief Shared data structures between CPU (C++) and GPU (Metal/GLSL) code.
+/// @details Defines the Uniforms struct and vector types used to pass
+///          per-frame data from the application to shaders on both platforms.
 
 // Metal shaders include metal_stdlib before this file
 // For non-Metal C++ code, we need these includes
