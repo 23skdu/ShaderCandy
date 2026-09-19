@@ -1,3 +1,6 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #ifndef GL_LOADER_H
 #define GL_LOADER_H
 
@@ -7,54 +10,55 @@
 #include <GL/glx.h>
 #include <iostream>
 
-// OpenGL 3.3+ function pointers
-static PFNGLCREATEPROGRAMPROC glCreateProgram_ptr = nullptr;
-static PFNGLDELETEPROGRAMPROC glDeleteProgram_ptr = nullptr;
-static PFNGLUSEPROGRAMPROC glUseProgram_ptr = nullptr;
-static PFNGLATTACHSHADERPROC glAttachShader_ptr = nullptr;
-static PFNGLLINKPROGRAMPROC glLinkProgram_ptr = nullptr;
-static PFNGLGETPROGRAMIVPROC glGetProgramiv_ptr = nullptr;
-static PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog_ptr = nullptr;
-static PFNGLCREATESHADERPROC glCreateShader_ptr = nullptr;
-static PFNGLDELETESHADERPROC glDeleteShader_ptr = nullptr;
-static PFNGLSHADERSOURCEPROC glShaderSource_ptr = nullptr;
-static PFNGLCOMPILESHADERPROC glCompileShader_ptr = nullptr;
-static PFNGLGETSHADERIVPROC glGetShaderiv_ptr = nullptr;
-static PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog_ptr = nullptr;
-static PFNGLGENBUFFERSPROC glGenBuffers_ptr = nullptr;
-static PFNGLDELETEBUFFERSPROC glDeleteBuffers_ptr = nullptr;
-static PFNGLBINDBUFFERPROC glBindBuffer_ptr = nullptr;
-static PFNGLBUFFERDATAPROC glBufferData_ptr = nullptr;
-static PFNGLBUFFERSUBDATAPROC glBufferSubData_ptr = nullptr;
-static PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_ptr = nullptr;
-static PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_ptr = nullptr;
-static PFNGLBINDVERTEXARRAYPROC glBindVertexArray_ptr = nullptr;
-static PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray_ptr = nullptr;
-static PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer_ptr = nullptr;
-static PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex_ptr = nullptr;
-static PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding_ptr = nullptr;
-static PFNGLBINDBUFFERBASEPROC glBindBufferBase_ptr = nullptr;
-static PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers_ptr = nullptr;
-static PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers_ptr = nullptr;
-static PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation_ptr = nullptr;
-static PFNGLUNIFORM1FPROC glUniform1f_ptr = nullptr;
-static PFNGLUNIFORM2FPROC glUniform2f_ptr = nullptr;
-static PFNGLUNIFORM3FPROC glUniform3f_ptr = nullptr;
-static PFNGLUNIFORM4FPROC glUniform4f_ptr = nullptr;
-static PFNGLUNIFORM1IPROC glUniform1i_ptr = nullptr;
-static PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv_ptr = nullptr;
-static PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers_ptr = nullptr;
-static PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer_ptr = nullptr;
-static PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D_ptr = nullptr;
-static PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus_ptr = nullptr;
-static PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers_ptr = nullptr;
-static PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer_ptr = nullptr;
-static PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage_ptr = nullptr;
-static PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer_ptr = nullptr;
-static PFNGLACTIVETEXTUREPROC glActiveTexture_ptr = nullptr;
-static PFNGLGENERATEMIPMAPPROC glGenerateMipmap_ptr = nullptr;
-static PFNGLUNIFORM1FVPROC glUniform1fv_ptr = nullptr;
-static PFNGLGETUNIFORMFVPROC glGetUniformfv_ptr = nullptr;
+namespace {
+// OpenGL 3.3+ function pointers (anonymous namespace to prevent ODR violations)
+PFNGLCREATEPROGRAMPROC glCreateProgram_ptr = nullptr;
+PFNGLDELETEPROGRAMPROC glDeleteProgram_ptr = nullptr;
+PFNGLUSEPROGRAMPROC glUseProgram_ptr = nullptr;
+PFNGLATTACHSHADERPROC glAttachShader_ptr = nullptr;
+PFNGLLINKPROGRAMPROC glLinkProgram_ptr = nullptr;
+PFNGLGETPROGRAMIVPROC glGetProgramiv_ptr = nullptr;
+PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog_ptr = nullptr;
+PFNGLCREATESHADERPROC glCreateShader_ptr = nullptr;
+PFNGLDELETESHADERPROC glDeleteShader_ptr = nullptr;
+PFNGLSHADERSOURCEPROC glShaderSource_ptr = nullptr;
+PFNGLCOMPILESHADERPROC glCompileShader_ptr = nullptr;
+PFNGLGETSHADERIVPROC glGetShaderiv_ptr = nullptr;
+PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog_ptr = nullptr;
+PFNGLGENBUFFERSPROC glGenBuffers_ptr = nullptr;
+PFNGLDELETEBUFFERSPROC glDeleteBuffers_ptr = nullptr;
+PFNGLBINDBUFFERPROC glBindBuffer_ptr = nullptr;
+PFNGLBUFFERDATAPROC glBufferData_ptr = nullptr;
+PFNGLBUFFERSUBDATAPROC glBufferSubData_ptr = nullptr;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_ptr = nullptr;
+PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_ptr = nullptr;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray_ptr = nullptr;
+PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray_ptr = nullptr;
+PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer_ptr = nullptr;
+PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex_ptr = nullptr;
+PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding_ptr = nullptr;
+PFNGLBINDBUFFERBASEPROC glBindBufferBase_ptr = nullptr;
+PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers_ptr = nullptr;
+PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers_ptr = nullptr;
+PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation_ptr = nullptr;
+PFNGLUNIFORM1FPROC glUniform1f_ptr = nullptr;
+PFNGLUNIFORM2FPROC glUniform2f_ptr = nullptr;
+PFNGLUNIFORM3FPROC glUniform3f_ptr = nullptr;
+PFNGLUNIFORM4FPROC glUniform4f_ptr = nullptr;
+PFNGLUNIFORM1IPROC glUniform1i_ptr = nullptr;
+PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv_ptr = nullptr;
+PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers_ptr = nullptr;
+PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer_ptr = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D_ptr = nullptr;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus_ptr = nullptr;
+PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers_ptr = nullptr;
+PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer_ptr = nullptr;
+PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage_ptr = nullptr;
+PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer_ptr = nullptr;
+PFNGLACTIVETEXTUREPROC glActiveTexture_ptr = nullptr;
+PFNGLGENERATEMIPMAPPROC glGenerateMipmap_ptr = nullptr;
+PFNGLUNIFORM1FVPROC glUniform1fv_ptr = nullptr;
+PFNGLGETUNIFORMFVPROC glGetUniformfv_ptr = nullptr;
 
 // Macro wrappers
 #define glCreateProgram glCreateProgram_ptr
@@ -104,6 +108,7 @@ static PFNGLGETUNIFORMFVPROC glGetUniformfv_ptr = nullptr;
 #define glActiveTexture glActiveTexture_ptr
 #define glGenerateMipmap glGenerateMipmap_ptr
 #define glUniform1fv glUniform1fv_ptr
+} // anonymous namespace
 
 inline bool InitializeGLLoader() {
   glCreateProgram_ptr = (PFNGLCREATEPROGRAMPROC)glXGetProcAddress(

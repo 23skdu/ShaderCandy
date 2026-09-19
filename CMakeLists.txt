@@ -521,6 +521,7 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
     if(EXISTS "${CMAKE_SOURCE_DIR}/src/platform/linux/screensaver.cpp")
         set(LINUX_SCREENSAVER_SOURCES
             src/platform/linux/screensaver.cpp
+            src/platform/linux/GLShaderProgram.cpp
         )
         
         # Find X11 libraries (Xmu and Xss are optional)

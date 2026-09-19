@@ -1,3 +1,6 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #ifndef LINUX_IPC_H
 #define LINUX_IPC_H
 
@@ -28,7 +31,7 @@ private:
 public:
   LinuxIPC(int id = 1234) {
     key = ftok(".", id);
-    shmid = shmget(key, sizeof(IPCData), 0666 | IPC_CREAT);
+    shmid = shmget(key, sizeof(IPCData), 0600 | IPC_CREAT);
     sharedData = (IPCData *)shmat(shmid, (void *)0, 0);
 
     // Only initialize if we created it
@@ -58,7 +61,7 @@ public:
 
   static void cleanup(int id = 1234) {
     key_t k = ftok(".", id);
-    int s = shmget(k, sizeof(IPCData), 0666);
+    int s = shmget(k, sizeof(IPCData), 0600);
     shmctl(s, IPC_RMID, NULL);
   }
 };

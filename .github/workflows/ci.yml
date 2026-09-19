@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake \
+            libx11-dev libxss-dev libxmu-dev \
+            libgl-dev libpulse-dev libfftw3-dev \
+            pkg-config valgrind clang-tidy
+
+      - name: Cache build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-build-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: ${{ runner.os }}-build-
+
+      - name: Configure
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd build
+          if [ -f shadercandy-test ]; then
+            ./shadercandy-test
+          fi
+
+      - name: Lint with clang-tidy
+        run: |
+          clang-tidy src/core/*.cpp src/core/*.h \
+            -p build --warnings-as-errors=warning 2>&1 || true
+
+      - name: Check for memory leaks (valgrind)
+        run: |
+          cd build
+          if [ -f shadercandy-test ]; then
+            valgrind --leak-check=full --error-exitcode=1 \
+              --suppressions=../.valgrind.supp \
+              ./shadercandy-test 2>&1 || true
+          fi

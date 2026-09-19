@@ -1,4 +1,13 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #pragma once
+
+/// @file ShaderManager.h
+/// @brief Abstract interface for platform-specific shader management.
+/// @details Defines the ShaderManager base class that backends (Metal, OpenGL)
+///          must implement. Handles shader loading, hot-reload, and active
+///          shader state.
 
 #include <functional>
 #include <memory>

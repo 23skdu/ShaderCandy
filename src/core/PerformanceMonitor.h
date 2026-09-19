@@ -1,4 +1,12 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #pragma once
+
+/// @file PerformanceMonitor.h
+/// @brief Frame timing and FPS tracking with rolling history.
+/// @details Provides begin/end frame bracketing, rolling average FPS,
+///          99th percentile frame time, and dropped frame counting.
 
 #include <array>
 #include <chrono>

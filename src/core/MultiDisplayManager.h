@@ -1,4 +1,13 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #pragma once
+
+/// @file MultiDisplayManager.h
+/// @brief Multi-monitor enumeration, configuration, and per-display rendering.
+/// @details Queries connected displays, tracks per-display shader assignments,
+///          and provides resolution/refresh-rate information for the screensaver
+///          and standalone player backends.
 
 #include <cstdint>
 #include <functional>

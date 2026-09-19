@@ -1,3 +1,6 @@
+/* This is free and unencumbered software released into the public domain.
+   See LICENSE or <https://unlicense.org/> for details. */
+
 #include "GLLoader.h"
 #include "GLSLWrapper.h"
 #include "LinuxStubs.h"
@@ -436,9 +439,9 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
     } else if (strcmp(argv[i], "-audio") == 0) {
       enableAudio = true;
     } else if (strcmp(argv[i], "-width") == 0 && i + 1 < argc) {
-      width = atoi(argv[++i]);
+      try { width = std::stoi(argv[++i]); } catch (...) { width = 1920; }
     } else if (strcmp(argv[i], "-height") == 0 && i + 1 < argc) {
-      height = atoi(argv[++i]);
+      try { height = std::stoi(argv[++i]); } catch (...) { height = 1080; }
     }
   }
 
