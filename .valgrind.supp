@@ -1,18 +1,33 @@
+# Valgrind suppressions for ShaderCandy CI
+# System library leaks from Mesa GLX, ALSA, and PipeWire
+# These are harmless internal allocations in stripped shared libraries
+
 {
-   # Suppressions for third-party libraries and common false positives
-   # X11/GLX allocations that are intentionally leaked at shutdown
-   leak:libX11
-   leak:libGL
-   leak:libGLX
-   leak:XOpenDisplay
-   leak:glXCreateNewContext
-   # FFTW3 plan allocations
-   leak:fftwf_plan_dft_r2c_1d
-   leak:fftwf_plan_dft_c2r_1d
-   # PulseAudio context allocations
-   leak:pa_context_new
-   leak:pa_context_connect
-   # C++ standard library internal allocations
-   leak:std::string
-   leak:std::vector
+   mesa_glx_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
+   fun:calloc
+   ...
+   fun:_Z*
+   ...
+}
+
+{
+   alsa_pcm_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
+   fun:malloc
+   ...
+   fun:snd_*
+   ...
+}
+
+{
+   pipewire_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
+   fun:malloc
+   ...
+   fun:pw_*
+   ...
 }

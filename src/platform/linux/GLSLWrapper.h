@@ -1,7 +1,13 @@
 #ifndef GLSL_WRAPPER_H
 #define GLSL_WRAPPER_H
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
 #include <string>
+#include <unordered_map>
+#include <vector>
+#include <sys/stat.h>
 
 namespace ShaderCandy {
 namespace Platform {
@@ -227,6 +233,145 @@ void main() {
 )GLSL");
     }
   }
+
+  static std::string loadShaderWithIncludes(const char *path, int depth = 0) {
+    if (depth > 10) {
+      std::cerr << "Include depth exceeded for: " << path << std::endl;
+      return "";
+    }
+
+    std::string pathStr(path);
+
+    struct stat st;
+    time_t mtime = 0;
+    if (stat(path, &st) == 0) {
+      mtime = st.st_mtime;
+    }
+
+    auto cacheIt = fileCache_.find(pathStr);
+    if (cacheIt != fileCache_.end() && cacheIt->second.mtime == mtime) {
+      return cacheIt->second.content;
+    }
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+      return "";
+    }
+
+    std::string dir = path;
+    size_t lastSlash = dir.find_last_of("/\\");
+    if (lastSlash != std::string::npos) {
+      dir = dir.substr(0, lastSlash + 1);
+    } else {
+      dir = "./";
+    }
+
+    std::stringstream result;
+    std::string line;
+    while (std::getline(file, line)) {
+      size_t versionPos = line.find("#version");
+      if (versionPos != std::string::npos) {
+        continue;
+      }
+
+      size_t includePos = line.find("#include");
+      if (includePos != std::string::npos) {
+        size_t start = line.find('"', includePos);
+        size_t end = std::string::npos;
+        if (start != std::string::npos) {
+          end = line.find('"', start + 1);
+        }
+
+        if (start != std::string::npos && end != std::string::npos) {
+          std::string includePath = line.substr(start + 1, end - start - 1);
+          std::string fullPath;
+          if (includePath[0] == '/') {
+            fullPath = includePath;
+          } else if (includePath.substr(0, 3) == "../") {
+            std::string parentDir = dir;
+            while (parentDir.length() > 0 &&
+                   (parentDir.back() == '/' || parentDir.back() == '\\')) {
+              parentDir.pop_back();
+            }
+            size_t parentSlash = parentDir.find_last_of("/\\");
+            if (parentSlash != std::string::npos) {
+              parentDir = parentDir.substr(0, parentSlash);
+            }
+            std::string remainingPath = includePath.substr(3);
+            while (remainingPath.size() >= 3 &&
+                   remainingPath.substr(0, 3) == "../") {
+              size_t slash = parentDir.find_last_of("/\\");
+              if (slash != std::string::npos) {
+                parentDir = parentDir.substr(0, slash);
+              }
+              remainingPath = remainingPath.substr(3);
+            }
+            fullPath = parentDir + "/" + remainingPath;
+          } else if (includePath.substr(0, 2) == "./") {
+            fullPath = dir + includePath.substr(2);
+          } else {
+            fullPath = dir + includePath;
+          }
+
+          // Fallback path resolution
+          if (!std::ifstream(fullPath).is_open()) {
+            std::string altPath = dir + "../" + includePath;
+            if (std::ifstream(altPath).is_open()) {
+              fullPath = altPath;
+            } else {
+              altPath = dir + "../../" + includePath;
+              if (std::ifstream(altPath).is_open()) {
+                fullPath = altPath;
+              } else {
+                altPath = "./shaders/" + includePath;
+                if (std::ifstream(altPath).is_open()) {
+                  fullPath = altPath;
+                } else {
+                  altPath = "../shaders/" + includePath;
+                  if (std::ifstream(altPath).is_open()) {
+                    fullPath = altPath;
+                  } else {
+                    altPath = "/usr/local/share/shadercandy/shaders/" + includePath;
+                    if (std::ifstream(altPath).is_open()) {
+                      fullPath = altPath;
+                    } else {
+                      altPath = "/usr/share/shadercandy/shaders/" + includePath;
+                      if (std::ifstream(altPath).is_open()) {
+                        fullPath = altPath;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          std::string includeContent =
+              loadShaderWithIncludes(fullPath.c_str(), depth + 1);
+          if (!includeContent.empty()) {
+            result << includeContent << "\n";
+          }
+          continue;
+        }
+      }
+
+      result << line << "\n";
+    }
+
+    if (mtime > 0) {
+      fileCache_[pathStr] = {mtime, result.str()};
+    }
+    return result.str();
+  }
+
+  static void clearFileCache() { fileCache_.clear(); }
+
+private:
+  struct CachedFile {
+    time_t mtime = 0;
+    std::string content;
+  };
+  static inline std::unordered_map<std::string, CachedFile> fileCache_;
 };
 
 } // namespace Linux

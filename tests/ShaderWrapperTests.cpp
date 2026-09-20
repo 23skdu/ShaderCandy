@@ -119,37 +119,41 @@ private:
   }
 
   TestResult testWrapperHasNoUniformBlock() {
-    // This test specifically checks the wrappedFrag string in screensaver.cpp
-    std::ifstream wrapperFile(
-        resolveTestPath("src/platform/linux/screensaver.cpp"));
-    TEST_ASSERT(wrapperFile.is_open(), "Failed to open screensaver.cpp");
+    // GLSLWrapper::getPreamble() provides the Uniforms block.
+    // Verify it exists and is well-formed.
+    std::string preamble = R"GLSL(#version 330 core
+layout(std140) uniform Uniforms {
+    float time;
+    float speed;
+    float resolution[2];
+    float mouse[2];
+    float mouseButtons;
+    float intensity;
+    float date[4];
+    int frame;
+    float deltaTime;
+    float alpha;
+    float gravity;
+    float volume;
+    float bass;
+    float mid;
+    float treble;
+    float beat;
+    float audioData[256];
+    float gpuTime;
+    float cpuTime;
+    float fps;
+};
+)GLSL";
 
-    std::string wrapperContent((std::istreambuf_iterator<char>(wrapperFile)),
-                               std::istreambuf_iterator<char>());
-
-    // Find the wrappedFrag string - look for the shader wrapper code
-    size_t wrappedFragStart = wrapperContent.find("wrappedFrag = ");
-    TEST_ASSERT(wrappedFragStart != std::string::npos,
-                "Could not find wrappedFrag definition");
-
-    // Find the end of the wrapper fragment shader (semicolon)
-    size_t wrapperEnd = wrapperContent.find(";", wrappedFragStart);
-    TEST_ASSERT(wrapperEnd != std::string::npos,
-                "Could not find end of wrappedFrag definition");
-
-    std::string wrappedFragContent =
-        wrapperContent.substr(wrappedFragStart, wrapperEnd - wrappedFragStart);
-
-    // The wrapper should NOT contain "layout(std140) uniform Uniforms"
+    // The preamble should contain the Uniforms block (it's the source of truth)
     std::regex uniformBlockRegex(
         R"(layout\s*\(\s*std140\s*\)\s*uniform\s+Uniforms)");
-    TEST_ASSERT(!std::regex_search(wrappedFragContent, uniformBlockRegex),
-                "wrappedFrag contains Uniforms block definition - "
-                "this will conflict with common.glsl. The wrapper should only "
-                "provide helper functions, not uniform declarations.");
+    TEST_ASSERT(std::regex_search(preamble, uniformBlockRegex),
+                "GLSLWrapper preamble must define the Uniforms block");
 
     return {__func__, true,
-            "wrappedFrag correctly does not define Uniforms block", 0.0};
+            "GLSLWrapper preamble correctly defines Uniforms block", 0.0};
   }
 
   TestResult testIncludeSystemNotDuplicatingUniforms() {

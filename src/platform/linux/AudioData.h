@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef HAS_AUDIO
+
 #include <algorithm>
 #include <vector>
 
@@ -31,3 +33,5 @@ struct AudioData {
 
 } // namespace Audio
 } // namespace ShaderCandy
+
+#endif // HAS_AUDIO

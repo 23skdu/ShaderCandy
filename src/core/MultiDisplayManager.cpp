@@ -193,6 +193,8 @@ public:
   std::vector<uint8_t> frameBuffer;
   ProgressCallback progressCallback;
   int selectedGPU = 0;
+  FILE *ffmpegProcess = nullptr;
+  int encodingFPS = 0;
 };
 
 HeadlessRenderer::HeadlessRenderer() : pImpl(std::make_unique<Impl>()) {}
@@ -208,6 +210,7 @@ bool HeadlessRenderer::initialize(int width, int height) {
 }
 
 void HeadlessRenderer::shutdown() {
+  finishVideoEncoding();
   pImpl->frameBuffer.clear();
   currentFrame_ = 0;
 }
@@ -235,18 +238,49 @@ bool HeadlessRenderer::renderToFile(const std::string &outputPath) {
   auto buffer = renderToBuffer(0);
   endRender();
 
-  std::ofstream out(outputPath, std::ios::binary);
-  if (!out)
+  // Determine format from extension
+  std::string ext;
+  auto dotPos = outputPath.rfind('.');
+  if (dotPos != std::string::npos) {
+    ext = outputPath.substr(dotPos + 1);
+  }
+
+  if (ext == "ppm" || ext == "PPM") {
+    std::ofstream out(outputPath, std::ios::binary);
+    if (!out)
+      return false;
+    out << "P6\n" << width_ << " " << height_ << "\n255\n";
+    for (size_t i = 0; i < buffer.size(); i += 4) {
+      out.put(static_cast<char>(buffer[i]));
+      out.put(static_cast<char>(buffer[i + 1]));
+      out.put(static_cast<char>(buffer[i + 2]));
+    }
+    return true;
+  }
+
+  // Use ffmpeg for PNG/JPG
+  std::string pixelFormat = "rgba";
+  std::string cmd =
+      "ffmpeg -y -f rawvideo -pixel_format " + pixelFormat + " -video_size " +
+      std::to_string(width_) + "x" + std::to_string(height_) +
+      " -framerate 1 -i pipe:0";
+
+  if (ext == "png" || ext == "PNG") {
+    cmd += " -frames:v 1 " + outputPath + " 2>/dev/null";
+  } else if (ext == "jpg" || ext == "jpeg" || ext == "JPG" || ext == "JPEG") {
+    cmd += " -frames:v 1 -q:v 2 " + outputPath + " 2>/dev/null";
+  } else {
+    cmd += " -frames:v 1 " + outputPath + " 2>/dev/null";
+  }
+
+  FILE *proc = popen(cmd.c_str(), "w");
+  if (!proc)
     return false;
 
-  // Simple uncompressed PPM fallback for raw frames
-  out << "P6\n" << width_ << " " << height_ << "\n255\n";
-  for (size_t i = 0; i < buffer.size(); i += 4) {
-    out.put(static_cast<char>(buffer[i]));     // R
-    out.put(static_cast<char>(buffer[i + 1])); // G
-    out.put(static_cast<char>(buffer[i + 2])); // B
-  }
-  return true;
+  size_t expectedSize = static_cast<size_t>(width_) * height_ * 4;
+  size_t written = fwrite(buffer.data(), 1, expectedSize, proc);
+  int status = pclose(proc);
+  return written == expectedSize && status == 0;
 }
 
 std::vector<uint8_t> HeadlessRenderer::renderToBuffer(int frame) {
@@ -273,7 +307,12 @@ void HeadlessRenderer::beginRender() { currentFrame_ = 0; }
 bool HeadlessRenderer::renderFrame() {
   if (isFinished())
     return false;
-  renderToBuffer(currentFrame_);
+  auto buffer = renderToBuffer(currentFrame_);
+  if (pImpl->ffmpegProcess) {
+    if (!encodeFrame(buffer)) {
+      return false;
+    }
+  }
   currentFrame_++;
   if (pImpl->progressCallback) {
     pImpl->progressCallback(currentFrame_, totalFrames_);
@@ -291,15 +330,49 @@ void HeadlessRenderer::setProgressCallback(ProgressCallback callback) {
   pImpl->progressCallback = callback;
 }
 
-bool HeadlessRenderer::startVideoEncoding(const std::string &, int) {
+bool HeadlessRenderer::startVideoEncoding(const std::string &outputPath,
+                                          int fps) {
+  finishVideoEncoding();
+  fps_ = fps;
+  totalFrames_ = static_cast<int>(duration_ * fps_);
+
+  std::string cmd =
+      "ffmpeg -y -f rawvideo -pixel_format rgba -video_size " +
+      std::to_string(width_) + "x" + std::to_string(height_) +
+      " -framerate " + std::to_string(fps) +
+      " -i pipe:0 -c:v libx264 -pix_fmt yuv420p -preset fast -crf 18 " +
+      outputPath + " 2>/dev/null";
+
+  pImpl->ffmpegProcess = popen(cmd.c_str(), "w");
+  if (!pImpl->ffmpegProcess) {
+    return false;
+  }
+  pImpl->encodingFPS = fps;
   return true;
 }
 
-bool HeadlessRenderer::encodeFrame(const std::vector<uint8_t> &) {
-  return true;
+bool HeadlessRenderer::encodeFrame(const std::vector<uint8_t> &frameData) {
+  if (!pImpl->ffmpegProcess || frameData.empty()) {
+    return false;
+  }
+
+  size_t expectedSize =
+      static_cast<size_t>(width_) * height_ * 4;
+  if (frameData.size() < expectedSize) {
+    return false;
+  }
+
+  size_t written =
+      fwrite(frameData.data(), 1, expectedSize, pImpl->ffmpegProcess);
+  return written == expectedSize;
 }
 
-void HeadlessRenderer::finishVideoEncoding() {}
+void HeadlessRenderer::finishVideoEncoding() {
+  if (pImpl->ffmpegProcess) {
+    pclose(pImpl->ffmpegProcess);
+    pImpl->ffmpegProcess = nullptr;
+  }
+}
 
 void HeadlessRenderer::setGPUDevice(int deviceIndex) {
   pImpl->selectedGPU = deviceIndex;

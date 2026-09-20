@@ -7,67 +7,21 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
 #include "../core/ShaderInterop.h"
+#include "GLRendererTypes.h"
+#include "UniformUploader.h"
 
 namespace ShaderCandy {
 namespace Platform {
 namespace Linux {
-
-enum class GLRendererErrorCode {
-  None = 0,
-  ContextCreationFailed,
-  ShaderCompilationFailed,
-  ProgramLinkFailed,
-  TextureCreationFailed,
-  DeviceLost,
-  ResourceExhausted,
-  InvalidState
-};
-
-struct GLRendererError {
-  GLRendererErrorCode code;
-  std::string message;
-  std::string shaderName;
-  std::string compilerError;
-  int lineNumber;
-};
-
-struct GLPerformanceMetrics {
-  double currentFPS = 0.0;
-  double averageFPS = 0.0;
-  double minFPS = 0.0;
-  double maxFPS = 0.0;
-  double frameTimeMs = 0.0;
-  double gpuTimeMs = 0.0;
-  double cpuTimeMs = 0.0;
-  unsigned int droppedFrames = 0;
-  size_t memoryUsageBytes = 0;
-};
-
-enum class GLToneMapping { None = 0, ACES, Reinhard, Filmic, Hable };
-
-enum class GLBloomQuality { Low = 0, Medium, High, Ultra };
-
-struct GLBloomConfig {
-  bool enabled = true;
-  GLBloomQuality quality = GLBloomQuality::Medium;
-  float intensity = 1.0f;
-  float threshold = 0.8f;
-  int blurRadius = 5;
-};
-
-struct GLParticleConfig {
-  int count = 1000;
-  bool enabled = false;
-  float gravity = 9.81f;
-  float speed = 1.0f;
-};
 
 class GLRenderer {
 public:
@@ -137,7 +91,17 @@ public:
 
   // Error handling
   const GLRendererError &getLastError() const { return lastError_; }
-  void clearError() { lastError_ = {GLRendererErrorCode::None, "", "", "", 0}; }
+  void clearError() {
+    lastError_ = GLRendererError();
+  }
+  void setErrorCallback(std::function<void(const GLRendererError &)> cb) {
+    errorCallback_ = std::move(cb);
+  }
+
+  // Shader change callback
+  void setShaderChangedCallback(std::function<void(const std::string &)> cb) {
+    shaderChangedCallback_ = std::move(cb);
+  }
 
 private:
   bool initialized_ = false;
@@ -185,6 +149,7 @@ private:
   // Uniforms
   Uniforms uniforms_;
   int uniformsLocation_ = -1;
+  UniformUploader uniformUploader_;
 
   // Audio
   bool audioReactivityEnabled_ = false;
@@ -218,17 +183,40 @@ private:
   // Hot reload
   bool hotReloadEnabled_ = true;
   std::unordered_map<std::string, double> shaderModTimes_;
+  std::unordered_map<std::string, std::string> shaderPaths_;
 
   // Error state
   GLRendererError lastError_;
 
+  // Post-processing FBO
+  void initPostProcessingFBO();
+  void initBloom();
+  void renderBloom();
+
+  int renderWidth_ = 0;
+  int renderHeight_ = 0;
+
+  // Blit program (passthrough for FBO → screen when HDR off)
+  unsigned int blitProgram_ = 0;
+
+  // Video encoding state
+  FILE *ffmpegProcess_ = nullptr;
+  bool encodingVideo_ = false;
+
   // Callbacks
   std::function<void(const std::string &)> shaderChangedCallback_;
+  std::function<void(const GLRendererError &)> errorCallback_;
 
-  // Helper to set error
   void setError(GLRendererErrorCode code, const std::string &msg,
                 const std::string &shader = "",
                 const std::string &compileError = "");
+
+  // Shader file watching (inotify)
+  void startFileWatcher();
+  void stopFileWatcher();
+  std::thread fileWatcherThread_;
+  std::atomic<bool> fileWatcherRunning_{false};
+  std::unordered_map<std::string, int> watchDescriptors_;
 };
 
 } // namespace Linux

@@ -13,11 +13,19 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
 
 using namespace ShaderCandy::Platform::Linux;
+
+static std::string getHomeDir() {
+  const char *home = getenv("HOME");
+  if (home)
+    return std::string(home);
+  return std::string(".");
+}
 
 // Audio support
 #ifdef HAS_AUDIO
@@ -134,7 +142,7 @@ private:
   std::unordered_map<std::string, double> shaderModTimes;
 
   // Audio input
-  AudioInput *audioInput = nullptr;
+  std::unique_ptr<AudioInput> audioInput;
   bool enableAudio = false;
 
   bool hotReloadEnabled = true;
@@ -201,11 +209,8 @@ public:
       // System directories
       addShaderDirectory("/usr/share/shadercandy/shaders");
       addShaderDirectory("/usr/local/share/shadercandy/shaders");
-      const char *home = getenv("HOME");
-      if (home) {
-        addShaderDirectory(std::string(home) +
-                           "/.local/share/shadercandy/shaders");
-      }
+      addShaderDirectory(getHomeDir() +
+                         "/.local/share/shadercandy/shaders");
     }
 
     // Open display
@@ -254,6 +259,8 @@ public:
         glXChooseFBConfig(display, screen, visualAttribs, &fbcount);
     if (!fbc || fbcount < 1) {
       std::cerr << "Failed to get framebuffer config" << std::endl;
+      XCloseDisplay(display);
+      display = nullptr;
       return false;
     }
 
@@ -317,8 +324,23 @@ public:
     // Initialize OpenGL function pointers
     if (!InitializeGLLoader()) {
       std::cerr << "Failed to initialize OpenGL function pointers" << std::endl;
+      if (context) {
+        glXMakeCurrent(display, None, nullptr);
+        glXDestroyContext(display, context);
+        context = nullptr;
+      }
+      if (window) {
+        XDestroyWindow(display, window);
+        window = 0;
+      }
+      if (colormap) {
+        XFreeColormap(display, colormap);
+        colormap = 0;
+      }
       XFree(fbc);
       XFree(vi);
+      XCloseDisplay(display);
+      display = nullptr;
       return false;
     }
 
@@ -356,9 +378,42 @@ public:
       createFallbackShader();
     }
 
+    if (shaders.empty()) {
+      std::cerr << "Failed to create any shaders" << std::endl;
+      if (vao) {
+        glDeleteVertexArrays(1, &vao);
+        vao = 0;
+      }
+      if (vbo) {
+        glDeleteBuffers(1, &vbo);
+        vbo = 0;
+      }
+      if (context) {
+        glXMakeCurrent(display, None, nullptr);
+        glXDestroyContext(display, context);
+        context = nullptr;
+      }
+      if (window) {
+        XDestroyWindow(display, window);
+        window = 0;
+      }
+      if (colormap) {
+        XFreeColormap(display, colormap);
+        colormap = 0;
+      }
+      XFree(fbc);
+      XFree(vi);
+      XCloseDisplay(display);
+      display = nullptr;
+      return false;
+    }
+
     // Select initial shader
     if (!initialShader.empty()) {
       selectShaderByName(initialShader);
+      if (!currentShader) {
+        currentShader = shaders[0];
+      }
     } else {
       currentShader = shaders[0];
     }
@@ -370,20 +425,18 @@ public:
 
     // Initialize audio if requested
     if (enableAudio) {
-      audioInput = new AudioInput();
+      audioInput = std::make_unique<AudioInput>();
       if (audioInput->initialize()) {
         if (audioInput->autoSelectDevice()) {
           audioInput->start();
           std::cout << "Audio input initialized successfully" << std::endl;
         } else {
           std::cerr << "Failed to auto-select audio device" << std::endl;
-          delete audioInput;
-          audioInput = nullptr;
+          audioInput.reset();
         }
       } else {
         std::cerr << "Failed to initialize audio input" << std::endl;
-        delete audioInput;
-        audioInput = nullptr;
+        audioInput.reset();
       }
     }
 
@@ -408,85 +461,6 @@ public:
     for (const auto &path : shaderFiles) {
       std::cerr << "Found shader: " << path << std::endl;
       loadShader(path);
-    }
-  }
-
-  void loadShaderSimple(const std::string &path) {
-    // Load the raw file content
-    std::ifstream file(path);
-    if (!file.is_open()) {
-      std::cerr << "Failed to open: " << path << std::endl;
-      return;
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string fragStr = buffer.str();
-
-    // Extract shader name
-    std::string shaderName = path;
-    size_t lastSlash = shaderName.find_last_of("/\\");
-    if (lastSlash != std::string::npos) {
-      shaderName = shaderName.substr(lastSlash + 1);
-    }
-    size_t extPos = shaderName.find_last_of('.');
-    if (extPos != std::string::npos) {
-      shaderName = shaderName.substr(0, extPos);
-    }
-
-    // Replace #version with our version
-    size_t versionPos = fragStr.find("#version");
-    while (versionPos != std::string::npos) {
-      size_t endLine = fragStr.find("\n", versionPos);
-      if (endLine != std::string::npos) {
-        fragStr.replace(versionPos, endLine - versionPos, "");
-      } else {
-        fragStr.replace(versionPos, std::string::npos, "");
-      }
-      versionPos = fragStr.find("#version", versionPos);
-    }
-
-    // Add our version and uniforms at the beginning
-    std::string preamble = R"Shader(#version 330 core
-
-layout(std140) uniform Uniforms {
-    float time;
-    float speed;
-    float resolution[2];
-    float mouse[2];
-    float mouseButtons;
-    float intensity;
-    float date[4];
-    int frame;
-    float deltaTime;
-    float alpha;
-    float gravity;
-    float volume;
-    float bass;
-    float mid;
-    float treble;
-    float beat;
-    float audioData[256];
-    float gpuTime;
-    float cpuTime;
-    float fps;
-};
-
-)Shader";
-
-    std::string wrappedFrag = preamble + fragStr;
-
-    // Compile
-    auto *shader = new GLShaderProgram();
-    std::string vertexShaderStr = GLSLWrapper::getVertexShader();
-
-    if (shader->loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str())) {
-      shader->name = shaderName;
-      shaders.push_back(shader);
-      std::cout << "Loaded shader: " << shaderName << std::endl;
-    } else {
-      delete shader;
-      std::cerr << "Failed to compile: " << path << std::endl;
     }
   }
 
@@ -555,6 +529,8 @@ layout(std140) uniform Uniforms {
     if (shader->loadShader(vert, frag)) {
       shader->name = "fallback";
       shaders.push_back(shader);
+    } else {
+      delete shader;
     }
   }
 
@@ -611,10 +587,11 @@ layout(std140) uniform Uniforms {
 
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
-    struct tm *tm = localtime(&time);
+    struct tm tm_buf;
+    struct tm *tm = localtime_r(&time, &tm_buf);
 
     std::stringstream ss;
-    ss << "shadercandy_" << std::put_time(tm, "%Y%m%d_%H%M%S") << ".png"
+    ss << "shadercandy_" << std::put_time(tm, "%Y%m%d_%H%M%S") << ".ppm"
        << std::ends;
     std::string filename = ss.str();
     filename.pop_back();
@@ -633,8 +610,7 @@ layout(std140) uniform Uniforms {
   }
 
   void savePreset(const std::string &name) {
-    std::string presetDir =
-        std::string(getenv("HOME")) + "/.config/shadercandy";
+    std::string presetDir = getHomeDir() + "/.config/shadercandy";
     mkdir(presetDir.c_str(), 0755);
     std::string presetFile = presetDir + "/" + name + ".cfg";
 
@@ -655,8 +631,7 @@ layout(std140) uniform Uniforms {
   }
 
   bool loadPreset(const std::string &name) {
-    std::string presetDir =
-        std::string(getenv("HOME")) + "/.config/shadercandy";
+    std::string presetDir = getHomeDir() + "/.config/shadercandy";
     std::string presetFile = presetDir + "/" + name + ".cfg";
 
     std::ifstream in(presetFile);
@@ -678,42 +653,24 @@ layout(std140) uniform Uniforms {
       if (key == "shader" && !val.empty()) {
         loadShader(val);
       } else if (key == "speed" && currentShader) {
-        currentShader->uniforms.speed = std::stof(val);
+        try { currentShader->uniforms.speed = std::stof(val); } catch (...) {}
       } else if (key == "intensity" && currentShader) {
-        currentShader->uniforms.intensity = std::stof(val);
+        try { currentShader->uniforms.intensity = std::stof(val); } catch (...) {}
       } else if (key == "param1") {
-        shaderParams.param1 = std::stof(val);
+        try { shaderParams.param1 = std::stof(val); } catch (...) {}
       } else if (key == "param2") {
-        shaderParams.param2 = std::stof(val);
+        try { shaderParams.param2 = std::stof(val); } catch (...) {}
       } else if (key == "param3") {
-        shaderParams.param3 = std::stof(val);
+        try { shaderParams.param3 = std::stof(val); } catch (...) {}
       } else if (key == "param4") {
-        shaderParams.param4 = std::stof(val);
+        try { shaderParams.param4 = std::stof(val); } catch (...) {}
       } else if (key == "colorPalette") {
-        shaderParams.colorPalette = std::stoi(val);
+        try { shaderParams.colorPalette = std::stoi(val); } catch (...) {}
       }
     }
     std::cout << "Preset loaded: " << presetFile << std::endl;
     showNotification("Loaded: " + name);
     return true;
-  }
-
-  void checkForShaderReload() {
-    if (!hotReloadEnabled || !currentShader || currentShader->path.empty())
-      return;
-
-    struct stat st;
-    if (stat(currentShader->path.c_str(), &st) == 0) {
-      double modTime = st.st_mtime;
-      auto it = shaderModTimes.find(currentShader->path);
-      if (it != shaderModTimes.end() && modTime > it->second) {
-        currentShader->reload();
-        shaderModTimes[currentShader->path] = modTime;
-        showNotification("Reloaded: " + currentShader->name);
-      } else if (it == shaderModTimes.end()) {
-        shaderModTimes[currentShader->path] = modTime;
-      }
-    }
   }
 
   void renderNotification() {
@@ -813,10 +770,7 @@ layout(std140) uniform Uniforms {
     }
     shaders.clear();
 
-    if (audioInput) {
-      delete audioInput;
-      audioInput = nullptr;
-    }
+    audioInput.reset();
 
     if (vbo) {
       glDeleteBuffers(1, &vbo);

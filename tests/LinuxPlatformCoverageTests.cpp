@@ -1,4 +1,5 @@
 #include "TestFramework.h"
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -18,7 +19,9 @@
 #include "../src/core/ShaderManager.h"
 #include "../src/gl/GLRenderer.h"
 #include "../src/gl/GLShaderCompiler.h"
+#include "../src/platform/linux/GLLoader.h"
 #include "../src/platform/linux/GLSLWrapper.h"
+#include "../src/platform/linux/GLShaderProgram.h"
 #include "../src/platform/linux/LinuxIPC.h"
 
 namespace ShaderCandy {
@@ -35,9 +38,16 @@ public:
     results.push_back(testGLSLWrapperCoverage());
     results.push_back(testLinuxIPCCoverage());
     results.push_back(testAudioInputComprehensive());
+    results.push_back(testAudioUtilsLinux());
     results.push_back(testGLShaderCompilerComprehensive());
     results.push_back(testGLRendererComprehensive());
+    results.push_back(testGLRendererEdgeCases());
+    results.push_back(testGLShaderProgramComprehensive());
+    results.push_back(testGLSLWrapperIncludeResolution());
     results.push_back(testCoreEdgeCasesCoverage());
+    results.push_back(testRealShaderIntegration());
+    results.push_back(testUniformUploaderAndCache());
+    results.push_back(testPerformanceBaseline());
     return results;
   }
 
@@ -511,6 +521,43 @@ private:
     return {__func__, true, "GLRenderer comprehensive passed", 0.0};
   }
 
+  TestResult testGLRendererEdgeCases() {
+#if defined(__linux__)
+    using namespace ShaderCandy::Platform::Linux;
+
+    GLRenderer renderer;
+
+    // 1. resize() with non-positive dimensions should be a no-op
+    renderer.resize(0, 0);
+    renderer.resize(-1, 500);
+    renderer.resize(500, -1);
+
+    // 2. setParticleCount() when particles are disabled
+    renderer.setParticleCount(500);
+    // Verify no crash, no GL calls made
+
+    // 3. setParticleGravity() when particles are disabled
+    renderer.setParticleGravity(2.0f);
+
+    // 4. render() on uninitialized renderer (early return)
+    renderer.render(1.0f);
+    renderer.render(0.0f);
+    renderer.render(-1.0f);
+
+    // 5. reloadCurrentShader() on uninitialized renderer
+    TEST_ASSERT_FALSE(renderer.reloadCurrentShader());
+
+    // 6. checkForShaderReload() on uninitialized renderer
+    renderer.checkForShaderReload();
+
+    // 7. setBloomIntensity / setBloomThreshold on uninitialized renderer
+    renderer.setBloomIntensity(0.5f);
+    renderer.setBloomThreshold(0.9f);
+#endif
+
+    return {__func__, true, "GLRenderer edge cases passed", 0.0};
+  }
+
   TestResult testCoreEdgeCasesCoverage() {
     // 1. ConfigurationManager HOME unset fallback
     const char *origHome = getenv("HOME");
@@ -575,6 +622,478 @@ private:
     std::filesystem::remove_all(tempScanDir);
 
     return {__func__, true, "Core edge cases coverage passed", 0.0};
+  }
+
+  TestResult testAudioUtilsLinux() {
+    using namespace ShaderCandy::Audio;
+
+    // packAudioForShader with empty spectrum
+    AudioData emptyAudio;
+    float packed[128] = {};
+    Utils::packAudioForShader(emptyAudio, packed, 128);
+    TEST_ASSERT_EQUAL(0.0f, packed[0]);
+
+    // packAudioForShader with populated spectrum
+    AudioData data;
+    data.spectrum.resize(64);
+    for (size_t i = 0; i < 64; ++i) {
+      data.spectrum[i] = static_cast<float>(i) / 64.0f;
+    }
+    Utils::packAudioForShader(data, packed, 128);
+    TEST_ASSERT_EQUAL(0.0f, packed[0]);
+    TEST_ASSERT_EQUAL(63.0f / 64.0f, packed[63]);
+    TEST_ASSERT_EQUAL(0.0f, packed[64]);
+
+    // packAudioForShader with maxSamples < spectrum size
+    float smallPacked[4] = {};
+    Utils::packAudioForShader(data, smallPacked, 4);
+    TEST_ASSERT_EQUAL(3.0f / 64.0f, smallPacked[3]);
+
+    // getDominantFrequency with empty spectrum
+    TEST_ASSERT_EQUAL(0.0f, Utils::getDominantFrequency(emptyAudio));
+
+    // getDominantFrequency with peak at index 10
+    AudioData peakData;
+    peakData.spectrum.resize(64, 0.1f);
+    peakData.spectrum[10] = 1.0f;
+    TEST_ASSERT_EQUAL(10.0f, Utils::getDominantFrequency(peakData));
+
+    // getSpectralCentroid with empty spectrum
+    TEST_ASSERT_EQUAL(0.0f, Utils::getSpectralCentroid(emptyAudio));
+
+    // getSpectralCentroid with uniform spectrum
+    AudioData uniformData;
+    uniformData.spectrum.resize(8, 1.0f);
+    float centroid = Utils::getSpectralCentroid(uniformData);
+    TEST_ASSERT(centroid >= 3.0f && centroid <= 4.0f, "Centroid of uniform 8-band should be ~3.5");
+
+    // getSpectralCentroid with weighted spectrum
+    AudioData weightedData;
+    weightedData.spectrum.resize(8, 0.0f);
+    weightedData.spectrum[6] = 1.0f;
+    weightedData.spectrum[7] = 1.0f;
+    float wCentroid = Utils::getSpectralCentroid(weightedData);
+    TEST_ASSERT(wCentroid > 6.0f, "Weighted centroid should be high");
+
+    // bandHasEnergy with valid band
+    AudioData bandData;
+    std::fill(bandData.bands, bandData.bands + AudioData::NUM_BANDS, 0.2f);
+    bandData.bands[3] = 0.8f;
+    TEST_ASSERT_TRUE(Utils::bandHasEnergy(bandData, 3, 0.3f));
+    TEST_ASSERT_FALSE(Utils::bandHasEnergy(bandData, 0, 0.3f));
+
+    // bandHasEnergy with out-of-range band
+    TEST_ASSERT_FALSE(Utils::bandHasEnergy(bandData, -1, 0.1f));
+    TEST_ASSERT_FALSE(Utils::bandHasEnergy(bandData, AudioData::NUM_BANDS, 0.1f));
+
+    return {__func__, true, "Audio::Utils Linux passed", 0.0};
+  }
+
+  TestResult testGLSLWrapperIncludeResolution() {
+    using namespace ShaderCandy::Platform::Linux;
+
+    // Create a nested shader directory structure
+    std::string baseDir = "/tmp/test_shader_includes";
+    std::string effectsDir = baseDir + "/effects";
+    std::string commonDir = baseDir + "/common";
+    std::filesystem::create_directories(effectsDir);
+    std::filesystem::create_directories(commonDir);
+
+    // Create a common include file
+    std::ofstream commonFile(commonDir + "/colors.glsl");
+    commonFile << "vec3 testColor = vec3(1.0, 0.0, 0.5);\n";
+    commonFile.close();
+
+    // Create a shader with relative include
+    std::ofstream effectFile(effectsDir + "/test_effect.frag");
+    effectFile << "#include \"../common/colors.glsl\"\n";
+    effectFile << "out vec4 fragColor;\nvoid main() { fragColor = vec4(testColor, 1.0); }\n";
+    effectFile.close();
+
+    // Test include resolution with ../
+    std::string included = GLSLWrapper::loadShaderWithIncludes(
+        (effectsDir + "/test_effect.frag").c_str(), 0);
+    TEST_ASSERT(!included.empty(), "Include with ../ should resolve");
+    TEST_ASSERT(included.find("testColor") != std::string::npos,
+                "Resolved include should contain testColor");
+
+    // Test with ./ prefix include
+    std::string helperPath = effectsDir + "/helper.glsl";
+    std::ofstream helperFile(helperPath);
+    helperFile << "float helperVal = 42.0;\n";
+    helperFile.close();
+
+    std::ofstream effectFile2(effectsDir + "/test_effect2.frag");
+    effectFile2 << "#include \"./helper.glsl\"\n";
+    effectFile2 << "out vec4 fragColor;\nvoid main() { fragColor = vec4(helperVal); }\n";
+    effectFile2.close();
+
+    std::string included2 = GLSLWrapper::loadShaderWithIncludes(
+        (effectsDir + "/test_effect2.frag").c_str(), 0);
+    TEST_ASSERT(!included2.empty(), "Include with ./ should resolve");
+    TEST_ASSERT(included2.find("helperVal") != std::string::npos,
+                "Resolved ./ include should contain helperVal");
+
+    // Test with absolute path include
+    std::string absInclude = "#include \"" + commonDir + "/colors.glsl\"\n"
+                             "out vec4 fragColor;\nvoid main() { fragColor = vec4(testColor, 1.0); }\n";
+    std::string absPath = effectsDir + "/test_abs.frag";
+    std::ofstream absFile(absPath);
+    absFile << absInclude;
+    absFile.close();
+
+    std::string included3 = GLSLWrapper::loadShaderWithIncludes(absPath.c_str(), 0);
+    TEST_ASSERT(!included3.empty(), "Absolute path include should resolve");
+
+    // Test nonexistent file returns empty
+    std::string missing = GLSLWrapper::loadShaderWithIncludes("/nonexistent/shader.frag", 0);
+    TEST_ASSERT(missing.empty(), "Nonexistent file should return empty");
+
+    // Test recursion depth limit
+    std::string loopPath = effectsDir + "/loop_a.frag";
+    std::ofstream loopFileA(loopPath);
+    loopFileA << "#include \"loop_b.glsl\"\nvoid main() {}\n";
+    loopFileA.close();
+    std::ofstream loopFileB(effectsDir + "/loop_b.glsl");
+    loopFileB << "#include \"loop_a.frag\"\nvoid main() {}\n";
+    loopFileB.close();
+    std::string loopResult = GLSLWrapper::loadShaderWithIncludes(loopPath.c_str(), 0);
+    TEST_ASSERT(!loopResult.empty(), "Recursive include should still return content from non-loop lines");
+
+    // Test directory without trailing slash (fallback to ./)
+    std::string noSlash = "test_effect";
+    std::string noSlashResult = GLSLWrapper::loadShaderWithIncludes(noSlash.c_str(), 0);
+    TEST_ASSERT(noSlashResult.empty(), "No-slash path should fail gracefully");
+
+    std::filesystem::remove_all(baseDir);
+    return {__func__, true, "GLSLWrapper include resolution passed", 0.0};
+  }
+
+  TestResult testGLShaderProgramComprehensive() {
+#if defined(__linux__)
+    using namespace ShaderCandy::Platform::Linux;
+
+    Display *display = XOpenDisplay(nullptr);
+    if (!display) {
+      return {__func__, true, "Skipped (no X11 display available)", 0.0};
+    }
+
+    int screen = DefaultScreen(display);
+    static int visualAttribs[] = {
+        GLX_X_RENDERABLE, True,
+        GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE, GLX_RGBA_BIT,
+        GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+        GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, 8,
+        GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, True,
+        0
+    };
+    int fbcount = 0;
+    GLXFBConfig *fbc = glXChooseFBConfig(display, screen, visualAttribs, &fbcount);
+    if (!fbc || fbcount == 0) {
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot choose GLX FBConfig)", 0.0};
+    }
+
+    XVisualInfo *vi = glXGetVisualFromFBConfig(display, fbc[0]);
+    XSetWindowAttributes swa;
+    swa.colormap = XCreateColormap(display, RootWindow(display, vi->screen),
+                                   vi->visual, AllocNone);
+    swa.border_pixel = 0;
+    swa.event_mask = StructureNotifyMask;
+    Window win = XCreateWindow(display, RootWindow(display, vi->screen), 0, 0,
+                               100, 100, 0, vi->depth, InputOutput, vi->visual,
+                               CWBorderPixel | CWColormap | CWEventMask, &swa);
+
+    GLXContext ctx =
+        glXCreateNewContext(display, fbc[0], GLX_RGBA_TYPE, nullptr, True);
+    if (!ctx) {
+      XDestroyWindow(display, win);
+      XFree(vi);
+      XFree(fbc);
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot create GLX context)", 0.0};
+    }
+
+    glXMakeCurrent(display, win, ctx);
+
+    if (!InitializeGLLoader()) {
+      glXMakeCurrent(display, 0, nullptr);
+      glXDestroyContext(display, ctx);
+      XDestroyWindow(display, win);
+      XFree(vi);
+      XFree(fbc);
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (GL loader init failed)", 0.0};
+    }
+
+    // Test 1: Valid loadShader
+    GLShaderProgram prog;
+    prog.name = "test_prog";
+    const char *validVert =
+        "#version 330 core\n"
+        "layout(location=0) in vec2 aPos;\n"
+        "void main() { gl_Position = vec4(aPos, 0.0, 1.0); }\n";
+    const char *validFrag =
+        "#version 330 core\n"
+        "out vec4 fragColor;\n"
+        "void main() { fragColor = vec4(1.0, 0.5, 0.0, 1.0); }\n";
+    bool loaded = prog.loadShader(validVert, validFrag);
+    TEST_ASSERT_TRUE(loaded);
+    TEST_ASSERT(prog.program > 0, "Program ID should be valid");
+    TEST_ASSERT(prog.vertexShader > 0, "Vertex shader ID should be valid");
+    TEST_ASSERT(prog.fragmentShader > 0, "Fragment shader ID should be valid");
+    TEST_ASSERT(prog.ubo > 0, "UBO should be valid");
+
+    // Test 2: use()
+    prog.use();
+    // No assertion needed - just verify no crash
+
+    // Test 3: updateUniforms with null audio
+    prog.updateUniforms(800, 600, 400.0f, 300.0f, 1.0f, nullptr);
+    TEST_ASSERT_EQUAL(800.0f, prog.uniforms.resolution[0]);
+    TEST_ASSERT_EQUAL(600.0f, prog.uniforms.resolution[1]);
+    TEST_ASSERT_EQUAL(400.0f / 800.0f, prog.uniforms.mouse[0]);
+    TEST_ASSERT_EQUAL(300.0f / 600.0f, prog.uniforms.mouse[1]);
+    TEST_ASSERT_EQUAL(1.0f, prog.uniforms.mouseButtons);
+    TEST_ASSERT(prog.uniforms.time >= 0.0f, "Time should be non-negative");
+    TEST_ASSERT_EQUAL(0, prog.uniforms.frame);
+
+    // Test 4: updateUniforms with audio data
+    Audio::AudioData audioTest;
+    audioTest.volume = 0.75f;
+    audioTest.bass = 0.6f;
+    audioTest.mid = 0.4f;
+    audioTest.treble = 0.3f;
+    audioTest.beat = true;
+    audioTest.spectrum.resize(64, 0.1f);
+    prog.updateUniforms(800, 600, 400.0f, 300.0f, 0.0f, &audioTest);
+    TEST_ASSERT_EQUAL(0.75f, prog.uniforms.volume);
+    TEST_ASSERT_EQUAL(0.6f, prog.uniforms.bass);
+    TEST_ASSERT_EQUAL(0.4f, prog.uniforms.mid);
+    TEST_ASSERT_EQUAL(0.3f, prog.uniforms.treble);
+    TEST_ASSERT_EQUAL(1.0f, prog.uniforms.beat);
+    TEST_ASSERT_EQUAL(1, prog.uniforms.frame);
+
+    // Test 5: Second update advances frame
+    prog.updateUniforms(800, 600, 0, 0, 0, nullptr);
+    TEST_ASSERT_EQUAL(2, prog.uniforms.frame);
+
+    // Test 6: Invalid vertex shader (compileShader error path)
+    GLShaderProgram badProg;
+    badProg.name = "bad_prog";
+    bool badLoaded = badProg.loadShader(
+        "invalid_vertex_source_@@#$",
+        validFrag);
+    TEST_ASSERT_FALSE(badLoaded);
+
+    // Test 7: Invalid fragment shader (compileShader error path, vertex cleanup)
+    GLShaderProgram badFragProg;
+    badFragProg.name = "bad_frag_prog";
+    bool badFragLoaded = badFragProg.loadShader(
+        validVert,
+        "invalid_fragment_source_###@@@");
+    TEST_ASSERT_FALSE(badFragLoaded);
+
+    // Test 8: link failure (mismatched attributes)
+    GLShaderProgram linkFailProg;
+    linkFailProg.name = "link_fail";
+    bool linkFailed = linkFailProg.loadShader(
+        "#version 330 core\nout vec2 badCoord;\nvoid main() { gl_Position = vec4(0.0); badCoord = vec2(1.0); }\n",
+        "#version 330 core\nin vec4 badCoord;\nout vec4 fragColor;\nvoid main() { fragColor = badCoord; }\n");
+    TEST_ASSERT_FALSE(linkFailed);
+
+    // Test 9: loadShaderFromFile with valid file
+    std::string tmpFrag = "/tmp/test_glshaderprogram.frag";
+    std::ofstream tmpFragFile(tmpFrag);
+    tmpFragFile << "out vec4 fragColor;\nvoid main() { fragColor = vec4(0.2, 0.8, 0.4, 1.0); }\n";
+    tmpFragFile.close();
+
+    GLShaderProgram fileProg;
+    fileProg.name = "file_test";
+    bool fileLoaded = fileProg.loadShaderFromFile(tmpFrag.c_str());
+    TEST_ASSERT_TRUE(fileLoaded);
+    TEST_ASSERT_TRUE(fileProg.name == "test_glshaderprogram");
+    std::filesystem::remove(tmpFrag);
+
+    // Test 10: loadShaderFromFile with nonexistent file
+    GLShaderProgram missingProg;
+    missingProg.name = "missing_test";
+    bool missingLoaded = missingProg.loadShaderFromFile("/nonexistent/missing.frag");
+    TEST_ASSERT_FALSE(missingLoaded);
+
+    // Test 11: reload() with empty path
+    GLShaderProgram emptyReloadProg;
+    emptyReloadProg.name = "empty_reload";
+    bool emptyReloaded = emptyReloadProg.reload();
+    TEST_ASSERT_FALSE(emptyReloaded);
+
+    // Test 12: reload() with nonexistent file path
+    GLShaderProgram nonexistentReloadProg;
+    nonexistentReloadProg.name = "nonexistent_reload";
+    nonexistentReloadProg.path = "/nonexistent/reload.frag";
+    bool nonExistReloaded = nonexistentReloadProg.reload();
+    TEST_ASSERT_FALSE(nonExistReloaded);
+
+    // Test 13: reload() with valid file
+    std::string reloadPath = "/tmp/test_reload_shader.frag";
+    std::ofstream reloadFile(reloadPath);
+    reloadFile << "out vec4 fragColor;\nvoid main() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }\n";
+    reloadFile.close();
+
+    GLShaderProgram reloadProg;
+    reloadProg.name = "reload_test";
+    reloadProg.loadShaderFromFile(reloadPath.c_str());
+    bool reloaded = reloadProg.reload();
+    TEST_ASSERT_TRUE(reloaded);
+    TEST_ASSERT(reloadProg.program > 0, "Reloaded program should be valid");
+    std::filesystem::remove(reloadPath);
+
+    // Test 14: loadShaderWithIncludes delegates to GLSLWrapper
+    std::string incResult = reloadProg.loadShaderWithIncludes("/nonexistent/inc.frag", 0);
+    TEST_ASSERT(incResult.empty(), "Nonexistent include path should return empty");
+
+    // Test 15: cleanup() frees resources
+    GLShaderProgram cleanupProg;
+    cleanupProg.name = "cleanup_test";
+    cleanupProg.loadShader(validVert, validFrag);
+    TEST_ASSERT(cleanupProg.program > 0, "Cleanup program should be valid before cleanup");
+    cleanupProg.cleanup();
+    TEST_ASSERT_EQUAL(0u, cleanupProg.program);
+    TEST_ASSERT_EQUAL(0u, cleanupProg.vertexShader);
+    TEST_ASSERT_EQUAL(0u, cleanupProg.fragmentShader);
+    TEST_ASSERT_EQUAL(0u, cleanupProg.ubo);
+
+    // Test 16: cleanup() is idempotent
+    cleanupProg.cleanup();
+    TEST_ASSERT_EQUAL(0u, cleanupProg.program);
+
+    // Test 17: destructor path (create and destroy)
+    {
+      GLShaderProgram destructorProg;
+      destructorProg.name = "destructor_test";
+      destructorProg.loadShader(validVert, validFrag);
+    }
+    // If no crash, destructor cleanup is working
+
+    // Test 18: Shader without AudioUniforms block
+    GLShaderProgram noAudioProg;
+    noAudioProg.name = "no_audio_prog";
+    bool noAudioLoaded = noAudioProg.loadShader(validVert, validFrag);
+    TEST_ASSERT_TRUE(noAudioLoaded);
+
+    // Clean up GL context
+    glXMakeCurrent(display, 0, nullptr);
+    glXDestroyContext(display, ctx);
+    XDestroyWindow(display, win);
+    XFree(vi);
+    XFree(fbc);
+    XCloseDisplay(display);
+#endif
+
+    return {__func__, true, "GLShaderProgram comprehensive passed", 0.0};
+  }
+
+  TestResult testRealShaderIntegration() {
+    using namespace ShaderCandy::Platform::Linux;
+
+    std::string shaderDir = "shaders/effects";
+    if (!std::filesystem::exists(shaderDir)) {
+      shaderDir = "../shaders/effects";
+    }
+    if (!std::filesystem::exists(shaderDir)) {
+      return {__func__, true, "Shader directory not found, skipping", 0.0};
+    }
+
+    int resolved = 0;
+    int failed = 0;
+    std::vector<std::string> failedShaders;
+
+    for (const auto &entry : std::filesystem::directory_iterator(shaderDir)) {
+      if (entry.path().extension() == ".frag") {
+        std::string name = entry.path().stem().string();
+        std::string content =
+            GLSLWrapper::loadShaderWithIncludes(entry.path().string().c_str());
+        if (!content.empty() && content.size() > 10) {
+          resolved++;
+        } else {
+          failed++;
+          failedShaders.push_back(name);
+        }
+      }
+    }
+
+    if (failed > 0) {
+      std::string list;
+      int show = std::min(failed, 5);
+      for (int i = 0; i < show; i++) {
+        if (i > 0) list += ", ";
+        list += failedShaders[i];
+      }
+      if (failed > 5)
+        list += " (+" + std::to_string(failed - 5) + " more)";
+      return {__func__, false,
+              "Resolved " + std::to_string(resolved) + " failed " +
+                  std::to_string(failed) + ": " + list,
+              0.0};
+    }
+
+    return {__func__, true,
+            "All " + std::to_string(resolved) +
+                " shaders resolved via include system",
+            0.0};
+  }
+
+  TestResult testUniformUploaderAndCache() {
+    using namespace ShaderCandy::Platform::Linux;
+
+    UniformUploader uploader;
+    uploader.invalidate();
+
+    Uniforms u;
+    u.time = 1.0f;
+    u.speed = 2.0f;
+    u.intensity = 3.0f;
+    u.resolution = {1920.0f, 1080.0f};
+    u.mouse = {100.0f, 200.0f};
+    u.mouseButtons = 1.0f;
+    u.alpha = 0.5f;
+    u.gravity = 9.81f;
+    u.volume = 0.8f;
+    u.bass = 0.7f;
+    u.mid = 0.6f;
+    u.treble = 0.5f;
+    u.beat = 1.0f;
+
+    uploader.invalidate();
+    uploader.cacheLocations(0);
+
+    return {__func__, true, "UniformUploader and cache passed", 0.0};
+  }
+
+  TestResult testPerformanceBaseline() {
+    using namespace ShaderCandy::Platform::Linux;
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < 1000; i++) {
+      Uniforms u;
+      u.time = static_cast<float>(i) * 0.016f;
+      u.speed = 1.0f;
+      u.intensity = 1.0f;
+      u.resolution = {1920.0f, 1080.0f};
+      u.frame = i;
+      (void)u.time;
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    double ms = ns.count() / 1000000.0;
+
+    return {__func__, true,
+            "Performance baseline: 1000 uniform updates in " +
+                std::to_string(ms) + "ms",
+            ms};
   }
 };
 

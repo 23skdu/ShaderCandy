@@ -3,6 +3,14 @@
 
 #include "GLShaderProgram.h"
 
+#ifdef HAS_AUDIO
+#include "../../audio/AudioInput.h"
+#endif
+
+namespace {
+bool g_glShaderProgramLoaderInitialized = false;
+}
+
 namespace ShaderCandy {
 namespace Platform {
 namespace Linux {
@@ -28,6 +36,12 @@ void GLShaderProgram::cleanup() {
 
 bool GLShaderProgram::loadShader(const char *vertexSource,
                                  const char *fragmentSource) {
+  if (!g_glShaderProgramLoaderInitialized) {
+    g_glShaderProgramLoaderInitialized = InitializeGLLoader();
+    if (!g_glShaderProgramLoaderInitialized)
+      return false;
+  }
+
   vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
   if (!vertexShader)
     return false;
@@ -99,12 +113,13 @@ bool GLShaderProgram::reload() {
   if (stat(path.c_str(), &st) != 0)
     return false;
 
-  std::string included = loadShaderWithIncludes(path.c_str(), 0);
+  std::string included = GLSLWrapper::loadShaderWithIncludes(path.c_str(), 0);
   if (!included.empty()) {
     cleanup();
-    loadShader("#version 450\nin vec2 position;\nvoid main() { "
-               "gl_Position = vec4(position, 0.0, 1.0); }\n",
-               included.c_str());
+    std::string vertexShaderStr = GLSLWrapper::getVertexShader();
+    std::string wrappedFrag = "#version 330 core\n";
+    wrappedFrag += included;
+    loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str());
     startTime = std::chrono::steady_clock::now();
     lastFrame = startTime;
     lastModTime = st.st_mtime;
@@ -113,133 +128,12 @@ bool GLShaderProgram::reload() {
   return false;
 }
 
-std::string GLShaderProgram::loadShaderWithIncludes(const char *path,
-                                                    int depth) {
-  if (depth > 10) {
-    std::cerr << "Include depth exceeded for: " << path << std::endl;
-    return "";
-  }
-
-  std::ifstream file(path);
-  if (!file.is_open()) {
-    std::cerr << "Failed to open: " << path << std::endl;
-    return "";
-  }
-
-  std::string dir = path;
-  size_t lastSlash = dir.find_last_of("/\\");
-  if (lastSlash != std::string::npos) {
-    dir = dir.substr(0, lastSlash + 1);
-  } else {
-    dir = "./";
-  }
-
-  std::stringstream result;
-  std::string line;
-  while (std::getline(file, line)) {
-    size_t versionPos = line.find("#version");
-    if (versionPos != std::string::npos) {
-      continue;
-    }
-
-    size_t includePos = line.find("#include");
-    if (includePos != std::string::npos) {
-      size_t start = line.find('"', includePos);
-      size_t end = std::string::npos;
-      if (start != std::string::npos) {
-        end = line.find('"', start + 1);
-      }
-
-      if (start != std::string::npos && end != std::string::npos) {
-        std::string includePath = line.substr(start + 1, end - start - 1);
-        std::string fullPath;
-        if (includePath[0] == '/') {
-          fullPath = includePath;
-        } else if (includePath.substr(0, 3) == "../") {
-          std::string parentDir = dir;
-          while (parentDir.length() > 0 &&
-                 (parentDir.back() == '/' || parentDir.back() == '\\')) {
-            parentDir.pop_back();
-          }
-          size_t parentSlash = parentDir.find_last_of("/\\");
-          if (parentSlash != std::string::npos) {
-            parentDir = parentDir.substr(0, parentSlash);
-          }
-          std::string remainingPath = includePath.substr(3);
-          while (remainingPath.substr(0, 3) == "../") {
-            size_t slash = parentDir.find_last_of("/\\");
-            if (slash != std::string::npos) {
-              parentDir = parentDir.substr(0, slash);
-            }
-            remainingPath = remainingPath.substr(3);
-          }
-          fullPath = parentDir + "/" + remainingPath;
-          std::ifstream testFile(fullPath.c_str());
-          if (!testFile.is_open()) {
-            std::string altPath = fullPath;
-            size_t shadersPos = altPath.find("/shaders/");
-            if (shadersPos == std::string::npos) {
-              shadersPos = altPath.rfind("/shadercandy/");
-              if (shadersPos != std::string::npos) {
-                altPath = altPath.substr(0, shadersPos + 12) + "shaders/" +
-                          remainingPath;
-              }
-            } else {
-              altPath = altPath.substr(0, shadersPos + 8) + remainingPath;
-            }
-            std::ifstream altFile(altPath.c_str());
-            if (altFile.is_open()) {
-              fullPath = altPath;
-            } else {
-              std::string shaderBasePath =
-                  dir + "base/" + remainingPath.substr(5);
-              std::ifstream shaderBaseFile(shaderBasePath.c_str());
-              if (shaderBaseFile.is_open()) {
-                fullPath = shaderBasePath;
-              }
-            }
-          }
-        } else if (includePath.substr(0, 2) == "./") {
-          fullPath = dir + includePath.substr(2);
-        } else {
-          fullPath = dir + includePath;
-          std::ifstream testFile(fullPath.c_str());
-          if (!testFile.is_open()) {
-            std::string altPath = fullPath;
-            size_t shadersPos = altPath.find("/shaders/");
-            if (shadersPos != std::string::npos) {
-              altPath = altPath.substr(0, shadersPos + 8) + "/" + includePath;
-            } else {
-              size_t pos = altPath.rfind("/shadercandy/");
-              if (pos != std::string::npos) {
-                altPath =
-                    altPath.substr(0, pos + 12) + "shaders/" + includePath;
-              }
-            }
-            std::ifstream altFile(altPath.c_str());
-            if (altFile.is_open()) {
-              fullPath = altPath;
-            }
-          }
-        }
-
-        std::string includeContent =
-            loadShaderWithIncludes(fullPath.c_str(), depth + 1);
-        if (!includeContent.empty()) {
-          result << includeContent << "\n";
-        }
-        continue;
-      }
-    }
-
-    result << line << "\n";
-  }
-
-  return result.str();
+std::string GLShaderProgram::loadShaderWithIncludes(const char *path, int depth) {
+  return GLSLWrapper::loadShaderWithIncludes(path, depth);
 }
 
 bool GLShaderProgram::loadShaderFromFile(const char *fragmentPath) {
-  std::string fragStr = loadShaderWithIncludes(fragmentPath);
+  std::string fragStr = GLSLWrapper::loadShaderWithIncludes(fragmentPath);
   if (fragStr.empty()) {
     return false;
   }
@@ -291,12 +185,13 @@ void GLShaderProgram::updateUniforms(int width, int height, float mouseX,
   }
 
   time_t t = time(nullptr);
-  const tm *lt = localtime(&t);
-  uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
-  uniforms.date[1] = static_cast<float>(lt->tm_mon + 1);
-  uniforms.date[2] = static_cast<float>(lt->tm_mday);
+  struct tm tm_buf;
+  localtime_r(&t, &tm_buf);
+  uniforms.date[0] = static_cast<float>(tm_buf.tm_year + 1900);
+  uniforms.date[1] = static_cast<float>(tm_buf.tm_mon + 1);
+  uniforms.date[2] = static_cast<float>(tm_buf.tm_mday);
   uniforms.date[3] =
-      static_cast<float>(lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec);
+      static_cast<float>(tm_buf.tm_hour * 3600 + tm_buf.tm_min * 60 + tm_buf.tm_sec);
 
   if (audioDataPtr) {
     const auto *ad =

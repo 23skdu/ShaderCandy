@@ -18,7 +18,7 @@ jobs:
         build_type: [Release, Debug]
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install dependencies
       run: |
@@ -68,11 +68,11 @@ jobs:
       run: |
         cd build
         ninja package || true
-        tar czf shadercandy-linux.tar.gz shadercandy-screensaver ../shaders/
+        tar czf shadercandy-linux.tar.gz shadercandy-screensaver shadercandy-test ../shaders/
     
     - name: Upload artifacts
       if: matrix.build_type == 'Release' && matrix.compiler == 'gcc'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shadercandy-linux
         path: build/shadercandy-linux.tar.gz
@@ -85,7 +85,7 @@ jobs:
         build_type: [Release, Debug]
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install dependencies
       run: |
@@ -118,7 +118,7 @@ jobs:
     
     - name: Upload artifacts
       if: matrix.build_type == 'Release'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shadercandy-macos
         path: build/shadercandy-macos.zip
@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install shader compiler
       run: |
@@ -154,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install tools
       run: |
@@ -180,10 +180,10 @@ jobs:
     needs: build-linux
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shadercandy-linux
     
@@ -206,7 +206,7 @@ jobs:
         fi
     
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: benchmark_results.txt
@@ -218,10 +218,10 @@ jobs:
     if: github.event_name == 'release'
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
     
     - name: Create Release Assets
       run: |
@@ -229,7 +229,7 @@ jobs:
         mv shadercandy-macos/shadercandy-macos.zip ShaderCandy-macOS.zip
     
     - name: Upload Release Assets
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           ShaderCandy-Linux.tar.gz
@@ -242,7 +242,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Check documentation
       run: |
@@ -278,7 +278,7 @@ jobs:
         done
     
     - name: Upload documentation artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: documentation
         path: |

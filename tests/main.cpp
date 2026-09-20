@@ -11,6 +11,7 @@
 #include "ShaderRegressionTests.cpp"
 #include "ShaderWrapperTests.cpp"
 #include "LinuxPlatformCoverageTests.cpp"
+#include "MemoryLeakTests.cpp"
 
 using namespace ShaderCandy::Test;
 

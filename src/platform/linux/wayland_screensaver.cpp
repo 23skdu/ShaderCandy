@@ -183,40 +183,7 @@ public:
   }
 
   std::string loadShaderWithIncludes(const char *path, int depth = 0) {
-    if (depth > 10)
-      return "";
-
-    std::ifstream file(path);
-    if (!file.is_open())
-      return "";
-
-    std::string dir = path;
-    size_t lastSlash = dir.find_last_of("/\\");
-    if (lastSlash != std::string::npos) {
-      dir = dir.substr(0, lastSlash + 1);
-    } else {
-      dir = "./";
-    }
-
-    std::stringstream buffer;
-    std::string line;
-    while (std::getline(file, line)) {
-      if (line.find("#include \"") == 0) {
-        size_t start = 10;
-        size_t end = line.find("\"", start);
-        if (end != std::string::npos) {
-          std::string includeFile = line.substr(start, end - start);
-          std::string includePath = dir + includeFile;
-          std::string included =
-              loadShaderWithIncludes(includePath.c_str(), depth + 1);
-          buffer << included << "\n";
-        }
-      } else {
-        buffer << line << "\n";
-      }
-    }
-
-    return buffer.str();
+    return GLSLWrapper::loadShaderWithIncludes(path, depth);
   }
 
   bool loadFromFile(const char *path) {
@@ -288,8 +255,8 @@ public:
     uniforms.deltaTime = frameDelta;
     uniforms.resolution[0] = (float)width;
     uniforms.resolution[1] = (float)height;
-    uniforms.mouse[0] = mouseX / width;
-    uniforms.mouse[1] = 1.0f - (mouseY / height);
+    uniforms.mouse[0] = (width > 0) ? mouseX / width : 0.0f;
+    uniforms.mouse[1] = (height > 0) ? 1.0f - (mouseY / height) : 0.0f;
     uniforms.frame = frameCount++;
 
     lastFrame = now;
@@ -390,8 +357,9 @@ static void goToNextDisplay() {
 }
 
 static void savePreset(const std::string &name) {
+  const char *home = getenv("HOME");
   std::string presetDir =
-      std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/shadercandy";
+      std::string(home ? home : ".") + "/.config/shadercandy";
   mkdir(presetDir.c_str(), 0755);
   std::cout << "[Wayland] Preset saved: " << name << std::endl;
 }
@@ -459,8 +427,10 @@ static void handleKeyboardKeymap(void *data, struct wl_keyboard *keyboard,
     return;
 
   void *map = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
-  if (map == MAP_FAILED)
+  if (map == MAP_FAILED) {
+    close(fd);
     return;
+  }
 
   munmap(map, size);
   close(fd);
@@ -910,10 +880,11 @@ static void takeScreenshot() {
 
   auto now = std::chrono::system_clock::now();
   auto time = std::chrono::system_clock::to_time_t(now);
-  struct tm *tm = localtime(&time);
+  struct tm tm_buf;
+  localtime_r(&time, &tm_buf);
 
   char filename[256];
-  strftime(filename, sizeof(filename), "shadercandy_%Y%m%d_%H%M%S.ppm", tm);
+  strftime(filename, sizeof(filename), "shadercandy_%Y%m%d_%H%M%S.ppm", &tm_buf);
 
   std::ofstream file(filename, std::ios::binary);
   if (file) {
@@ -939,6 +910,69 @@ static bool loadShader(const std::string &path) {
   delete g_shader;
   g_shader = nullptr;
   return false;
+}
+
+static void cleanupAll() {
+  if (g_shader) {
+    delete g_shader;
+    g_shader = nullptr;
+  }
+
+  g_audioInput.reset();
+  g_shaderList.clear();
+
+  if (g_eglContext != EGL_NO_CONTEXT) {
+    eglDestroyContext(g_eglDisplay, g_eglContext);
+    g_eglContext = EGL_NO_CONTEXT;
+  }
+  if (g_eglSurface != EGL_NO_SURFACE) {
+    eglDestroySurface(g_eglDisplay, g_eglSurface);
+    g_eglSurface = EGL_NO_SURFACE;
+  }
+  if (g_eglWindow) {
+    wl_egl_window_destroy(g_eglWindow);
+    g_eglWindow = nullptr;
+  }
+  if (g_eglDisplay != EGL_NO_DISPLAY) {
+    eglTerminate(g_eglDisplay);
+    g_eglDisplay = EGL_NO_DISPLAY;
+  }
+
+#ifdef WLR_FOUND
+  if (g_idleNotifier) {
+    zext_idle_notifier_v1_destroy(g_idleNotifier);
+    g_idleNotifier = nullptr;
+  }
+  if (g_sessionLockManager) {
+    ext_session_lock_manager_v1_destroy(g_sessionLockManager);
+    g_sessionLockManager = nullptr;
+  }
+#endif
+
+  if (g_wlKeyboard)
+    wl_keyboard_destroy(g_wlKeyboard);
+  if (g_wlSeat)
+    wl_seat_destroy(g_wlSeat);
+#ifdef WLR_FOUND
+  if (g_layerSurface)
+    zwlr_layer_surface_v1_destroy(g_layerSurface);
+#endif
+  if (g_wlSurface)
+    wl_surface_destroy(g_wlSurface);
+#ifdef WLR_FOUND
+  if (g_layerShell)
+    zwlr_layer_shell_v1_destroy(g_layerShell);
+  if (g_xdgWmBase)
+    xdg_wm_base_destroy(g_xdgWmBase);
+#endif
+  if (g_wlSubcompositor)
+    wl_subcompositor_destroy(g_wlSubcompositor);
+  if (g_wlCompositor)
+    wl_compositor_destroy(g_wlCompositor);
+  if (g_wlRegistry)
+    wl_registry_destroy(g_wlRegistry);
+  if (g_wlDisplay)
+    wl_display_disconnect(g_wlDisplay);
 }
 
 static void printUsage(const char *prog) {
@@ -992,16 +1026,19 @@ int main(int argc, char *argv[]) {
 
   if (!g_wlCompositor) {
     std::cerr << "No Wayland compositor found" << std::endl;
+    cleanupAll();
     return 1;
   }
 
   // Initialize EGL
   if (!initEGL()) {
+    cleanupAll();
     return 1;
   }
 
   // Create Wayland surface and EGL window surface
   if (!createWaylandSurface()) {
+    cleanupAll();
     return 1;
   }
 
@@ -1013,6 +1050,7 @@ int main(int argc, char *argv[]) {
 
   // Initialize OpenGL ES
   if (!initOpenGLES()) {
+    cleanupAll();
     return 1;
   }
 
@@ -1029,6 +1067,7 @@ int main(int argc, char *argv[]) {
     for (size_t i = 0; i < g_shaderList.size(); ++i) {
       std::cout << "  [" << i << "] " << g_shaderList[i] << "\n";
     }
+    cleanupAll();
     return 0;
   }
 
@@ -1058,6 +1097,7 @@ int main(int argc, char *argv[]) {
 
   if (!g_shader) {
     std::cerr << "Failed to load any shader" << std::endl;
+    cleanupAll();
     return 1;
   }
 
@@ -1092,56 +1132,7 @@ int main(int argc, char *argv[]) {
     std::this_thread::sleep_for(std::chrono::milliseconds(frameDelayMs));
   }
 
-  // Cleanup
-  if (g_shader) {
-    delete g_shader;
-    g_shader = nullptr;
-  }
-
-  g_audioInput.reset();
-  g_shaderList.clear();
-
-  if (g_eglContext != EGL_NO_CONTEXT) {
-    eglDestroyContext(g_eglDisplay, g_eglContext);
-    g_eglContext = EGL_NO_CONTEXT;
-  }
-  if (g_eglSurface != EGL_NO_SURFACE) {
-    eglDestroySurface(g_eglDisplay, g_eglSurface);
-    g_eglSurface = EGL_NO_SURFACE;
-  }
-  if (g_eglWindow) {
-    wl_egl_window_destroy(g_eglWindow);
-    g_eglWindow = nullptr;
-  }
-  if (g_eglDisplay != EGL_NO_DISPLAY) {
-    eglTerminate(g_eglDisplay);
-    g_eglDisplay = EGL_NO_DISPLAY;
-  }
-
-  if (g_wlKeyboard)
-    wl_keyboard_destroy(g_wlKeyboard);
-  if (g_wlSeat)
-    wl_seat_destroy(g_wlSeat);
-#ifdef WLR_FOUND
-  if (g_layerSurface)
-    zwlr_layer_surface_v1_destroy(g_layerSurface);
-#endif
-  if (g_wlSurface)
-    wl_surface_destroy(g_wlSurface);
-#ifdef WLR_FOUND
-  if (g_layerShell)
-    zwlr_layer_shell_v1_destroy(g_layerShell);
-  if (g_xdgWmBase)
-    xdg_wm_base_destroy(g_xdgWmBase);
-#endif
-  if (g_wlSubcompositor)
-    wl_subcompositor_destroy(g_wlSubcompositor);
-  if (g_wlCompositor)
-    wl_compositor_destroy(g_wlCompositor);
-  if (g_wlRegistry)
-    wl_registry_destroy(g_wlRegistry);
-  if (g_wlDisplay)
-    wl_display_disconnect(g_wlDisplay);
+  cleanupAll();
 
   std::cout << "Wayland screensaver terminated" << std::endl;
   return 0;

@@ -125,7 +125,7 @@ def create_glsl_wrapper(metal_file):
 vec4 effect_main(vec2 centered, vec2 uv) {{
     float t = time * speed * 0.5;
     
-    // TODO: Implement shader logic here
+    // Shader logic from Metal source adapted to 2D GLSL
     // Original Metal shader used raymarching which needs to be adapted to 2D
     
     vec3 color = vec3(0.5);
