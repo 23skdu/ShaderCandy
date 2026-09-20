@@ -21,6 +21,8 @@ public:
   ~Impl() { cleanup(); }
 
   bool initialize(int sampleRate, int bufferSize) {
+    cleanup();
+
     sampleRate_ = sampleRate;
     bufferSize_ = bufferSize;
 
@@ -38,6 +40,7 @@ public:
     fftPlan_ = fftw_plan_dft_r2c_1d(bufferSize, fftIn_, fftOut_, FFTW_ESTIMATE);
     if (!fftPlan_) {
       std::cerr << "Failed to create FFT plan" << std::endl;
+      cleanup();
       return false;
     }
 
@@ -341,6 +344,42 @@ bool AudioInput::autoSelectDevice() {
   }
   return false;
 }
+
+namespace Utils {
+void packAudioForShader(const AudioData &audio, float *output, int maxSamples) {
+  if (audio.spectrum.empty())
+    return;
+  int count = std::min(static_cast<int>(audio.spectrum.size()), maxSamples);
+  for (int i = 0; i < count; i++) {
+    output[i] = audio.spectrum[i];
+  }
+}
+
+float getDominantFrequency(const AudioData &audio) {
+  if (audio.spectrum.empty())
+    return 0;
+  auto it = std::max_element(audio.spectrum.begin(), audio.spectrum.end());
+  return static_cast<float>(std::distance(audio.spectrum.begin(), it));
+}
+
+float getSpectralCentroid(const AudioData &audio) {
+  if (audio.spectrum.empty())
+    return 0;
+  float weightedSum = 0;
+  float totalSum = 0;
+  for (size_t i = 0; i < audio.spectrum.size(); i++) {
+    weightedSum += i * audio.spectrum[i];
+    totalSum += audio.spectrum[i];
+  }
+  return totalSum > 0 ? (weightedSum / totalSum) : 0;
+}
+
+bool bandHasEnergy(const AudioData &audio, int band, float threshold) {
+  if (band < 0 || band >= AudioData::NUM_BANDS)
+    return false;
+  return audio.bands[band] > threshold;
+}
+} // namespace Utils
 
 } // namespace Audio
 } // namespace ShaderCandy

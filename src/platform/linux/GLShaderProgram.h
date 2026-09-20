@@ -35,7 +35,8 @@ struct vec4 {
   }
 };
 
-// Extended Uniforms matching common.glsl and ShaderInterop.h
+// Canonical GL uniform structure - must match GLSL std140 layout in GLSLWrapper.h
+// Also layout-compatible with ShaderInterop.h Uniforms (vec2=8B, vec4=16B under std140)
 struct Uniforms {
   float time;
   float speed;
@@ -111,8 +112,6 @@ public:
 private:
   GLuint compileShader(GLenum type, const char *source);
 };
-
-std::string loadShaderWithIncludes(const char *path, int depth = 0);
 
 } // namespace Linux
 } // namespace Platform

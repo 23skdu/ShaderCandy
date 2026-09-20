@@ -14,6 +14,8 @@
 #include "../platform/linux/GLLoader.h"
 #include <GL/gl.h>
 #include <GL/glext.h>
+#include <sys/inotify.h>
+#include <unistd.h>
 #endif
 
 #include "../platform/linux/GLSLWrapper.h"
@@ -45,6 +47,45 @@ bool GLRenderer::initialize(void *display, void *window, bool isGLES) {
   setupQuad();
   initToneMapping();
 
+  // Initialize blit program for FBO → screen passthrough
+  {
+    const char *blitVertSrc = R"(
+      #version 330 core
+      layout(location = 0) in vec2 aPosition;
+      layout(location = 1) in vec2 aTexCoord;
+      out vec2 vTexCoord;
+      void main() {
+        gl_Position = vec4(aPosition, 0.0, 1.0);
+        vTexCoord = aTexCoord;
+      }
+    )";
+    const char *blitFragSrc = R"(
+      #version 330 core
+      in vec2 vTexCoord;
+      out vec4 fragColor;
+      uniform sampler2D screenTexture;
+      void main() {
+        fragColor = texture(screenTexture, vTexCoord);
+      }
+    )";
+    unsigned int bvs = compileShader(blitVertSrc, GL_VERTEX_SHADER);
+    unsigned int bfs = compileShader(blitFragSrc, GL_FRAGMENT_SHADER);
+    if (bvs && bfs) {
+      blitProgram_ = linkProgram(bvs, bfs);
+    }
+    if (bvs) glDeleteShader(bvs);
+    if (bfs) glDeleteShader(bfs);
+  }
+
+  renderWidth_ = 1920;
+  renderHeight_ = 1080;
+  initPostProcessingFBO();
+  initBloom();
+
+  if (hotReloadEnabled_) {
+    startFileWatcher();
+  }
+
   initialized_ = true;
   return true;
 }
@@ -53,6 +94,8 @@ void GLRenderer::shutdown() {
   if (!initialized_) {
     return;
   }
+
+  stopFileWatcher();
 
   for (auto &program : shaderPrograms_) {
     if (program.second) {
@@ -63,6 +106,11 @@ void GLRenderer::shutdown() {
 
   if (bloomProgram_) {
     glDeleteProgram(bloomProgram_);
+  }
+
+  if (blitProgram_) {
+    glDeleteProgram(blitProgram_);
+    blitProgram_ = 0;
   }
 
   if (toneMapProgram_) {
@@ -100,6 +148,27 @@ void GLRenderer::shutdown() {
   if (ebo_) {
     glDeleteBuffers(1, &ebo_);
   }
+
+  for (int i = 0; i < 2; i++) {
+    if (bloomFBO_[i]) {
+      glDeleteFramebuffers(1, &bloomFBO_[i]);
+      bloomFBO_[i] = 0;
+    }
+    if (bloomTexture_[i]) {
+      glDeleteTextures(1, &bloomTexture_[i]);
+      bloomTexture_[i] = 0;
+    }
+  }
+
+  if (particleVAO_) {
+    glDeleteVertexArrays(1, &particleVAO_);
+    particleVAO_ = 0;
+  }
+  if (particleVBO_) {
+    glDeleteBuffers(1, &particleVBO_);
+    particleVBO_ = 0;
+  }
+  particles_.clear();
 
   initialized_ = false;
 }
@@ -225,6 +294,17 @@ bool GLRenderer::loadShader(const std::string &name, const std::string &path) {
   }
 
   shaderPrograms_[name] = program;
+  shaderPaths_[name] = path;
+  uniformUploader_.invalidate();
+
+#if defined(__linux__)
+  if (fileWatcherRunning_) {
+    struct stat st;
+    if (stat(path.c_str(), &st) == 0) {
+      shaderModTimes_[name] = st.st_mtime;
+    }
+  }
+#endif
 
   struct stat st;
   if (stat(path.c_str(), &st) == 0) {
@@ -243,6 +323,53 @@ bool GLRenderer::reloadCurrentShader() {
   if (it == shaderPrograms_.end()) {
     return false;
   }
+
+  auto pathIt = shaderPaths_.find(currentShader_);
+  if (pathIt == shaderPaths_.end()) {
+    return false;
+  }
+
+  std::string source = loadShaderSource(pathIt->second);
+  if (source.empty()) {
+    setError(GLRendererErrorCode::ShaderCompilationFailed,
+             "Failed to reload shader file: " + pathIt->second, currentShader_);
+    return false;
+  }
+
+  std::string preamble = GLSLWrapper::getPreamble(isGLES_);
+  std::string vertSrc = GLSLWrapper::getVertexShader(isGLES_);
+  std::string fragSrc = preamble + source;
+
+  unsigned int vs = compileShader(vertSrc, GL_VERTEX_SHADER);
+  unsigned int fs = compileShader(fragSrc, GL_FRAGMENT_SHADER);
+
+  if (!vs || !fs) {
+    if (vs)
+      glDeleteShader(vs);
+    if (fs)
+      glDeleteShader(fs);
+    return false;
+  }
+
+  unsigned int program = linkProgram(vs, fs);
+  glDeleteShader(vs);
+  glDeleteShader(fs);
+
+  if (!program) {
+    return false;
+  }
+
+  glDeleteProgram(it->second);
+  it->second = program;
+  currentProgram_ = program;
+  uniformUploader_.invalidate();
+
+  struct stat st;
+  if (stat(pathIt->second.c_str(), &st) == 0) {
+    shaderModTimes_[currentShader_] = st.st_mtime;
+  }
+
+  uniformsLocation_ = glGetUniformBlockIndex(currentProgram_, "Uniforms");
 
   return true;
 }
@@ -267,6 +394,7 @@ bool GLRenderer::setActiveShader(const std::string &name) {
   currentProgram_ = it->second;
 
   uniformsLocation_ = glGetUniformBlockIndex(currentProgram_, "Uniforms");
+  uniformUploader_.invalidate();
 
   return true;
 }
@@ -277,8 +405,9 @@ void GLRenderer::render(float time) {
   }
 
   double currentTime = clock() / (double)CLOCKS_PER_SEC;
+  double delta = 0.0;
   if (lastFrameTime_ > 0) {
-    double delta = currentTime - lastFrameTime_;
+    delta = currentTime - lastFrameTime_;
     metrics_.frameTimeMs = delta * 1000.0;
     metrics_.currentFPS = 1.0 / delta;
 
@@ -296,71 +425,68 @@ void GLRenderer::render(float time) {
   uniforms_.time = time;
   uniforms_.frame++;
 
+  // Update particles
+  if (particleConfig_.enabled && !particles_.empty()) {
+    updateParticles(static_cast<float>(delta));
+  }
+
+  // Bind post-processing FBO
+  bool useFBO = (fbo_ != 0);
+  if (useFBO) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+    glViewport(0, 0, renderWidth_, renderHeight_);
+  }
+
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
   glUseProgram(currentProgram_);
 
   if (uniformsLocation_ >= 0) {
     glUniformBlockBinding(currentProgram_, uniformsLocation_, 0);
   }
 
-  auto locTime = glGetUniformLocation(currentProgram_, "time");
-  auto locSpeed = glGetUniformLocation(currentProgram_, "speed");
-  auto locIntensity = glGetUniformLocation(currentProgram_, "intensity");
-  auto locResolution = glGetUniformLocation(currentProgram_, "resolution");
-  auto locMouse = glGetUniformLocation(currentProgram_, "mouse");
-  auto locMouseButtons = glGetUniformLocation(currentProgram_, "mouseButtons");
-  auto locAlpha = glGetUniformLocation(currentProgram_, "alpha");
-  auto locGravity = glGetUniformLocation(currentProgram_, "gravity");
-
-  if (locTime >= 0)
-    glUniform1f(locTime, uniforms_.time);
-  if (locSpeed >= 0)
-    glUniform1f(locSpeed, uniforms_.speed);
-  if (locIntensity >= 0)
-    glUniform1f(locIntensity, uniforms_.intensity);
-  if (locResolution >= 0)
-    glUniform2f(locResolution, uniforms_.resolution.x, uniforms_.resolution.y);
-  if (locMouse >= 0)
-    glUniform2f(locMouse, uniforms_.mouse.x, uniforms_.mouse.y);
-  if (locMouseButtons >= 0)
-    glUniform1i(locMouseButtons, (int)uniforms_.mouseButtons);
-  if (locAlpha >= 0)
-    glUniform1f(locAlpha, uniforms_.alpha);
-  if (locGravity >= 0)
-    glUniform1f(locGravity, uniforms_.gravity);
-
-  if (audioReactivityEnabled_) {
-    auto locVolume = glGetUniformLocation(currentProgram_, "volume");
-    auto locBass = glGetUniformLocation(currentProgram_, "bass");
-    auto locMid = glGetUniformLocation(currentProgram_, "mid");
-    auto locTreble = glGetUniformLocation(currentProgram_, "treble");
-    auto locBeat = glGetUniformLocation(currentProgram_, "beat");
-
-    if (locVolume >= 0)
-      glUniform1f(locVolume, uniforms_.volume);
-    if (locBass >= 0)
-      glUniform1f(locBass, uniforms_.bass);
-    if (locMid >= 0)
-      glUniform1f(locMid, uniforms_.mid);
-    if (locTreble >= 0)
-      glUniform1f(locTreble, uniforms_.treble);
-    if (locBeat >= 0)
-      glUniform1f(locBeat, uniforms_.beat);
-  }
+  uniformUploader_.upload(currentProgram_, uniforms_, audioReactivityEnabled_);
 
   glBindVertexArray(vao_);
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-  glBindVertexArray(0);
 
+  // Render particles on top of shader output
+  if (particleConfig_.enabled && !particles_.empty()) {
+    renderParticles();
+  }
+
+  glBindVertexArray(0);
   glUseProgram(0);
+
+  // Blit scene from FBO to screen
+  if (useFBO) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, renderWidth_, renderHeight_);
+    renderToneMap();
+  }
+
+  // Composite bloom additively on top of scene
+  if (bloomConfig_.enabled && bloomProgram_) {
+    renderBloom();
+  }
 }
 
 void GLRenderer::resize(int width, int height) {
   if (width > 0 && height > 0) {
+    renderWidth_ = width;
+    renderHeight_ = height;
     metrics_.memoryUsageBytes = width * height * 4;
     uniforms_.resolution.x = (float)width;
     uniforms_.resolution.y = (float)height;
 
-    if (hdrEnabled_ && width > 0 && height > 0) {
+    initPostProcessingFBO();
+
+    if (bloomConfig_.enabled) {
+      initBloom();
+    }
+
+    if (hdrEnabled_) {
       if (toneMapTexture_) {
         glDeleteTextures(1, &toneMapTexture_);
       }
@@ -402,10 +528,16 @@ void GLRenderer::setAudioData(float volume, float bass, float mid, float treble,
 
 void GLRenderer::setBloomEnabled(bool enabled) {
   bloomConfig_.enabled = enabled;
+  if (initialized_ && enabled) {
+    initBloom();
+  }
 }
 
 void GLRenderer::setBloomQuality(GLBloomQuality quality) {
   bloomConfig_.quality = quality;
+  if (initialized_ && bloomConfig_.enabled) {
+    initBloom();
+  }
 }
 
 void GLRenderer::setBloomIntensity(float intensity) {
@@ -603,6 +735,12 @@ bool GLRenderer::initToneMapping() {
     return false;
   }
 
+  if (toneMapQuadVAO_) {
+    glDeleteVertexArrays(1, &toneMapQuadVAO_);
+  }
+  if (toneMapQuadVBO_) {
+    glDeleteBuffers(1, &toneMapQuadVBO_);
+  }
   glGenVertexArrays(1, &toneMapQuadVAO_);
   glGenBuffers(1, &toneMapQuadVBO_);
 
@@ -631,6 +769,17 @@ bool GLRenderer::initToneMapping() {
 
 void GLRenderer::renderToneMap() {
   if (!hdrEnabled_ || toneMapProgram_ == 0) {
+    // Fallback: blit fboTexture_ to default framebuffer via blit program
+    if (fboTexture_ == 0 || blitProgram_ == 0)
+      return;
+    glUseProgram(blitProgram_);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, fboTexture_);
+    glUniform1i(glGetUniformLocation(blitProgram_, "screenTexture"), 0);
+    glBindVertexArray(vao_);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
     return;
   }
 
@@ -664,12 +813,281 @@ void GLRenderer::checkForShaderReload() {
   if (!hotReloadEnabled_ || currentShader_.empty()) {
     return;
   }
+
+  auto pathIt = shaderPaths_.find(currentShader_);
+  if (pathIt == shaderPaths_.end()) {
+    return;
+  }
+
+  struct stat st;
+  if (stat(pathIt->second.c_str(), &st) != 0) {
+    return;
+  }
+
+  auto timeIt = shaderModTimes_.find(currentShader_);
+  if (timeIt != shaderModTimes_.end() && st.st_mtime <= timeIt->second) {
+    return;
+  }
+
+  reloadCurrentShader();
 }
 
 void GLRenderer::setError(GLRendererErrorCode code, const std::string &msg,
                           const std::string &shader,
                           const std::string &compileError) {
   lastError_ = {code, msg, shader, compileError, 0};
+  if (errorCallback_) {
+    errorCallback_(lastError_);
+  }
+}
+
+void GLRenderer::startFileWatcher() {
+  if (fileWatcherRunning_)
+    return;
+
+#if defined(__linux__)
+  int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+  if (fd < 0)
+    return;
+
+  for (const auto &pair : shaderPaths_) {
+    int wd = inotify_add_watch(fd, pair.second.c_str(), IN_MODIFY);
+    if (wd >= 0) {
+      watchDescriptors_[pair.first] = wd;
+    }
+  }
+
+  fileWatcherRunning_ = true;
+  fileWatcherThread_ = std::thread([this, fd]() {
+    char buf[4096];
+    while (fileWatcherRunning_) {
+      int len = read(fd, buf, sizeof(buf));
+      if (len > 0) {
+        checkForShaderReload();
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    for (auto &wd : watchDescriptors_) {
+      inotify_rm_watch(fd, wd.second);
+    }
+    close(fd);
+  });
+#endif
+}
+
+void GLRenderer::stopFileWatcher() {
+  fileWatcherRunning_ = false;
+  if (fileWatcherThread_.joinable()) {
+    fileWatcherThread_.join();
+  }
+  watchDescriptors_.clear();
+}
+
+void GLRenderer::initPostProcessingFBO() {
+  if (renderWidth_ <= 0 || renderHeight_ <= 0)
+    return;
+
+  if (fbo_) {
+    glDeleteFramebuffers(1, &fbo_);
+    fbo_ = 0;
+  }
+  if (fboTexture_) {
+    glDeleteTextures(1, &fboTexture_);
+    fboTexture_ = 0;
+  }
+  if (rbo_) {
+    glDeleteRenderbuffers(1, &rbo_);
+    rbo_ = 0;
+  }
+
+  glGenFramebuffers(1, &fbo_);
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+
+  glGenTextures(1, &fboTexture_);
+  glBindTexture(GL_TEXTURE_2D, fboTexture_);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, renderWidth_, renderHeight_, 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         fboTexture_, 0);
+
+  glGenRenderbuffers(1, &rbo_);
+  glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, renderWidth_,
+                        renderHeight_);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_RENDERBUFFER, rbo_);
+
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    setError(GLRendererErrorCode::InvalidState, "Post-processing FBO incomplete");
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void GLRenderer::initBloom() {
+  if (bloomProgram_) {
+    glDeleteProgram(bloomProgram_);
+    bloomProgram_ = 0;
+  }
+
+  const char *bloomVertSrc = R"(
+    #version 330 core
+    layout(location = 0) in vec2 aPosition;
+    layout(location = 1) in vec2 aTexCoord;
+    out vec2 vTexCoord;
+    void main() {
+      gl_Position = vec4(aPosition, 0.0, 1.0);
+      vTexCoord = aTexCoord;
+    }
+  )";
+
+  std::string bloomFragSrc = R"(
+    #version 330 core
+    in vec2 vTexCoord;
+    out vec4 fragColor;
+    uniform sampler2D image;
+    uniform vec2 texelSize;
+    uniform int horizontal;
+    uniform float threshold;
+    uniform float intensity;
+
+    void main() {
+      vec3 result = vec3(0.0);
+      float weights[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+      if (horizontal < 0) {
+        vec4 color = texture(image, vTexCoord);
+        float brightness = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+        if (brightness > threshold) {
+          fragColor = vec4(color.rgb * intensity, color.a);
+        } else {
+          fragColor = vec4(0.0);
+        }
+        return;
+      }
+
+      vec2 offset = texelSize;
+      result += texture(image, vTexCoord).rgb * weights[0];
+      for (int i = 1; i < 5; i++) {
+        vec2 off = offset * float(i) * 1.5;
+        if (horizontal == 1) {
+          result += texture(image, vTexCoord + vec2(off.x, 0.0)).rgb * weights[i];
+          result += texture(image, vTexCoord - vec2(off.x, 0.0)).rgb * weights[i];
+        } else {
+          result += texture(image, vTexCoord + vec2(0.0, off.y)).rgb * weights[i];
+          result += texture(image, vTexCoord - vec2(0.0, off.y)).rgb * weights[i];
+        }
+      }
+      fragColor = vec4(result, 1.0);
+    }
+  )";
+
+  unsigned int vs = compileShader(bloomVertSrc, GL_VERTEX_SHADER);
+  std::string fragPrepend = isGLES_ ? "#version 300 es\nprecision mediump float;\n" : "";
+  unsigned int fs = compileShader(fragPrepend + bloomFragSrc, GL_FRAGMENT_SHADER);
+
+  if (vs && fs) {
+    bloomProgram_ = linkProgram(vs, fs);
+  }
+  if (vs)
+    glDeleteShader(vs);
+  if (fs)
+    glDeleteShader(fs);
+
+  int bloomW = renderWidth_ / 2;
+  int bloomH = renderHeight_ / 2;
+  if (bloomW < 1) bloomW = 1;
+  if (bloomH < 1) bloomH = 1;
+
+  for (int i = 0; i < 2; i++) {
+    if (bloomFBO_[i]) {
+      glDeleteFramebuffers(1, &bloomFBO_[i]);
+      bloomFBO_[i] = 0;
+    }
+    if (bloomTexture_[i]) {
+      glDeleteTextures(1, &bloomTexture_[i]);
+      bloomTexture_[i] = 0;
+    }
+
+    glGenFramebuffers(1, &bloomFBO_[i]);
+    glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO_[i]);
+
+    glGenTextures(1, &bloomTexture_[i]);
+    glBindTexture(GL_TEXTURE_2D, bloomTexture_[i]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, bloomW, bloomH, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           bloomTexture_[i], 0);
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void GLRenderer::renderBloom() {
+  if (!bloomConfig_.enabled || !bloomProgram_ || !fboTexture_)
+    return;
+
+  int bloomW = renderWidth_ / 2;
+  int bloomH = renderHeight_ / 2;
+  if (bloomW < 1 || bloomH < 1)
+    return;
+
+  glUseProgram(bloomProgram_);
+  glBindVertexArray(vao_);
+
+  float texelW = 1.0f / bloomW;
+  float texelH = 1.0f / bloomH;
+
+  int passes = 4;
+  if (bloomConfig_.quality == GLBloomQuality::Low) passes = 2;
+  else if (bloomConfig_.quality == GLBloomQuality::High) passes = 6;
+  else if (bloomConfig_.quality == GLBloomQuality::Ultra) passes = 8;
+
+  glActiveTexture(GL_TEXTURE0);
+  glUniform1i(glGetUniformLocation(bloomProgram_, "image"), 0);
+  glUniform1f(glGetUniformLocation(bloomProgram_, "threshold"),
+              bloomConfig_.threshold);
+  glUniform1f(glGetUniformLocation(bloomProgram_, "intensity"),
+              bloomConfig_.intensity);
+
+  // Pass 0: threshold extract from scene
+  glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO_[0]);
+  glViewport(0, 0, bloomW, bloomH);
+  glBindTexture(GL_TEXTURE_2D, fboTexture_);
+  glUniform1i(glGetUniformLocation(bloomProgram_, "horizontal"), -1);
+  glUniform2f(glGetUniformLocation(bloomProgram_, "texelSize"), texelW, texelH);
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+  // Ping-pong blur passes
+  for (int i = 0; i < passes; i++) {
+    int src = i % 2;
+    int dst = 1 - src;
+    glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO_[dst]);
+    glViewport(0, 0, bloomW, bloomH);
+    glBindTexture(GL_TEXTURE_2D, bloomTexture_[src]);
+    glUniform1i(glGetUniformLocation(bloomProgram_, "horizontal"), i % 2);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+  }
+
+  // Composite: additive blend bloom onto default framebuffer
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glViewport(0, 0, renderWidth_, renderHeight_);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE);
+  glBindTexture(GL_TEXTURE_2D, bloomTexture_[passes % 2]);
+  glUniform1i(glGetUniformLocation(bloomProgram_, "horizontal"), 1);
+  glUniform2f(glGetUniformLocation(bloomProgram_, "texelSize"), texelW, texelH);
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+  glDisable(GL_BLEND);
+
+  glBindVertexArray(0);
+  glUseProgram(0);
 }
 
 } // namespace Linux

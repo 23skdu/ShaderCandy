@@ -19,12 +19,13 @@ void UniformBuffer::initialize() {
 
   // Set date
   std::time_t now = std::time(nullptr);
-  const std::tm *localTime = std::localtime(&now);
-  data_.date[0] = static_cast<float>(localTime->tm_year + 1900);
-  data_.date[1] = static_cast<float>(localTime->tm_mon + 1);
-  data_.date[2] = static_cast<float>(localTime->tm_mday);
+  std::tm tm_buf;
+  localtime_r(&now, &tm_buf);
+  data_.date[0] = static_cast<float>(tm_buf.tm_year + 1900);
+  data_.date[1] = static_cast<float>(tm_buf.tm_mon + 1);
+  data_.date[2] = static_cast<float>(tm_buf.tm_mday);
   data_.date[3] = static_cast<float>(
-      localTime->tm_hour * 3600 + localTime->tm_min * 60 + localTime->tm_sec);
+      tm_buf.tm_hour * 3600 + tm_buf.tm_min * 60 + tm_buf.tm_sec);
 }
 
 void UniformBuffer::updateTime(float time) { data_.time = time; }

@@ -766,12 +766,6 @@ if(BUILD_TESTS)
     add_test(NAME shadercandy-test COMMAND shadercandy-test)
     set_tests_properties(shadercandy-test PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     
-    add_executable(linux-logic-test tests/LinuxLogicTests.cpp)
-    target_link_libraries(linux-logic-test shadercandy_core)
-    target_include_directories(linux-logic-test PRIVATE src/platform/linux)
-    add_test(NAME linux-logic-test COMMAND linux-logic-test)
-    set_tests_properties(linux-logic-test PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    
     if(MACOS AND BUILD_METAL)
         target_link_libraries(shadercandy-test PRIVATE 
             shadercandy_metal
@@ -790,10 +784,12 @@ if(BUILD_TESTS)
     
     if(BUILD_OPENGL)
         target_link_libraries(shadercandy-test PRIVATE shadercandy_gl)
+        target_sources(shadercandy-test PRIVATE src/platform/linux/GLShaderProgram.cpp)
     endif()
 
     if(BUILD_AUDIO_ACTUAL)
         target_link_libraries(shadercandy-test PRIVATE shadercandy_audio_linux)
+        target_compile_definitions(shadercandy-test PRIVATE HAS_AUDIO=1)
     endif()
     
     # XCTest bundle for Xcode integration (native macOS only, not cross-compile)

@@ -518,39 +518,54 @@ AppSettings deserializeSettings(const std::string &json) {
     return parseValue(json, pos);
   };
 
-  ConfigValue v;
+  auto getInt = [&](const std::string &field, int &out) {
+    ConfigValue v = getValue(field);
+    if (std::holds_alternative<int>(v))
+      out = std::get<int>(v);
+  };
+  auto getBool = [&](const std::string &field, bool &out) {
+    ConfigValue v = getValue(field);
+    if (std::holds_alternative<bool>(v))
+      out = std::get<bool>(v);
+  };
+  auto getFloat = [&](const std::string &field, float &out) {
+    ConfigValue v = getValue(field);
+    if (std::holds_alternative<float>(v))
+      out = std::get<float>(v);
+    else if (std::holds_alternative<int>(v))
+      out = static_cast<float>(std::get<int>(v));
+  };
+  auto getString = [&](const std::string &field, std::string &out) {
+    ConfigValue v = getValue(field);
+    if (std::holds_alternative<std::string>(v))
+      out = std::get<std::string>(v);
+  };
 
-  v = getValue("targetFPS");
-  if (std::holds_alternative<int>(v)) {
-    settings.targetFPS = std::get<int>(v);
-  }
-
-  v = getValue("vsync");
-  if (std::holds_alternative<bool>(v)) {
-    settings.vsync = std::get<bool>(v);
-  }
-
-  v = getValue("enableAudio");
-  if (std::holds_alternative<bool>(v)) {
-    settings.enableAudio = std::get<bool>(v);
-  }
-
-  v = getValue("adaptiveQuality");
-  if (std::holds_alternative<bool>(v)) {
-    settings.adaptiveQuality = std::get<bool>(v);
-  }
-
-  v = getValue("autoScaleFPSThreshold");
-  if (std::holds_alternative<float>(v)) {
-    settings.autoScaleFPSThreshold = std::get<float>(v);
-  } else if (std::holds_alternative<int>(v)) {
-    settings.autoScaleFPSThreshold = static_cast<float>(std::get<int>(v));
-  }
-
-  v = getValue("defaultShader");
-  if (std::holds_alternative<std::string>(v)) {
-    settings.defaultShader = std::get<std::string>(v);
-  }
+  getInt("targetFPS", settings.targetFPS);
+  getBool("vsync", settings.vsync);
+  getBool("hdr", settings.hdr);
+  getInt("multisampleLevel", settings.multisampleLevel);
+  getBool("enableAudio", settings.enableAudio);
+  getString("audioDevice", settings.audioDevice);
+  getFloat("audioSensitivity", settings.audioSensitivity);
+  getFloat("audioSmoothing", settings.audioSmoothing);
+  getBool("adaptiveQuality", settings.adaptiveQuality);
+  getBool("showFPS", settings.showFPS);
+  getBool("limitGPU", settings.limitGPU);
+  getFloat("autoScaleFPSThreshold", settings.autoScaleFPSThreshold);
+  getString("defaultShader", settings.defaultShader);
+  getString("shaderPath", settings.shaderPath);
+  getBool("enableHotReload", settings.enableHotReload);
+  getBool("spanDisplays", settings.spanDisplays);
+  getBool("perDisplayShader", settings.perDisplayShader);
+  getInt("idleTimeMinutes", settings.idleTimeMinutes);
+  getBool("lockOnActivate", settings.lockOnActivate);
+  getBool("neuralStyleEnabled", settings.neuralStyleEnabled);
+  getFloat("neuralStyleStrength", settings.neuralStyleStrength);
+  getString("neuralStyleName", settings.neuralStyleName);
+  getBool("spatialAudio", settings.spatialAudio);
+  getFloat("roomSize", settings.roomSize);
+  getFloat("reverbDamping", settings.reverbDamping);
 
   return settings;
 }
@@ -611,6 +626,153 @@ std::map<std::string, ConfigValue> parse(const std::string &json) {
     }
   }
   return dict;
+}
+
+static std::string paramTypeToString(ParamType t) {
+  switch (t) {
+  case ParamType::Bool:
+    return "Bool";
+  case ParamType::Int:
+    return "Int";
+  case ParamType::Float:
+    return "Float";
+  case ParamType::Color:
+    return "Color";
+  case ParamType::Choice:
+    return "Choice";
+  case ParamType::Range:
+    return "Range";
+  case ParamType::File:
+    return "File";
+  }
+  return "Float";
+}
+
+std::string serializeShaderConfig(const ShaderConfig &config) {
+  std::string json = "{\n";
+  json += "  \"shaderName\": \"" + escapeJSON(config.shaderName) + "\",\n";
+  json += "  \"displayName\": \"" + escapeJSON(config.displayName) + "\",\n";
+  json += "  \"description\": \"" + escapeJSON(config.description) + "\",\n";
+  json += "  \"category\": \"" + escapeJSON(config.category) + "\",\n";
+  json += "  \"supportsAudio\": " + boolToString(config.supportsAudio) + ",\n";
+  json += "  \"supportsHDR\": " + boolToString(config.supportsHDR) + ",\n";
+  json += "  \"quality\": " + std::to_string(config.quality) + ",\n";
+
+  json += "  \"tags\": [";
+  for (size_t i = 0; i < config.tags.size(); ++i) {
+    if (i > 0)
+      json += ", ";
+    json += "\"" + escapeJSON(config.tags[i]) + "\"";
+  }
+  json += "],\n";
+
+  json += "  \"parameters\": [\n";
+  for (size_t i = 0; i < config.parameters.size(); ++i) {
+    const auto &p = config.parameters[i];
+    if (i > 0)
+      json += ",\n";
+    json += "    {\n";
+    json += "      \"name\": \"" + escapeJSON(p.name) + "\",\n";
+    json += "      \"displayName\": \"" + escapeJSON(p.displayName) + "\",\n";
+    json += "      \"description\": \"" + escapeJSON(p.description) + "\",\n";
+    json += "      \"type\": \"" + paramTypeToString(p.type) + "\",\n";
+    json += "      \"defaultValue\": " + valueToString(p.defaultValue) + ",\n";
+    json += "      \"minValue\": " + valueToString(p.minValue) + ",\n";
+    json += "      \"maxValue\": " + valueToString(p.maxValue) + ",\n";
+    json += "      \"needsReload\": " + boolToString(p.needsReload) + "\n";
+    json += "    }";
+  }
+  json += "\n  ]\n";
+  json += "}\n";
+  return json;
+}
+
+ShaderConfig deserializeShaderConfig(const std::string &json) {
+  ShaderConfig config;
+  if (json.empty())
+    return config;
+
+  auto getStr = [&](const std::string &field) -> std::string {
+    size_t found = json.find("\"" + field + "\"");
+    if (found == std::string::npos)
+      return "";
+    size_t colon = json.find(":", found);
+    if (colon == std::string::npos)
+      return "";
+    size_t q1 = json.find("\"", colon + 1);
+    if (q1 == std::string::npos)
+      return "";
+    size_t q2 = json.find("\"", q1 + 1);
+    if (q2 == std::string::npos)
+      return "";
+    return json.substr(q1 + 1, q2 - q1 - 1);
+  };
+
+  auto getBool = [&](const std::string &field) -> bool {
+    size_t found = json.find("\"" + field + "\"");
+    if (found == std::string::npos)
+      return false;
+    size_t pos = json.find(":", found);
+    if (pos == std::string::npos)
+      return false;
+    pos++;
+    while (pos < json.size() && std::isspace(json[pos]))
+      pos++;
+    if (json.substr(pos, 4) == "true")
+      return true;
+    return false;
+  };
+
+  auto getFloat = [&](const std::string &field) -> float {
+    size_t found = json.find("\"" + field + "\"");
+    if (found == std::string::npos)
+      return 0.0f;
+    size_t pos = json.find(":", found);
+    if (pos == std::string::npos)
+      return 0.0f;
+    pos++;
+    while (pos < json.size() && std::isspace(json[pos]))
+      pos++;
+    size_t end = pos;
+    while (end < json.size() && (std::isdigit(json[end]) || json[end] == '.' ||
+                                 json[end] == '-' || json[end] == '+'))
+      end++;
+    if (end > pos)
+      return std::stof(json.substr(pos, end - pos));
+    return 0.0f;
+  };
+
+  config.shaderName = getStr("shaderName");
+  config.displayName = getStr("displayName");
+  config.description = getStr("description");
+  config.category = getStr("category");
+  config.supportsAudio = getBool("supportsAudio");
+  config.supportsHDR = getBool("supportsHDR");
+  config.quality = getFloat("quality");
+
+  // Parse tags array
+  size_t tagsPos = json.find("\"tags\"");
+  if (tagsPos != std::string::npos) {
+    size_t bracketStart = json.find("[", tagsPos);
+    size_t bracketEnd = json.find("]", bracketStart);
+    if (bracketStart != std::string::npos && bracketEnd != std::string::npos) {
+      std::string tagsContent =
+          json.substr(bracketStart + 1, bracketEnd - bracketStart - 1);
+      size_t p = 0;
+      while (p < tagsContent.size()) {
+        size_t q1 = tagsContent.find("\"", p);
+        if (q1 == std::string::npos)
+          break;
+        size_t q2 = tagsContent.find("\"", q1 + 1);
+        if (q2 == std::string::npos)
+          break;
+        config.tags.push_back(tagsContent.substr(q1 + 1, q2 - q1 - 1));
+        p = q2 + 1;
+      }
+    }
+  }
+
+  return config;
 }
 
 } // namespace JSON

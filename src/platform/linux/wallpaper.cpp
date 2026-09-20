@@ -19,6 +19,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
@@ -28,6 +29,13 @@
 using namespace ShaderCandy::Audio;
 
 using namespace ShaderCandy::Platform::Linux;
+
+static std::string getHomeDir() {
+  const char *home = getenv("HOME");
+  if (home)
+    return std::string(home);
+  return std::string(".");
+}
 
 volatile sig_atomic_t running = 1;
 
@@ -71,6 +79,7 @@ public:
   GLuint vao = 0, vbo = 0;
   GLuint program = 0;
   GLuint ubo = 0;
+  Colormap colormap = 0;
   Uniforms uniforms;
   int frameCount = 0;
   std::chrono::steady_clock::time_point startTime;
@@ -79,9 +88,9 @@ public:
   std::string currentShaderPath;
 
   // Audio
-  AudioInput *audioInput = nullptr;
+  std::unique_ptr<AudioInput> audioInput;
   // IPC
-  LinuxIPC *ipc = nullptr;
+  std::unique_ptr<LinuxIPC> ipc;
   bool enableAudio = false;
 
   bool initialize(int argc, char **argv);
@@ -99,75 +108,8 @@ private:
 };
 
 std::string WallpaperEngine::loadShaderWithIncludes(const char *path,
-                                                    int depth) {
-  if (depth > 10) {
-    std::cerr << "Include depth exceeded for: " << path << std::endl;
-    return "";
-  }
-
-  std::ifstream file(path);
-  if (!file.is_open()) {
-    return "";
-  }
-
-  std::string dir = path;
-  size_t lastSlash = dir.find_last_of("/\\");
-  if (lastSlash != std::string::npos) {
-    dir = dir.substr(0, lastSlash + 1);
-  } else {
-    dir = "./";
-  }
-
-  std::stringstream result;
-  std::string line;
-  while (std::getline(file, line)) {
-    size_t versionPos = line.find("#version");
-    if (versionPos != std::string::npos) {
-      continue;
-    }
-
-    size_t includePos = line.find("#include");
-    if (includePos != std::string::npos) {
-      size_t start = line.find('"', includePos);
-      size_t end = std::string::npos;
-      if (start != std::string::npos) {
-        end = line.find('"', start + 1);
-      }
-
-      if (start != std::string::npos && end != std::string::npos) {
-        std::string includePath = line.substr(start + 1, end - start - 1);
-        std::string fullPath;
-        if (includePath[0] == '/') {
-          fullPath = includePath;
-        } else if (includePath.substr(0, 3) == "../") {
-          std::string parentDir = dir;
-          if (parentDir.length() > 0 &&
-              (parentDir.back() == '/' || parentDir.back() == '\\')) {
-            parentDir.pop_back();
-          }
-          size_t parentSlash = parentDir.find_last_of("/\\");
-          if (parentSlash != std::string::npos) {
-            parentDir = parentDir.substr(0, parentSlash + 1);
-          }
-          fullPath = parentDir + includePath.substr(3);
-        } else if (includePath.substr(0, 2) == "./") {
-          fullPath = dir + includePath.substr(2);
-        } else {
-          fullPath = dir + includePath;
-        }
-
-        std::string includeContent =
-            loadShaderWithIncludes(fullPath.c_str(), depth + 1);
-        if (!includeContent.empty()) {
-          result << includeContent << "\n";
-        }
-        continue;
-      }
-    }
-    result << line << "\n";
-  }
-
-  return result.str();
+                                                     int depth) {
+  return GLSLWrapper::loadShaderWithIncludes(path, depth);
 }
 
 bool WallpaperEngine::compileShader(const char *fragmentSource) {
@@ -184,6 +126,7 @@ bool WallpaperEngine::compileShader(const char *fragmentSource) {
     char infoLog[512];
     glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
     std::cerr << "WallpaperEngine: Vertex shader error: " << infoLog << std::endl;
+    glDeleteShader(vertexShader);
     return false;
   }
 
@@ -317,10 +260,16 @@ bool WallpaperEngine::setupRenderWindow() {
   }
 
   XVisualInfo *vi = glXGetVisualFromFBConfig(display, fbc[0]);
+  if (!vi) {
+    std::cerr << "Failed to get visual info" << std::endl;
+    XFree(fbc);
+    return false;
+  }
 
   // Create a window as child of root
   XSetWindowAttributes swa;
   swa.colormap = XCreateColormap(display, rootWindow, vi->visual, AllocNone);
+  colormap = swa.colormap;
   swa.event_mask = StructureNotifyMask;
   swa.override_redirect = True; // Bypass window manager
 
@@ -448,25 +397,27 @@ bool WallpaperEngine::initialize(int argc, char **argv) {
 
   // Initialize audio if requested
   if (enableAudio) {
-    audioInput = new AudioInput();
+    audioInput = std::make_unique<AudioInput>();
     if (audioInput->initialize()) {
       if (audioInput->autoSelectDevice()) {
         audioInput->start();
         std::cout << "Audio input initialized" << std::endl;
       } else {
         std::cerr << "Failed to select audio device" << std::endl;
-        delete audioInput;
-        audioInput = nullptr;
+        audioInput.reset();
       }
     } else {
       std::cerr << "Failed to initialize audio" << std::endl;
-      delete audioInput;
-      audioInput = nullptr;
+      audioInput.reset();
     }
   }
 
   // Initialize IPC
-  ipc = new LinuxIPC();
+  ipc = std::make_unique<LinuxIPC>();
+  if (!ipc->isValid()) {
+    std::cerr << "Warning: IPC initialization failed, running without IPC"
+              << std::endl;
+  }
 
   std::cout << "Wallpaper engine initialized with IPC" << std::endl;
   return true;
@@ -482,7 +433,8 @@ void WallpaperEngine::updateUniforms() {
   uniforms.deltaTime = std::chrono::duration<float>(now - lastFrame).count();
 
   time_t t = time(nullptr);
-  tm *lt = localtime(&t);
+  struct tm tm_buf;
+  tm *lt = localtime_r(&t, &tm_buf);
   uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
   uniforms.date[1] = static_cast<float>(lt->tm_mon + 1);
   uniforms.date[2] = static_cast<float>(lt->tm_mday);
@@ -563,14 +515,8 @@ void WallpaperEngine::run() {
 }
 
 void WallpaperEngine::cleanup() {
-  if (ipc) {
-    delete ipc;
-    ipc = nullptr;
-  }
-  if (audioInput) {
-    delete audioInput;
-    audioInput = nullptr;
-  }
+  ipc.reset();
+  audioInput.reset();
 
   if (vbo) {
     glDeleteBuffers(1, &vbo);
@@ -598,6 +544,11 @@ void WallpaperEngine::cleanup() {
   if (renderWindow) {
     XDestroyWindow(display, renderWindow);
     renderWindow = 0;
+  }
+
+  if (colormap && display) {
+    XFreeColormap(display, colormap);
+    colormap = 0;
   }
 
   if (display) {

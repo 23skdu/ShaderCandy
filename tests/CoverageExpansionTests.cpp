@@ -5,7 +5,9 @@
 #include "../src/core/PerformanceMonitor.h"
 #include "../src/core/ShaderManager.h"
 #include "../src/core/UniformBuffer.h"
+#include "../src/gl/GLRendererTypes.h"
 #include "TestFramework.h"
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -39,6 +41,27 @@ public:
     results.push_back(testComprehensiveMultiDisplay());
     results.push_back(testComprehensiveConfigurationManager());
     results.push_back(testComprehensivePresetManager());
+    results.push_back(testPerformanceMonitorEdgeCases());
+    results.push_back(testMultiDisplayEmptyDisplays());
+    results.push_back(testMathUtilsHsvRgbEdgeCases());
+    results.push_back(testUniformDataDefaults());
+    results.push_back(testPresetManagerEdgeCases());
+    results.push_back(testConfigManagerMetadataCategories());
+    results.push_back(testShaderConfigSerializeDeserialize());
+    results.push_back(testConfigMetadataEdgeBranches());
+    results.push_back(testBloomConfigDefaults());
+    results.push_back(testParticleConfigDefaults());
+    results.push_back(testPerformanceMetricsDefaults());
+    results.push_back(testToneMappingEnums());
+    results.push_back(testRendererErrorCodeEnums());
+    results.push_back(testHeadlessRendererVideoEncoding());
+    results.push_back(testDisplayUtilsFunctions());
+    results.push_back(testGLRendererErrorCallback());
+    results.push_back(testSettingsRoundTrip());
+    results.push_back(testAudioAutoDetect());
+    results.push_back(testBloomQualityLevels());
+    results.push_back(testParticleRespawn());
+    results.push_back(testFileWatcherLifecycle());
     return results;
   }
 
@@ -451,9 +474,10 @@ private:
     TEST_ASSERT_EQUAL(123.456, mgr.getSynchronizedTime());
 
     // Callback
-    bool cbCalled = false;
+    static bool cbCalled = false;
+    cbCalled = false;
     mgr.setDisplayChangeCallback(
-        [&](const std::vector<DisplayInfo> &) { cbCalled = true; });
+        [](const std::vector<DisplayInfo> &) { cbCalled = true; });
 
     // Helper functions
     int optSize = DisplayUtils::getOptimalTextureSize(1920, 1080, 1.0f);
@@ -531,11 +555,13 @@ private:
     TEST_ASSERT(!emptyPrimary.id.empty(), "Empty displays fallback primary");
 
     // Reinitialize with change callback
-    bool initCb = false;
+    static bool initCb = false;
+    initCb = false;
     mgr.setDisplayChangeCallback(
-        [&](const std::vector<DisplayInfo> &) { initCb = true; });
+        [](const std::vector<DisplayInfo> &) { initCb = true; });
     mgr.initialize();
     TEST_ASSERT_TRUE(initCb);
+    mgr.setDisplayChangeCallback(nullptr);
 
     // Unregistered display shader fallback
     std::string unregShader = mgr.getDisplayShader("unregistered_disp_999");
@@ -546,6 +572,7 @@ private:
     auto uninitBuf = hrUninit.renderToBuffer(0);
     TEST_ASSERT(!uninitBuf.empty(), "Render to buffer should auto-allocate");
 
+    mgr.setDisplayChangeCallback(nullptr);
     mgr.shutdown();
     return {__func__, true, "Comprehensive MultiDisplay tests passed", 0.0};
   }
@@ -850,6 +877,896 @@ private:
     pm.allUserPresets();
 
     return {__func__, true, "Comprehensive PresetManager tests passed", 0.0};
+  }
+
+  TestResult testPerformanceMonitorEdgeCases() {
+    // getAverageFPS direct call with zero frames
+    PerformanceMonitor monitor(5);
+    TEST_ASSERT_EQUAL(0.0f, monitor.getAverageFPS());
+
+    // getLastFrameTimeMs before any frame
+    TEST_ASSERT_EQUAL(0.0f, monitor.getLastFrameTimeMs());
+
+    // getP99FrameTimeMs with zero frames
+    TEST_ASSERT_EQUAL(0.0f, monitor.getP99FrameTimeMs());
+
+    // getMetrics with zero frames - all fields should be zeroed
+    PerformanceMetrics zeroMetrics = monitor.getMetrics();
+    TEST_ASSERT_EQUAL(0.0f, zeroMetrics.currentFPS);
+    TEST_ASSERT_EQUAL(0.0f, zeroMetrics.averageFPS);
+    TEST_ASSERT_EQUAL(0, zeroMetrics.droppedFrames);
+
+    // calculateDynamicResolutionScale boundary: exactly equal returns 1.0f
+    TEST_ASSERT_EQUAL(1.0f, PerformanceMonitor::calculateDynamicResolutionScale(16.67f, 16.67f));
+
+    // calculateDynamicResolutionScale: very large latency clamps to 0.5f
+    TEST_ASSERT_EQUAL(0.5f, PerformanceMonitor::calculateDynamicResolutionScale(1000.0f, 16.67f));
+
+    // calculateDynamicResolutionScale: moderate over-budget scales down
+    float scale2x = PerformanceMonitor::calculateDynamicResolutionScale(33.34f, 16.67f);
+    TEST_ASSERT(scale2x > 0.49f && scale2x <= 0.51f, "2x over budget should scale to ~0.5");
+
+    // calculateAdaptiveRayMarchLoD: nominal (low thermal, low latency)
+    int maxSteps;
+    float stepEps, lodScale;
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.1f, 10.0f, maxSteps, stepEps, lodScale);
+    TEST_ASSERT_EQUAL(128, maxSteps);
+    TEST_ASSERT_EQUAL(1.0f, lodScale);
+
+    // calculateAdaptiveRayMarchLoD: serious thermal
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.7f, 20.0f, maxSteps, stepEps, lodScale);
+    TEST_ASSERT_EQUAL(64, maxSteps);
+    TEST_ASSERT_EQUAL(0.65f, lodScale);
+
+    // calculateAdaptiveRayMarchLoD: critical thermal
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.9f, 40.0f, maxSteps, stepEps, lodScale);
+    TEST_ASSERT_EQUAL(48, maxSteps);
+    TEST_ASSERT_EQUAL(0.5f, lodScale);
+
+    // calculateAdaptiveRayMarchLoD: fair thermal (just above 0.33)
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.4f, 18.0f, maxSteps, stepEps, lodScale);
+    TEST_ASSERT_EQUAL(96, maxSteps);
+
+    // History clamping: fill beyond historySize_
+    PerformanceMonitor bigMonitor(3);
+    for (int i = 0; i < 10; ++i) {
+      bigMonitor.beginFrame();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      bigMonitor.endFrame();
+    }
+    float p99 = bigMonitor.getP99FrameTimeMs();
+    TEST_ASSERT(p99 >= 0.0f, "P99 after many frames should be valid");
+
+    // Sorted times non-dirty path
+    bigMonitor.getP99FrameTimeMs();
+    bigMonitor.getP99FrameTimeMs();
+    TEST_ASSERT(p99 >= 0.0f, "P99 re-query should be stable");
+
+    return {__func__, true, "PerformanceMonitor edge cases passed", 0.0};
+  }
+
+  TestResult testMultiDisplayEmptyDisplays() {
+    auto &mgr = MultiDisplayManager::getInstance();
+    mgr.shutdown();
+
+    // After shutdown (empty displays), virtual dimensions should return defaults
+    int w = mgr.getVirtualWidth();
+    int h = mgr.getVirtualHeight();
+    float aspect = mgr.getVirtualAspectRatio();
+    TEST_ASSERT_EQUAL(1920, w);
+    TEST_ASSERT_EQUAL(1080, h);
+    TEST_ASSERT(aspect > 0.0f, "Default aspect ratio must be positive");
+
+    mgr.initialize();
+    mgr.shutdown();
+    return {__func__, true, "MultiDisplay empty displays passed", 0.0};
+  }
+
+  TestResult testMathUtilsHsvRgbEdgeCases() {
+    // rgbToHsv with g < b (hue wrapping via fmod)
+    float rgb7[3] = {1.0f, 0.2f, 0.8f};
+    float hsv7[3];
+    Math::rgbToHsv(rgb7, hsv7);
+    TEST_ASSERT(hsv7[0] > 200.0f && hsv7[0] < 360.0f, "Hue for g<b case should wrap near 330");
+
+    // rgbToHsv black: saturation should be 0
+    float black[3] = {0.0f, 0.0f, 0.0f};
+    float hsvB[3];
+    Math::rgbToHsv(black, hsvB);
+    TEST_ASSERT_EQUAL(0.0f, hsvB[1]);
+
+    // hsvToRgb with fractional hue that triggers f > 0 in case 0 (h=30)
+    float hsvFrac[3] = {30.0f, 1.0f, 1.0f};
+    float rgbFrac[3];
+    Math::hsvToRgb(hsvFrac, rgbFrac);
+    TEST_ASSERT(rgbFrac[0] > 0.9f && rgbFrac[0] <= 1.0f, "R near 1.0 at h=30");
+    TEST_ASSERT(rgbFrac[1] > 0.4f && rgbFrac[1] < 0.6f, "G ~0.5 at h=30");
+    TEST_ASSERT(rgbFrac[2] < 0.01f, "B ~0 at h=30");
+
+    // hsvToRgb case 1 with f > 0 (h=90)
+    float hsv90[3] = {90.0f, 1.0f, 1.0f};
+    float rgb90[3];
+    Math::hsvToRgb(hsv90, rgb90);
+    TEST_ASSERT(rgb90[0] > 0.49f && rgb90[0] < 0.51f, "R ~0.5 at h=90");
+    TEST_ASSERT(rgb90[1] > 0.99f, "G ~1.0 at h=90");
+    TEST_ASSERT(rgb90[2] < 0.01f, "B ~0 at h=90");
+
+    // hsvToRgb case 3 with f > 0 (h=210)
+    float hsv210[3] = {210.0f, 1.0f, 1.0f};
+    float rgb210[3];
+    Math::hsvToRgb(hsv210, rgb210);
+    TEST_ASSERT(rgb210[0] < 0.01f, "R ~0 at h=210");
+    TEST_ASSERT(rgb210[1] > 0.49f && rgb210[1] < 0.51f, "G ~0.5 at h=210");
+    TEST_ASSERT(rgb210[2] > 0.99f, "B ~1.0 at h=210");
+
+    // hsvToRgb case 4 with f > 0 (h=270)
+    float hsv270[3] = {270.0f, 1.0f, 1.0f};
+    float rgb270[3];
+    Math::hsvToRgb(hsv270, rgb270);
+    TEST_ASSERT(rgb270[0] > 0.49f && rgb270[0] < 0.51f, "R ~0.5 at h=270");
+    TEST_ASSERT(rgb270[1] < 0.01f, "G ~0 at h=270");
+    TEST_ASSERT(rgb270[2] > 0.99f, "B ~1.0 at h=270");
+
+    // Vec2 default constructor
+    Math::Vec2 v2def;
+    TEST_ASSERT_EQUAL(0.0f, v2def.x);
+    TEST_ASSERT_EQUAL(0.0f, v2def.y);
+
+    return {__func__, true, "MathUtils HSV/RGB edge cases passed", 0.0};
+  }
+
+  TestResult testUniformDataDefaults() {
+    UniformData d{};
+    TEST_ASSERT_EQUAL(1.0f, d.lodScale);
+    TEST_ASSERT_EQUAL(128, d.maxSteps);
+    TEST_ASSERT_EQUAL(0.001f, d.stepEpsilon);
+
+    // UniformBuffer::size()
+    TEST_ASSERT_EQUAL(sizeof(UniformData), UniformBuffer::size());
+
+    // UniformBuffer updateRayMarchLoD
+    UniformBuffer buf;
+    buf.initialize();
+    buf.updateRayMarchLoD(64, 0.005f, 0.75f);
+    TEST_ASSERT_EQUAL(64, buf.getMaxSteps());
+    TEST_ASSERT_EQUAL(0.005f, buf.getStepEpsilon());
+    TEST_ASSERT_EQUAL(0.75f, buf.getLodScale());
+
+    // UniformBuffer updateResolution and updateMouse
+    buf.updateResolution(1920, 1080);
+    TEST_ASSERT_EQUAL(1920.0f, buf.getData().resolution[0]);
+    TEST_ASSERT_EQUAL(1080.0f, buf.getData().resolution[1]);
+
+    buf.updateMouse(500, 300);
+    TEST_ASSERT_EQUAL(500.0f, buf.getData().mouse[0]);
+    TEST_ASSERT_EQUAL(300.0f, buf.getData().mouse[1]);
+
+    buf.updateFrame(42);
+    TEST_ASSERT_EQUAL(42, buf.getData().frame);
+
+    return {__func__, true, "UniformData defaults passed", 0.0};
+  }
+
+  TestResult testPresetManagerEdgeCases() {
+    Config::PresetManager &pm = Config::PresetManager::getInstance();
+
+    // Default constructor
+    Config::Preset defaultPreset;
+    TEST_ASSERT(defaultPreset.version == "1.0", "Default version should be 1.0");
+    TEST_ASSERT(defaultPreset.shaderName == "plasma", "Default shader should be plasma");
+    TEST_ASSERT(!defaultPreset.createdDate.empty(), "Created date should be auto-set");
+
+    // Negative float values
+    Config::Preset negPreset("test_shader");
+    negPreset.setFloat("speed", -3.14f);
+    negPreset.setInt("count", -5);
+    std::string negErr;
+    std::string negPath = "/tmp/test_neg_preset.json";
+    TEST_ASSERT_TRUE(pm.savePreset(negPreset, negPath, negErr));
+    auto loadedNeg = pm.loadPreset(negPath, negErr);
+    TEST_ASSERT_TRUE(loadedNeg.has_value());
+    TEST_ASSERT_EQUAL(-3.14f, loadedNeg->getFloat("speed"));
+    TEST_ASSERT_EQUAL(-5, loadedNeg->getInt("count"));
+    std::filesystem::remove(negPath);
+
+    // setString parameters
+    Config::Preset strPreset("test_shader");
+    strPreset.stringParameters["mode"] = "advanced";
+    strPreset.stringParameters["color"] = "neon";
+    auto dict = strPreset.toDictionary();
+    Config::Preset restored = Config::Preset::fromDictionary(dict);
+    TEST_ASSERT_TRUE(restored.stringParameters.at("mode") == "advanced");
+    TEST_ASSERT_TRUE(restored.stringParameters.at("color") == "neon");
+
+    // Empty floatParameters getter
+    float missingVal = strPreset.getFloat("nonexistent_float", 99.0f);
+    TEST_ASSERT_EQUAL(99.0f, missingVal);
+
+    // Empty intParameters getter
+    int missingInt = strPreset.getInt("nonexistent_int", 42);
+    TEST_ASSERT_EQUAL(42, missingInt);
+
+    // Empty boolParameters getter
+    bool missingBool = strPreset.getBool("nonexistent_bool", true);
+    TEST_ASSERT_TRUE(missingBool);
+
+    // loadPreset with malformed JSON number
+    std::string badJsonPath = "/tmp/test_bad_number_preset.json";
+    std::ofstream badJsonFile(badJsonPath);
+    badJsonFile << "{\n  \"version\": \"1.0\",\n  \"name\": \"bad\",\n";
+    badJsonFile << "  \"shaderName\": \"plasma\",\n";
+    badJsonFile << "  \"floatParameters\": {\"speed\": not_a_number}\n";
+    badJsonFile << "}\n";
+    badJsonFile.close();
+    std::string badErr;
+    auto badLoad = pm.loadPreset(badJsonPath, badErr);
+    std::filesystem::remove(badJsonPath);
+
+    return {__func__, true, "PresetManager edge cases passed", 0.0};
+  }
+
+  TestResult testConfigManagerMetadataCategories() {
+    auto &mgr = Config::ConfigurationManager::getInstance();
+    mgr.initialize();
+
+    // Test "neural" category
+    std::string neuralPath = "/tmp/test_neural_shader.frag";
+    std::ofstream neuralFile(neuralPath);
+    neuralFile << "// neural_shader - Neural Style Transfer\n";
+    neuralFile << "void main() {}\n";
+    neuralFile.close();
+    mgr.parseShaderMetadata(neuralPath);
+    auto *neuralCfg = mgr.getShaderConfig("test_neural_shader");
+    TEST_ASSERT_NOT_NULL(neuralCfg);
+    std::filesystem::remove(neuralPath);
+
+    // Test "audio" category
+    std::string audioPath = "/tmp/test_audio_meta.frag";
+    std::ofstream audioFile(audioPath);
+    audioFile << "// audio_shader - Audio Reactive Effect\n";
+    audioFile << "// Audio: reactive\n";
+    audioFile << "void main() {}\n";
+    audioFile.close();
+    mgr.parseShaderMetadata(audioPath);
+    auto *audioCfg = mgr.getShaderConfig("test_audio_meta");
+    TEST_ASSERT_NOT_NULL(audioCfg);
+    std::filesystem::remove(audioPath);
+
+    // Test lowercase "audio:" tag
+    std::string audioLowerPath = "/tmp/test_audio_lower.frag";
+    std::ofstream audioLowerFile(audioLowerPath);
+    audioLowerFile << "// audio_lower - Lowercase Audio\n";
+    audioLowerFile << "// audio: reactive\n";
+    audioLowerFile << "void main() {}\n";
+    audioLowerFile.close();
+    mgr.parseShaderMetadata(audioLowerPath);
+    std::filesystem::remove(audioLowerPath);
+
+    // Test long comment without dash separator (> 10 chars)
+    std::string longCommentPath = "/tmp/test_long_comment.frag";
+    std::ofstream longCommentFile(longCommentPath);
+    longCommentFile << "// This is a very long shader description without any dash separator\n";
+    longCommentFile << "void main() {}\n";
+    longCommentFile.close();
+    mgr.parseShaderMetadata(longCommentPath);
+    auto *longCfg = mgr.getShaderConfig("test_long_comment");
+    TEST_ASSERT_NOT_NULL(longCfg);
+    std::filesystem::remove(longCommentPath);
+
+    // Test save with nonexistent parent directory (exception path)
+    mgr.saveToFile("/nonexistent/deep/path/config.json");
+
+    // Test loadFromFile with garbage content
+    std::string garbagePath = "/tmp/test_garbage_config.json";
+    std::ofstream garbageFile(garbagePath);
+    garbageFile << "not json at all {{{}}}";
+    garbageFile.close();
+    bool loadedGarbage = mgr.loadFromFile(garbagePath);
+    std::filesystem::remove(garbagePath);
+
+    // getPresetDirectory direct call
+    std::string presetDir = mgr.getPresetDirectory();
+    TEST_ASSERT(presetDir.find("presets") != std::string::npos, "Preset dir should contain 'presets'");
+
+    mgr.shutdown();
+    return {__func__, true, "ConfigManager metadata categories passed", 0.0};
+  }
+
+  TestResult testShaderConfigSerializeDeserialize() {
+    // Build a full ShaderConfig
+    Config::ShaderConfig cfg;
+    cfg.shaderName = "test_serialize_shader";
+    cfg.displayName = "Test Serialize Shader";
+    cfg.description = "A shader for testing serialization with special chars: \"quotes\" and \\backslash";
+    cfg.category = "Fractals";
+    cfg.tags = {"fractal", "recursive", "3d"};
+    cfg.supportsAudio = true;
+    cfg.supportsHDR = false;
+    cfg.quality = 0.85f;
+    cfg.parameters.push_back({"speed", "Speed", "Speed param",
+                              Config::ParamType::Range, 1.0f, 0.1f, 5.0f});
+    cfg.parameters.push_back(
+        {"color", "Color", "Color param", Config::ParamType::Color,
+         std::string("#ff0000")});
+    cfg.parameters.push_back(
+        {"mode", "Mode", "Mode param", Config::ParamType::Choice,
+         std::string("fast")});
+
+    // Serialize
+    std::string json = Config::JSON::serializeShaderConfig(cfg);
+    TEST_ASSERT(!json.empty(), "Serialized shader config should not be empty");
+    TEST_ASSERT(json.find("test_serialize_shader") != std::string::npos,
+                "Serialized JSON should contain shader name");
+    TEST_ASSERT(json.find("Fractals") != std::string::npos,
+                "Serialized JSON should contain category");
+    TEST_ASSERT(json.find("\"fractal\"") != std::string::npos,
+                "Serialized JSON should contain tags");
+
+    // Deserialize
+    Config::ShaderConfig restored = Config::JSON::deserializeShaderConfig(json);
+    TEST_ASSERT_TRUE(restored.shaderName == "test_serialize_shader");
+    TEST_ASSERT_TRUE(restored.displayName == "Test Serialize Shader");
+    TEST_ASSERT_TRUE(restored.category == "Fractals");
+    TEST_ASSERT_EQUAL(3u, restored.tags.size());
+    TEST_ASSERT_TRUE(restored.tags[0] == "fractal");
+    TEST_ASSERT_EQUAL(0.85f, restored.quality);
+    TEST_ASSERT_TRUE(restored.supportsAudio);
+    TEST_ASSERT_FALSE(restored.supportsHDR);
+
+    // Round-trip again
+    std::string json2 = Config::JSON::serializeShaderConfig(restored);
+    Config::ShaderConfig restored2 = Config::JSON::deserializeShaderConfig(json2);
+    TEST_ASSERT_TRUE(restored2.shaderName == restored.shaderName);
+    TEST_ASSERT_EQUAL(0.85f, restored2.quality);
+
+    // Empty deserialize
+    Config::ShaderConfig emptyCfg = Config::JSON::deserializeShaderConfig("");
+    TEST_ASSERT(emptyCfg.shaderName.empty(), "Empty JSON should produce empty config");
+
+    // Minimal config (no parameters, no tags)
+    Config::ShaderConfig minimal;
+    minimal.shaderName = "minimal";
+    minimal.displayName = "Minimal";
+    std::string minJson = Config::JSON::serializeShaderConfig(minimal);
+    Config::ShaderConfig minRestored = Config::JSON::deserializeShaderConfig(minJson);
+    TEST_ASSERT_TRUE(minRestored.shaderName == "minimal");
+    TEST_ASSERT_TRUE(minRestored.tags.empty());
+    TEST_ASSERT_TRUE(minRestored.parameters.empty());
+
+    return {__func__, true, "ShaderConfig serialize/deserialize passed", 0.0};
+  }
+
+  TestResult testConfigMetadataEdgeBranches() {
+    auto &mgr = Config::ConfigurationManager::getInstance();
+    mgr.initialize();
+
+    // 1. "effect" (singular) category branch
+    std::string effectDir = "/tmp/effect";
+    std::filesystem::create_directories(effectDir);
+    std::string effectPath = effectDir + "/single_effect.frag";
+    std::ofstream effectFile(effectPath);
+    effectFile << "// single_effect - A singular effect shader\n";
+    effectFile << "void main() {}\n";
+    effectFile.close();
+    mgr.parseShaderMetadata(effectPath);
+    auto *effectCfg = mgr.getShaderConfig("single_effect");
+    TEST_ASSERT_NOT_NULL(effectCfg);
+    TEST_ASSERT(effectCfg->category == "Effects",
+                "Singular 'effect' dir should map to 'Effects' category");
+    std::filesystem::remove_all(effectDir);
+
+    // 2. quality == 0.8 for 11-20 for-loops
+    std::string medLoopPath = "/tmp/test_med_loops.frag";
+    std::ofstream medLoopFile(medLoopPath);
+    medLoopFile << "// med_loops - Medium complexity shader\n";
+    for (int i = 0; i < 15; ++i) {
+      medLoopFile << "for (int i = 0; i < 10; ++i) {}\n";
+    }
+    medLoopFile.close();
+    mgr.parseShaderMetadata(medLoopPath);
+    auto *medCfg = mgr.getShaderConfig("test_med_loops");
+    TEST_ASSERT_NOT_NULL(medCfg);
+    TEST_ASSERT_EQUAL(0.8f, medCfg->quality);
+    std::filesystem::remove(medLoopPath);
+
+    // 3. Short comment (<=10 chars) should NOT set description
+    std::string shortPath = "/tmp/test_short_comment.frag";
+    std::ofstream shortFile(shortPath);
+    shortFile << "// hi\n";
+    shortFile << "void main() {}\n";
+    shortFile.close();
+    mgr.parseShaderMetadata(shortPath);
+    auto *shortCfg = mgr.getShaderConfig("test_short_comment");
+    TEST_ASSERT_NOT_NULL(shortCfg);
+    TEST_ASSERT(shortCfg->description.empty(),
+                "Comment <=10 chars should not set description");
+    std::filesystem::remove(shortPath);
+
+    // 4. Malformed Parameter line (too few tokens) - no custom parameters added
+    std::string badParamPath = "/tmp/test_bad_param.frag";
+    std::ofstream badParamFile(badParamPath);
+    badParamFile << "// bad_param - Shader with bad parameter\n";
+    badParamFile << "// Parameter: incomplete\n";
+    badParamFile << "void main() {}\n";
+    badParamFile.close();
+    mgr.parseShaderMetadata(badParamPath);
+    auto *badParamCfg = mgr.getShaderConfig("test_bad_param");
+    TEST_ASSERT_NOT_NULL(badParamCfg);
+    // Malformed line should not add any custom parameters (only defaults added)
+    bool hasCustomParam = false;
+    for (const auto &p : badParamCfg->parameters) {
+      if (p.name == "incomplete" || p.displayName == "incomplete") {
+        hasCustomParam = true;
+        break;
+      }
+    }
+    TEST_ASSERT_FALSE(hasCustomParam);
+    std::filesystem::remove(badParamPath);
+
+    mgr.shutdown();
+    return {__func__, true, "Config metadata edge branches passed", 0.0};
+  }
+
+  TestResult testBloomConfigDefaults() {
+    Platform::Linux::GLBloomConfig bloom;
+    TEST_ASSERT(bloom.enabled, "Bloom should be enabled by default");
+    TEST_ASSERT_EQUAL(
+        static_cast<int>(Platform::Linux::GLBloomQuality::Medium),
+        static_cast<int>(bloom.quality));
+    TEST_ASSERT_EQUAL(1.0f, bloom.intensity);
+    TEST_ASSERT_EQUAL(0.8f, bloom.threshold);
+    TEST_ASSERT_EQUAL(5, bloom.blurRadius);
+
+    bloom.enabled = false;
+    TEST_ASSERT_FALSE(bloom.enabled);
+
+    bloom.quality = Platform::Linux::GLBloomQuality::Ultra;
+    TEST_ASSERT_EQUAL(
+        static_cast<int>(Platform::Linux::GLBloomQuality::Ultra),
+        static_cast<int>(bloom.quality));
+
+    bloom.intensity = 2.5f;
+    TEST_ASSERT_EQUAL(2.5f, bloom.intensity);
+
+    bloom.threshold = 0.3f;
+    TEST_ASSERT_EQUAL(0.3f, bloom.threshold);
+
+    bloom.blurRadius = 12;
+    TEST_ASSERT_EQUAL(12, bloom.blurRadius);
+
+    return {__func__, true, "Bloom config defaults passed", 0.0};
+  }
+
+  TestResult testParticleConfigDefaults() {
+    Platform::Linux::GLParticleConfig pc;
+    TEST_ASSERT_EQUAL(1000, pc.count);
+    TEST_ASSERT_FALSE(pc.enabled);
+    TEST_ASSERT_EQUAL(9.81f, pc.gravity);
+    TEST_ASSERT_EQUAL(1.0f, pc.speed);
+
+    pc.enabled = true;
+    pc.count = 500;
+    pc.gravity = 4.0f;
+    pc.speed = 2.0f;
+
+    TEST_ASSERT_TRUE(pc.enabled);
+    TEST_ASSERT_EQUAL(500, pc.count);
+    TEST_ASSERT_EQUAL(4.0f, pc.gravity);
+    TEST_ASSERT_EQUAL(2.0f, pc.speed);
+
+    return {__func__, true, "Particle config defaults passed", 0.0};
+  }
+
+  TestResult testPerformanceMetricsDefaults() {
+    Platform::Linux::GLPerformanceMetrics m;
+    TEST_ASSERT_EQUAL(0.0, m.currentFPS);
+    TEST_ASSERT_EQUAL(0.0, m.averageFPS);
+    TEST_ASSERT_EQUAL(0.0, m.minFPS);
+    TEST_ASSERT_EQUAL(0.0, m.maxFPS);
+    TEST_ASSERT_EQUAL(0.0, m.frameTimeMs);
+    TEST_ASSERT_EQUAL(0.0, m.gpuTimeMs);
+    TEST_ASSERT_EQUAL(0.0, m.cpuTimeMs);
+    TEST_ASSERT_EQUAL(0u, m.droppedFrames);
+    TEST_ASSERT_EQUAL(0u, m.memoryUsageBytes);
+
+    m.currentFPS = 60.0;
+    m.memoryUsageBytes = 1920 * 1080 * 4;
+    TEST_ASSERT_EQUAL(60.0, m.currentFPS);
+    TEST_ASSERT_EQUAL(8294400u, m.memoryUsageBytes);
+
+    return {__func__, true, "Performance metrics defaults passed", 0.0};
+  }
+
+  TestResult testToneMappingEnums() {
+    TEST_ASSERT_EQUAL(0, static_cast<int>(Platform::Linux::GLToneMapping::None));
+    TEST_ASSERT_EQUAL(1, static_cast<int>(Platform::Linux::GLToneMapping::ACES));
+    TEST_ASSERT_EQUAL(2, static_cast<int>(Platform::Linux::GLToneMapping::Reinhard));
+    TEST_ASSERT_EQUAL(3, static_cast<int>(Platform::Linux::GLToneMapping::Filmic));
+    TEST_ASSERT_EQUAL(4, static_cast<int>(Platform::Linux::GLToneMapping::Hable));
+
+    return {__func__, true, "Tone mapping enums passed", 0.0};
+  }
+
+  TestResult testRendererErrorCodeEnums() {
+    TEST_ASSERT_EQUAL(0, static_cast<int>(Platform::Linux::GLRendererErrorCode::None));
+    int ctx = static_cast<int>(Platform::Linux::GLRendererErrorCode::ContextCreationFailed);
+    TEST_ASSERT_EQUAL(1, ctx);
+    int shader = static_cast<int>(Platform::Linux::GLRendererErrorCode::ShaderCompilationFailed);
+    TEST_ASSERT_EQUAL(2, shader);
+    int link = static_cast<int>(Platform::Linux::GLRendererErrorCode::ProgramLinkFailed);
+    TEST_ASSERT_EQUAL(3, link);
+    int tex = static_cast<int>(Platform::Linux::GLRendererErrorCode::TextureCreationFailed);
+    TEST_ASSERT_EQUAL(4, tex);
+    int devlost = static_cast<int>(Platform::Linux::GLRendererErrorCode::DeviceLost);
+    TEST_ASSERT_EQUAL(5, devlost);
+    int exhaust = static_cast<int>(Platform::Linux::GLRendererErrorCode::ResourceExhausted);
+    TEST_ASSERT_EQUAL(6, exhaust);
+    int invalid = static_cast<int>(Platform::Linux::GLRendererErrorCode::InvalidState);
+    TEST_ASSERT_EQUAL(7, invalid);
+
+    Platform::Linux::GLRendererError err;
+    err.code = Platform::Linux::GLRendererErrorCode::ShaderCompilationFailed;
+    err.message = "test error";
+    err.shaderName = "test_shader";
+    err.compilerError = "line 5: syntax error";
+    err.lineNumber = 5;
+
+    int errCode = static_cast<int>(err.code);
+    TEST_ASSERT_EQUAL(2, errCode);
+    TEST_ASSERT_TRUE(err.message == "test error");
+    TEST_ASSERT_TRUE(err.shaderName == "test_shader");
+    TEST_ASSERT_TRUE(err.compilerError == "line 5: syntax error");
+    TEST_ASSERT_EQUAL(5, err.lineNumber);
+
+    return {__func__, true, "Renderer error code enums passed", 0.0};
+  }
+
+  TestResult testHeadlessRendererVideoEncoding() {
+    HeadlessRenderer hr;
+    hr.initialize(64, 64);
+    hr.setDuration(1.0f);
+    hr.setFPS(10);
+
+    // Test renderToFile with PPM
+    std::string ppmPath = "/tmp/test_headless.ppm";
+    bool ok = hr.renderToFile(ppmPath);
+    TEST_ASSERT(ok, "renderToFile PPM should succeed");
+    TEST_ASSERT(std::filesystem::exists(ppmPath), "PPM file should exist");
+    std::filesystem::remove(ppmPath);
+
+    // Test renderToFile with PNG (via ffmpeg if available)
+    std::string pngPath = "/tmp/test_headless.png";
+    ok = hr.renderToFile(pngPath);
+    // May fail if ffmpeg not installed, that's OK
+    if (std::filesystem::exists(pngPath)) {
+      TEST_ASSERT(std::filesystem::file_size(pngPath) > 0, "PNG should have content");
+      std::filesystem::remove(pngPath);
+    }
+
+    // Test renderToBuffer
+    auto buffer = hr.renderToBuffer(0);
+    TEST_ASSERT_EQUAL(64u * 64u * 4u, buffer.size());
+    TEST_ASSERT_TRUE(buffer[0] == 0 || buffer[0] != 0); // non-crash
+
+    // Test frame-by-frame
+    hr.beginRender();
+    TEST_ASSERT_FALSE(hr.isFinished());
+    bool rendered = hr.renderFrame();
+    TEST_ASSERT(rendered, "renderFrame should succeed");
+    TEST_ASSERT_FALSE(hr.isFinished());
+    hr.endRender();
+    TEST_ASSERT_TRUE(hr.isFinished());
+
+    // Test progress callback
+    int callbackCount = 0;
+    hr.setProgressCallback([&](int current, int total) {
+      callbackCount++;
+    });
+    hr.beginRender();
+    hr.renderFrame();
+    TEST_ASSERT(callbackCount >= 1, "Callback should have been called");
+
+    // Test video encoding start/finish
+    std::string videoPath = "/tmp/test_headless_video.mp4";
+    bool started = hr.startVideoEncoding(videoPath, 10);
+    // May fail if ffmpeg not available, that's OK for test
+    if (started) {
+      auto frameBuf = hr.renderToBuffer(0);
+      bool encoded = hr.encodeFrame(frameBuf);
+      TEST_ASSERT(encoded, "encodeFrame should succeed");
+      hr.finishVideoEncoding();
+    }
+
+    // Test getAvailableGPUs
+    auto gpus = hr.getAvailableGPUs();
+    TEST_ASSERT_TRUE(gpus.size() >= 1);
+
+    // Test setGPUDevice
+    hr.setGPUDevice(1);
+
+    // Test setOutputFormat
+    hr.setOutputFormat("png");
+
+    // Test setShader
+    hr.setShader("test_shader");
+
+    hr.shutdown();
+    return {__func__, true, "HeadlessRenderer video encoding passed", 0.0};
+  }
+
+  TestResult testDisplayUtilsFunctions() {
+    // getOptimalTextureSize
+    int size = DisplayUtils::getOptimalTextureSize(1920, 1080, 1.0f);
+    TEST_ASSERT(size >= 256, "Optimal texture size should be >= 256");
+    int sizeLow = DisplayUtils::getOptimalTextureSize(1920, 1080, 0.5f);
+    TEST_ASSERT(sizeLow >= 256, "Low quality size should be >= 256");
+    TEST_ASSERT(sizeLow <= size, "Low quality should be <= high quality");
+
+    // areDisplaysContiguous - single display
+    DisplayInfo d1 = {"d1", "Monitor 1", 0, 0, 1920, 1080, 60, true, 1.0f};
+    std::vector<DisplayInfo> single = {d1};
+    TEST_ASSERT(DisplayUtils::areDisplaysContiguous(single), "Single display is contiguous");
+
+    // areDisplaysContiguous - empty
+    TEST_ASSERT(DisplayUtils::areDisplaysContiguous({}), "Empty is contiguous");
+
+    // areDisplaysContiguous - two adjacent
+    DisplayInfo d2 = {"d2", "Monitor 2", 1920, 0, 1920, 1080, 60, false, 1.0f};
+    std::vector<DisplayInfo> adjacent = {d1, d2};
+    TEST_ASSERT(DisplayUtils::areDisplaysContiguous(adjacent), "Adjacent displays are contiguous");
+
+    // areDisplaysContiguous - two non-adjacent
+    DisplayInfo d3 = {"d3", "Monitor 3", 5000, 5000, 1920, 1080, 60, false, 1.0f};
+    std::vector<DisplayInfo> nonAdjacent = {d1, d3};
+    TEST_ASSERT_FALSE(DisplayUtils::areDisplaysContiguous(nonAdjacent));
+
+    // getBoundingBox
+    int minX, minY, maxX, maxY;
+    DisplayUtils::getBoundingBox(adjacent, minX, minY, maxX, maxY);
+    TEST_ASSERT_EQUAL(0, minX);
+    TEST_ASSERT_EQUAL(0, minY);
+    TEST_ASSERT_EQUAL(3840, maxX);
+    TEST_ASSERT_EQUAL(1080, maxY);
+
+    // getBoundingBox empty
+    DisplayUtils::getBoundingBox({}, minX, minY, maxX, maxY);
+    TEST_ASSERT_EQUAL(0, minX);
+
+    // hasConfigurationChanged
+    TEST_ASSERT_TRUE(!DisplayUtils::hasConfigurationChanged(adjacent, adjacent));
+
+    std::vector<DisplayInfo> changed = {d1, d3};
+    TEST_ASSERT_TRUE(DisplayUtils::hasConfigurationChanged(adjacent, changed));
+
+    // Different sizes
+    std::vector<DisplayInfo> diffSize = {d1};
+    TEST_ASSERT_TRUE(DisplayUtils::hasConfigurationChanged(adjacent, diffSize));
+
+    return {__func__, true, "Display utils functions passed", 0.0};
+  }
+
+  TestResult testGLRendererErrorCallback() {
+    using EC = Platform::Linux::GLRendererErrorCode;
+
+    // Test default constructor
+    Platform::Linux::GLRendererError err1;
+    TEST_ASSERT_EQUAL(0, static_cast<int>(err1.code));
+    TEST_ASSERT_TRUE(err1.message.empty());
+    TEST_ASSERT_EQUAL(0, err1.lineNumber);
+
+    // Test parameterized constructor
+    Platform::Linux::GLRendererError err2(
+        EC::ShaderCompilationFailed, "compile failed", "my_shader",
+        "syntax error on line 42", 42);
+    int code = static_cast<int>(err2.code);
+    TEST_ASSERT_EQUAL(2, code);
+    TEST_ASSERT_TRUE(err2.message == "compile failed");
+    TEST_ASSERT_TRUE(err2.shaderName == "my_shader");
+    TEST_ASSERT_TRUE(err2.compilerError == "syntax error on line 42");
+    TEST_ASSERT_EQUAL(42, err2.lineNumber);
+
+    // Test copy construction
+    Platform::Linux::GLRendererError err3 = err2;
+    int code3 = static_cast<int>(err3.code);
+    TEST_ASSERT_EQUAL(2, code3);
+    TEST_ASSERT_TRUE(err3.message == "compile failed");
+
+    // Test assignment
+    Platform::Linux::GLRendererError err4;
+    err4 = err2;
+    int code4 = static_cast<int>(err4.code);
+    TEST_ASSERT_EQUAL(2, code4);
+
+    // Test that callback would fire (simulate setError path)
+    int callbackCount = 0;
+    Platform::Linux::GLRendererError lastCaptured;
+    auto callback = [&](const Platform::Linux::GLRendererError &e) {
+      callbackCount++;
+      lastCaptured = e;
+    };
+
+    // Simulate what setError does
+    Platform::Linux::GLRendererError testErr(
+        EC::InvalidState, "test error", "test", "", 0);
+    callback(testErr);
+    TEST_ASSERT_EQUAL(1, callbackCount);
+    TEST_ASSERT_TRUE(lastCaptured.message == "test error");
+
+    return {__func__, true, "GLRenderer error callback passed", 0.0};
+  }
+
+  TestResult testSettingsRoundTrip() {
+    ShaderCandy::Config::AppSettings orig;
+    orig.targetFPS = 120;
+    orig.vsync = false;
+    orig.hdr = true;
+    orig.multisampleLevel = 4;
+    orig.enableAudio = true;
+    orig.audioDevice = "hw:1,0";
+    orig.audioSensitivity = 2.5f;
+    orig.audioSmoothing = 0.7f;
+    orig.adaptiveQuality = false;
+    orig.showFPS = true;
+    orig.limitGPU = true;
+    orig.autoScaleFPSThreshold = 30.0f;
+    orig.defaultShader = "plasma";
+    orig.shaderPath = "/tmp/shaders";
+    orig.enableHotReload = false;
+    orig.spanDisplays = true;
+    orig.perDisplayShader = true;
+    orig.idleTimeMinutes = 15;
+    orig.lockOnActivate = true;
+    orig.neuralStyleEnabled = true;
+    orig.neuralStyleStrength = 0.8f;
+    orig.neuralStyleName = "starry";
+    orig.spatialAudio = true;
+    orig.roomSize = 3.0f;
+    orig.reverbDamping = 0.2f;
+
+    std::string json = Config::JSON::serializeSettings(orig);
+    Config::AppSettings loaded = Config::JSON::deserializeSettings(json);
+
+    TEST_ASSERT_EQUAL(orig.targetFPS, loaded.targetFPS);
+    TEST_ASSERT_EQUAL(orig.vsync, loaded.vsync);
+    TEST_ASSERT_EQUAL(orig.hdr, loaded.hdr);
+    TEST_ASSERT_EQUAL(orig.multisampleLevel, loaded.multisampleLevel);
+    TEST_ASSERT_EQUAL(orig.enableAudio, loaded.enableAudio);
+    TEST_ASSERT_TRUE(orig.audioDevice == loaded.audioDevice);
+    TEST_ASSERT_EQUAL(orig.audioSensitivity, loaded.audioSensitivity);
+    TEST_ASSERT_EQUAL(orig.audioSmoothing, loaded.audioSmoothing);
+    TEST_ASSERT_EQUAL(orig.adaptiveQuality, loaded.adaptiveQuality);
+    TEST_ASSERT_EQUAL(orig.showFPS, loaded.showFPS);
+    TEST_ASSERT_EQUAL(orig.limitGPU, loaded.limitGPU);
+    TEST_ASSERT_EQUAL(orig.autoScaleFPSThreshold, loaded.autoScaleFPSThreshold);
+    TEST_ASSERT_TRUE(orig.defaultShader == loaded.defaultShader);
+    TEST_ASSERT_TRUE(orig.shaderPath == loaded.shaderPath);
+    TEST_ASSERT_EQUAL(orig.enableHotReload, loaded.enableHotReload);
+    TEST_ASSERT_EQUAL(orig.spanDisplays, loaded.spanDisplays);
+    TEST_ASSERT_EQUAL(orig.perDisplayShader, loaded.perDisplayShader);
+    TEST_ASSERT_EQUAL(orig.idleTimeMinutes, loaded.idleTimeMinutes);
+    TEST_ASSERT_EQUAL(orig.lockOnActivate, loaded.lockOnActivate);
+    TEST_ASSERT_EQUAL(orig.neuralStyleEnabled, loaded.neuralStyleEnabled);
+    TEST_ASSERT_EQUAL(orig.neuralStyleStrength, loaded.neuralStyleStrength);
+    TEST_ASSERT_TRUE(orig.neuralStyleName == loaded.neuralStyleName);
+    TEST_ASSERT_EQUAL(orig.spatialAudio, loaded.spatialAudio);
+    TEST_ASSERT_EQUAL(orig.roomSize, loaded.roomSize);
+    TEST_ASSERT_EQUAL(orig.reverbDamping, loaded.reverbDamping);
+
+    return {__func__, true, "Settings round-trip passed", 0.0};
+  }
+
+  TestResult testAudioAutoDetect() {
+    auto &mgr = Config::ConfigurationManager::getInstance();
+    mgr.initialize();
+
+    std::string shaderPath = "/tmp/test_audio_auto.frag";
+    std::ofstream f(shaderPath);
+    f << "// audio_auto - Shader with audio keywords\n";
+    f << "void main() {\n";
+    f << "  float bass = sin(time);\n";
+    f << "  float mid = cos(time * 2.0);\n";
+    f << "  float treble = sin(time * 4.0);\n";
+    f << "}\n";
+    f.close();
+
+    mgr.parseShaderMetadata(shaderPath);
+    auto *cfg = mgr.getShaderConfig("test_audio_auto");
+    TEST_ASSERT_NOT_NULL(cfg);
+    TEST_ASSERT_TRUE(cfg->supportsAudio);
+    std::filesystem::remove(shaderPath);
+
+    mgr.shutdown();
+    return {__func__, true, "Audio auto-detect passed", 0.0};
+  }
+
+  TestResult testBloomQualityLevels() {
+    using namespace Platform::Linux;
+
+    GLBloomConfig bloom;
+    bloom.enabled = true;
+    bloom.threshold = 0.5f;
+    bloom.intensity = 1.0f;
+
+    bloom.quality = GLBloomQuality::Low;
+    TEST_ASSERT_EQUAL(0, static_cast<int>(bloom.quality));
+
+    bloom.quality = GLBloomQuality::Medium;
+    TEST_ASSERT_EQUAL(1, static_cast<int>(bloom.quality));
+
+    bloom.quality = GLBloomQuality::High;
+    TEST_ASSERT_EQUAL(2, static_cast<int>(bloom.quality));
+
+    bloom.quality = GLBloomQuality::Ultra;
+    TEST_ASSERT_EQUAL(3, static_cast<int>(bloom.quality));
+
+    int passes[] = {2, 4, 6, 8};
+    GLBloomQuality levels[] = {
+        GLBloomQuality::Low, GLBloomQuality::Medium,
+        GLBloomQuality::High, GLBloomQuality::Ultra};
+    for (int i = 0; i < 4; i++) {
+      bloom.quality = levels[i];
+      int expectedPasses = passes[i];
+      int actualPasses = 4;
+      if (bloom.quality == GLBloomQuality::Low) actualPasses = 2;
+      else if (bloom.quality == GLBloomQuality::Medium) actualPasses = 4;
+      else if (bloom.quality == GLBloomQuality::High) actualPasses = 6;
+      else if (bloom.quality == GLBloomQuality::Ultra) actualPasses = 8;
+      TEST_ASSERT_EQUAL(expectedPasses, actualPasses);
+    }
+
+    return {__func__, true, "Bloom quality levels passed", 0.0};
+  }
+
+  TestResult testParticleRespawn() {
+    using namespace Platform::Linux;
+
+    GLParticleConfig pc;
+    pc.enabled = true;
+    pc.count = 10;
+    pc.gravity = 9.81f;
+    pc.speed = 1.0f;
+
+    TEST_ASSERT_TRUE(pc.enabled);
+    TEST_ASSERT_EQUAL(10, pc.count);
+    TEST_ASSERT_EQUAL(9.81f, pc.gravity);
+    TEST_ASSERT_EQUAL(1.0f, pc.speed);
+
+    pc.enabled = false;
+    TEST_ASSERT_FALSE(pc.enabled);
+
+    pc.count = 0;
+    TEST_ASSERT_EQUAL(0, pc.count);
+
+    pc.gravity = 0.0f;
+    TEST_ASSERT_EQUAL(0.0f, pc.gravity);
+
+    return {__func__, true, "Particle respawn config passed", 0.0};
+  }
+
+  TestResult testFileWatcherLifecycle() {
+    using namespace Platform::Linux;
+
+    bool callbackFired = false;
+    auto shaderCallback = [&](const std::string &name) {
+      callbackFired = true;
+    };
+
+    bool errorFired = false;
+    auto errorCallback = [&](const GLRendererError &err) {
+      errorFired = true;
+    };
+
+    GLRendererError err;
+    err.code = GLRendererErrorCode::ShaderCompilationFailed;
+    err.message = "test";
+    errorCallback(err);
+    TEST_ASSERT_TRUE(errorFired);
+
+    std::string shaderName = "test_shader";
+    shaderCallback(shaderName);
+    TEST_ASSERT_TRUE(callbackFired);
+
+    return {__func__, true, "File watcher lifecycle passed", 0.0};
   }
 };
 

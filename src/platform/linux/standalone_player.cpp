@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
@@ -56,6 +57,13 @@ using namespace ShaderCandy::Audio;
 #endif
 
 using namespace ShaderCandy::Platform::Linux;
+
+static std::string getHomeDir() {
+  const char *home = getenv("HOME");
+  if (home)
+    return std::string(home);
+  return std::string(".");
+}
 
 // Uniform structure matching ShaderInterop.h
 struct Uniforms {
@@ -135,7 +143,7 @@ public:
   int mouseBtns = 0;
 
   // Audio
-  AudioInput *audioInput = nullptr;
+  std::unique_ptr<AudioInput> audioInput;
   bool enableAudio = false;
 
   // Performance
@@ -181,93 +189,7 @@ int StandalonePlayer::windowedHeight = 720;
 
 // Shader loading implementation
 std::string ShaderProgram::loadWithIncludes(const char *path, int depth) {
-  if (depth > 10) {
-    std::cerr << "Include depth exceeded for: " << path << std::endl;
-    return "";
-  }
-
-  std::ifstream file(path);
-  if (!file.is_open()) {
-    return "";
-  }
-
-  std::string dir = path;
-  size_t lastSlash = dir.find_last_of("/\\");
-  if (lastSlash != std::string::npos) {
-    dir = dir.substr(0, lastSlash + 1);
-  } else {
-    dir = "./";
-  }
-
-  std::stringstream result;
-  std::string line;
-  while (std::getline(file, line)) {
-    size_t versionPos = line.find("#version");
-    if (versionPos != std::string::npos) {
-      continue;
-    }
-
-    size_t includePos = line.find("#include");
-    if (includePos != std::string::npos) {
-      size_t start = line.find('"', includePos);
-      size_t end = std::string::npos;
-      if (start != std::string::npos) {
-        end = line.find('"', start + 1);
-      }
-
-      if (start != std::string::npos && end != std::string::npos) {
-        std::string includePath = line.substr(start + 1, end - start - 1);
-        std::string fullPath;
-        if (includePath[0] == '/') {
-          fullPath = includePath;
-        } else if (includePath.substr(0, 3) == "../") {
-          std::string parentDir = dir;
-          if (parentDir.length() > 0 &&
-              (parentDir.back() == '/' || parentDir.back() == '\\')) {
-            parentDir.pop_back();
-          }
-          size_t parentSlash = parentDir.find_last_of("/\\");
-          if (parentSlash != std::string::npos) {
-            parentDir = parentDir.substr(0, parentSlash + 1);
-          }
-          fullPath = parentDir + includePath.substr(3);
-        } else if (includePath.substr(0, 2) == "./") {
-          fullPath = dir + includePath.substr(2);
-        } else {
-          fullPath = dir + includePath;
-        }
-
-        // Robust include fallback if not found directly
-        if (!std::filesystem::exists(fullPath)) {
-          std::vector<std::string> fallbacks = {
-              dir + "/../" + includePath,
-              dir + "/../../" + includePath,
-              "./shaders/" + includePath,
-              "../shaders/" + includePath,
-              "/usr/local/share/shadercandy/shaders/" + includePath,
-              "/usr/share/shadercandy/shaders/" + includePath,
-              std::string(getenv("HOME") ? getenv("HOME") : "") +
-                  "/.local/share/shadercandy/shaders/" + includePath};
-          for (const auto &fb : fallbacks) {
-            if (std::filesystem::exists(fb)) {
-              fullPath = fb;
-              break;
-            }
-          }
-        }
-
-        std::string includeContent =
-            loadWithIncludes(fullPath.c_str(), depth + 1);
-        if (!includeContent.empty()) {
-          result << includeContent << "\n";
-        }
-        continue;
-      }
-    }
-    result << line << "\n";
-  }
-
-  return result.str();
+  return GLSLWrapper::loadShaderWithIncludes(path, depth);
 }
 
 bool ShaderProgram::compile(const char *fragmentSource) {
@@ -401,7 +323,8 @@ void ShaderProgram::updateUniforms(int width, int height, float mouseX,
   uniforms.deltaTime = std::chrono::duration<float>(now - lastFrame).count();
 
   time_t t = time(nullptr);
-  tm *lt = localtime(&t);
+  struct tm tm_buf;
+  tm *lt = localtime_r(&t, &tm_buf);
   uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
   uniforms.date[1] = static_cast<float>(lt->tm_mon + 1);
   uniforms.date[2] = static_cast<float>(lt->tm_mday);
@@ -512,6 +435,14 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
 
   if (shaders.empty()) {
     std::cerr << "No shaders found!" << std::endl;
+    if (vao) {
+      glDeleteVertexArrays(1, &vao);
+      vao = 0;
+    }
+    if (vbo) {
+      glDeleteBuffers(1, &vbo);
+      vbo = 0;
+    }
     glfwDestroyWindow(window);
     glfwTerminate();
     return false;
@@ -532,20 +463,18 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
 
   // Initialize audio if requested
   if (enableAudio) {
-    audioInput = new AudioInput();
+    audioInput = std::make_unique<AudioInput>();
     if (audioInput->initialize()) {
       if (audioInput->autoSelectDevice()) {
         audioInput->start();
         std::cout << "Audio input initialized" << std::endl;
       } else {
         std::cerr << "Failed to select audio device" << std::endl;
-        delete audioInput;
-        audioInput = nullptr;
+        audioInput.reset();
       }
     } else {
       std::cerr << "Failed to initialize audio" << std::endl;
-      delete audioInput;
-      audioInput = nullptr;
+      audioInput.reset();
     }
   }
 
@@ -566,7 +495,7 @@ void StandalonePlayer::loadShaders() {
   std::vector<std::string> shaderRootDirs = {
       "./shaders",
       "../shaders",
-      std::string(getenv("HOME") ? getenv("HOME") : "") +
+      getHomeDir() +
           "/.local/share/shadercandy/shaders",
       "/usr/local/share/shadercandy/shaders",
       "/usr/share/shadercandy/shaders"};
@@ -656,10 +585,7 @@ void StandalonePlayer::cleanup() {
   }
   shaders.clear();
 
-  if (audioInput) {
-    delete audioInput;
-    audioInput = nullptr;
-  }
+  audioInput.reset();
 
   if (vbo)
     glDeleteBuffers(1, &vbo);
@@ -721,7 +647,7 @@ void StandalonePlayer::toggleFullscreen() {
 }
 
 void StandalonePlayer::savePreset(const std::string &name) {
-  std::string presetDir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/shadercandy";
+  std::string presetDir = getHomeDir() + "/.config/shadercandy";
   mkdir(presetDir.c_str(), 0755);
   std::string presetFile = presetDir + "/" + name + ".cfg";
   std::ofstream out(presetFile);
@@ -735,7 +661,7 @@ void StandalonePlayer::savePreset(const std::string &name) {
 }
 
 bool StandalonePlayer::loadPreset(const std::string &name) {
-  std::string presetDir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/shadercandy";
+  std::string presetDir = getHomeDir() + "/.config/shadercandy";
   std::string presetFile = presetDir + "/" + name + ".cfg";
   std::ifstream in(presetFile);
   if (!in) return false;
@@ -754,9 +680,9 @@ bool StandalonePlayer::loadPreset(const std::string &name) {
         }
       }
     } else if (key == "speed" && currentShader) {
-      currentShader->uniforms.speed = std::stof(val);
+      try { currentShader->uniforms.speed = std::stof(val); } catch (...) {}
     } else if (key == "intensity" && currentShader) {
-      currentShader->uniforms.intensity = std::stof(val);
+      try { currentShader->uniforms.intensity = std::stof(val); } catch (...) {}
     }
   }
   return true;

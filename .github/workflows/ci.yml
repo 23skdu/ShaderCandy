@@ -54,7 +54,48 @@ jobs:
         run: |
           cd build
           if [ -f shadercandy-test ]; then
-            valgrind --leak-check=full --error-exitcode=1 \
+            valgrind --leak-check=full \
+              --track-origins=yes \
+              --errors-for-leak-kinds=none \
               --suppressions=../.valgrind.supp \
-              ./shadercandy-test 2>&1 || true
+              ./shadercandy-test
+            EXIT_CODE=$?
+            # Check for invalid reads/writes/uses (actual bugs), not system library leaks
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "Valgrind detected memory errors (not system library leaks)"
+              exit 1
+            fi
+          fi
+
+  build-asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake \
+            libx11-dev libxss-dev libxmu-dev \
+            libgl-dev libpulse-dev libfftw3-dev \
+            pkg-config
+
+      - name: Configure with AddressSanitizer
+        run: |
+          mkdir -p build-asan && cd build-asan
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
+
+      - name: Build
+        run: cmake --build build-asan -j$(nproc)
+
+      - name: Run tests under ASAN
+        run: |
+          cd build-asan
+          if [ -f shadercandy-test ]; then
+            ./shadercandy-test
           fi
