@@ -36,28 +36,49 @@ flowchart TD
 ```
 
 ### Linux OpenGL Rendering Flow
-Shows X11 / Wayland surface binding and OpenGL 3.3+ frame execution:
+Shows X11 / Wayland surface binding, OpenGL 3.3+ frame execution, bloom post-processing, and inotify-based hot reloading:
 
 ```mermaid
 flowchart TD
     A[X11 Window / Wayland Layer Surface] --> B[EGL / GLX Context]
     B --> C[GLRenderer.render]
-    C --> D[Bind Framebuffer Object]
-    D --> E[ShaderManager.getActiveProgram]
-    E --> F[Uniform Upload via UniformBuffer]
+    C --> D[Bind FBO (Offscreen Texture)]
+    D --> E[GLShaderProgram.getActiveProgram]
+    E --> F["Uniform Upload via UniformUploader\n(cached location dispatch)"]
     F --> G[Draw Full-Screen Quad]
     G --> H[Fragment Shader Execution]
-    H --> I[HDR Tone Mapping Pass]
-    I --> J[Swap Buffers / Present Surface]
+    H --> I{Bloom Enabled?}
+    I -->|Yes| J["Render Bloom Pipeline\n(threshold → Gaussian blur passes → composite)"]
+    I -->|No| K[Skip Bloom]
+    J --> L[Blit FBO to Screen]
+    K --> L
+    L --> M{HDR Enabled?}
+    M -->|Yes| N[GLRenderer.renderToneMap]
+    M -->|No| O[Blit Program Passthrough]
+    N --> P[Swap Buffers / Present Surface]
+    O --> P
 
-    subgraph "GLSL Compilation & Program Cache"
-        K[Shader Source .frag] --> L[Unified Include Resolver]
-        L --> M[GLSL Compilation]
-        M --> N[Program Object Link]
-        N --> O[GL Pipeline Cache]
+    subgraph "GLSL Compilation & Include Caching"
+        Q[Shader Source .frag] --> R["GLSLWrapper\n(Recursive #include Resolver)"]
+        R --> S{"Include Cache Hit?\n(mtime-based)"}
+        S -->|Yes| T[Return Cached Content]
+        S -->|No| U[Read File → Cache & Return]
+        T --> V[GLSL Compilation]
+        U --> V
+        V --> W[GL Program Object Link]
+        W --> X[GL Pipeline Cache]
     end
 
-    E -.-> O
+    subgraph "inotify File Watcher"
+        Y["inotify_init1\n(IN_NONBLOCK | IN_CLOEXEC)"] --> Z["Background Thread\n(polls every 100ms)"]
+        Z --> AA["Watch Loaded Shader Files\n(IN_MODIFY)"]
+        AA --> AB{File Modified?}
+        AB -->|Yes| AC["Trigger reloadCurrentShader()"]
+        AB -->|No| Z
+    end
+
+    E -.-> X
+    AC -.-> E
 ```
 
 ---
@@ -90,9 +111,10 @@ flowchart TD
 
     subgraph "Headless / Offscreen Renderer"
         MDM --> HR[HeadlessRenderer]
-        HR --> FBO[Offscreen Target FBO / Texture]
+        HR --> FBO[Offscreen FBO / Texture]
         FBO --> PBO[Pixel Buffer Readback]
-        PBO --> CB[Progress & Frame Callback]
+        PBO --> Enc["Video Encoding\n(ffmpeg pipe → PNG/JPG/PPM)"]
+        Enc --> CB[Progress & Frame Callback]
     end
 ```
 
@@ -130,6 +152,21 @@ flowchart LR
     end
 ```
 
+### Linux OpenGL Bloom Pipeline
+
+```mermaid
+flowchart TD
+    A[Scene Rendered to FBO] --> B[Bloom Threshold Extraction]
+    B --> C["Downsample to Half Resolution"]
+    C --> D{"Quality Level"}
+    D -->|Low| E["2 Gaussian Blur Passes"]
+    D -->|Medium| F["4 Gaussian Blur Passes"]
+    D -->|High| G["6 Gaussian Blur Passes"]
+    D -->|Ultra| H["8 Gaussian Blur Passes"]
+    E & F & G & H --> I["Additive Bloom Composite"]
+    I --> J[Final HDR Output]
+```
+
 ---
 
 ## 4. Audio Processing & MPS Spatial Audio Pipeline
@@ -154,6 +191,13 @@ flowchart TD
 
     G & H & I & K --> U["UniformBuffer Audio Uniforms\n(bass, mid, treble, beat, audioData[256])"]
     U --> S[Shader Access in Fragment Stage]
+
+    subgraph "Audio Utils (Linux)"
+        AU["packAudioForShader()"] --> U
+        AU2["getDominantFrequency()"] --> U
+        AU3["getSpectralCentroid()"] --> U
+        AU4["bandHasEnergy()"] --> U
+    end
 ```
 
 ### Metal Performance Shaders (MPS) Spatial Audio Ray-Tracing
@@ -187,7 +231,7 @@ flowchart TD
 
 ## 5. Neural Style Transfer System
 
-GPU-accelerated CoreML style transfer pipeline running on Apple Neural Engine (ANE) and Metal:
+GPU-accelerated CoreML style transfer pipeline running on Apple Neural Engine (ANE) and Metal (macOS-only):
 
 ```mermaid
 flowchart TD
@@ -212,6 +256,8 @@ flowchart TD
     end
 ```
 
+> **Note:** Neural style transfer is macOS-only (requires Apple Neural Engine / CoreML). No Linux equivalent is currently implemented.
+
 ---
 
 ## 6. Unified ShaderManager & Hot-Reload Observer Pattern
@@ -221,16 +267,15 @@ The cross-platform `UnifiedShaderManager` provides centralized discovery, recurs
 ```mermaid
 flowchart TD
     subgraph "Discovery & File System Watching"
-        FS["File System: shaders/ (base, effects, music)"] --> Scan["UnifiedShaderManager.scanDirectory"]
+        FS["File System: shaders/ (base, effects, music, audio, neural)"] --> Scan["UnifiedShaderManager.scanDirectory"]
         Scan --> Catalog["Shader Catalog Map\n(Name -> FilePath, LastWriteTime)"]
-        Timer["Frame Loop / Render Tick"] --> Watch["UnifiedShaderManager.reloadShaders"]
+        Watch["inotify File Watcher\n(IN_MODIFY, 100ms poll)"] --> Mod{File Modified?}
         Catalog --> Watch
-        Watch --> Mod{File Timestamp > LastWriteTime?}
     end
 
     subgraph "Compilation & Dependency Resolution"
         Mod -->|Yes| Read[Read Shader Source]
-        Read --> Inc["Recursive #include Resolver\n(common.metal / common.glsl)"]
+        Read --> Inc["GLSLWrapper #include Resolver\n(common.glsl, with mtime cache)"]
         Inc --> Comp{Compile Shader Source}
         Comp -->|Success| UpdCache["Update Pipeline State Cache"]
         Comp -->|Failure| Rollback["Log Error & Rollback to Previous Valid State"]
@@ -276,21 +321,24 @@ flowchart TD
 
 ## 8. Test Framework & Regression Architecture
 
-Comprehensive test suite integrating unit validation, coverage expansion, and compilation regression checks:
+Comprehensive test suite with 101 tests across 9 suites:
 
 ```mermaid
 flowchart TD
     subgraph "Test Suite Runner (shadercandy-test)"
         Main[tests/main.cpp] --> Reg[Test Registry]
-        Reg --> S1["Math & SIMD Tests\n(AVX2 / NEON / Scalar)"]
-        Reg --> S2["Logic & Uniform Tests\n(Alignment, Presets, Math)"]
-        Reg --> S3["Shader Compilation Tests\n(52+ Fragment Shaders)"]
-        Reg --> S4["Renderer Feature Tests\n(Resolution, Thermal, MultiDisplay)"]
-        Reg --> S5["Coverage Expansion Tests\n(Core Modules 99% Coverage)"]
-        Reg --> S6["Shader Regression Detector\n(Compile-Time Benchmark Threshold: 20%)"]
+        Reg --> S1["Logic & Uniform Tests\n(Alignment, Presets, Math)"]
+        Reg --> S2["Math & SIMD Tests\n(AVX2 / NEON / Scalar)"]
+        Reg --> S3["Core Functionality Tests\n(Configuration, Presets)"]
+        Reg --> S4["Shader Compilation Tests\n(52+ Fragment Shaders via GLSLWrapper)"]
+        Reg --> S5["Renderer Feature Tests\n(Resolution, Thermal, MultiDisplay)"]
+        Reg --> S6["Coverage Expansion Tests\n(Bloom, FBO, HeadlessRenderer, Audio)"]
+        Reg --> S7["Shader Wrapper Tests\n(#include resolution, metadata)"]
+        Reg --> S8["Linux Platform & Audio Tests\n(IPC, AudioInput, UniformUploader)"]
+        Reg --> S9["Memory Leak & Cleanup Tests\n(Valgrind-verified, 0 app leaks)"]
     end
 
-    S1 & S2 & S3 & S4 & S5 & S6 --> Runner[TestSuite.run]
+    S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 --> Runner[TestSuite.run]
     Runner --> Results["std::vector<TestResult>"]
     Results --> Format["Console Summary & Exit Code Report"]
 ```
@@ -310,13 +358,14 @@ graph TD
     Shaders --> SBase["base/ (common.metal, common.glsl, utils)"]
     Shaders --> SEffects["effects/ (raymarching, fractals, visual effects)"]
     Shaders --> SMusic["music/ (audio-reactive genre shaders)"]
+    Shaders --> SAudio["audio/ (audio visualization)"]
+    Shaders --> SNeural["neural/ (neural style transfer)"]
 
-    Src --> Core["core/ (ShaderManager, MultiDisplay, Uniforms, Performance)"]
+    Src --> Core["core/ (ShaderManager, MultiDisplay, HeadlessRenderer, Uniforms, Performance)"]
     Src --> Metal["metal/ (MetalRenderer, PipelineCache, HeapManager)"]
-    Src --> GL["gl/ (GLRenderer, GLShaderCompiler)"]
+    Src --> GL["gl/ (GLRenderer, GLRendererTypes.h, UniformUploader.h, GLShaderCompiler)"]
     Src --> Platform["platform/ (macos, linux x11/wayland)"]
-    Src --> Audio["audio/ (AudioInput, AcousticSimulator)"]
-    Src --> Neural["neural/ (NeuralStyleEngine, StyleModel)"]
+    Src --> Audio["audio/ (AudioInput, AudioUtils, AcousticSimulator)"]
     Src --> Config["config/ (ConfigurationManager, Presets)"]
 
     Docs --> D1["nextsteps.md (Active Roadmap)"]
@@ -326,6 +375,8 @@ graph TD
     Docs --> D5["ShaderAuthoringGuide.md (Developer Guide)"]
     Docs --> D6["LinuxFeatures.md (Linux Platform)"]
     Docs --> D7["HdrImplementation.md (HDR Specification)"]
-    Docs --> D8["NeuralEffectsGuide.md (CoreML System)"]
+    Docs --> D8["NeuralEffectsGuide.md (CoreML System, macOS-only)"]
     Docs --> D9["shaders.md (110+ Shader Catalog)"]
+    Docs --> D10["release_notes_0_1_0.md (v0.1.0 Release)"]
+    Docs --> D11["release_notes_0_2_0.md (v0.2.0 Release)"]
 ```

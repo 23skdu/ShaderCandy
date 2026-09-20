@@ -20,7 +20,29 @@ flowchart TD
 
     subgraph "Rendering Core"
         X11 & WL & GLFW --> GL["GLRenderer (OpenGL 3.3+ Core Profile)"]
-        GL --> Prog["GLShaderCompiler\n(Unified Include Resolver & Shader Cache)"]
+        GL --> UL["UniformUploader\n(cached uniform location dispatch)"]
+        UL --> Prog["GLShaderProgram\n(Auto-init LDR, reload support)"]
+        Prog --> GLSL["GLSLWrapper\n(#include resolver with mtime cache)"]
+    end
+
+    subgraph "Post-Processing Pipeline"
+        GL --> Bloom["Bloom Pipeline\n(threshold → blur passes → composite)"]
+        Bloom --> FBO["FBO Post-Processing\n(offscreen render → tone map → screen)"]
+    end
+
+    subgraph "File Watcher"
+        GL --> Watcher["inotify-based File Watcher\n(IN_MODIFY, 100ms poll)"]
+        Watcher -->|Modified| Prog
+    end
+
+    subgraph "Capture & Encoding"
+        GL --> HR["HeadlessRenderer"]
+        HR --> Ffmpeg["ffmpeg Video Encoding\n(PNG / JPG / PPM output)"]
+    end
+
+    subgraph "Capture & Encoding"
+        GL --> HR2["HeadlessRenderer"]
+        HR2 --> Ffmpeg2["ffmpeg Video Encoding\n(PNG / JPG / PPM output)"]
     end
 
     subgraph "Audio Capture Subsystem"
@@ -28,9 +50,10 @@ flowchart TD
         AudioChoice -->|Default| ALSA["ALSA Direct Capture + FFTW3"]
         AudioChoice -->|Pulse/PipeWire| PW["PulseAudio Wrapper / PipeWire 0.3 SPA"]
         ALSA & PW --> FFT["Spectral Analysis (256 FFT Bins, Bass/Mid/Treble/Beat)"]
+        FFT --> AU["Audio Utils\n(packAudioForShader, getDominantFrequency,\ngetSpectralCentroid, bandHasEnergy)"]
     end
 
-    GL & FFT --> Core["ShaderCandy Core Modules (src/core/)"]
+    GL & AU --> Core["ShaderCandy Core Modules (src/core/)"]
 ```
 
 ---
@@ -41,7 +64,11 @@ flowchart TD
 2. **X11 Screensaver & Root Window Integration**: Seamless attachment to XScreenSaver or direct root window rendering via XComposite extension.
 3. **Low-Latency Audio Reactivity**: Direct ALSA sample capture processed through FFTW3 with 256 spectrum bins and beat detection.
 4. **Standalone Player & Wallpaper Modes**: Full windowed browser and dynamic live desktop background. *(For user controls and configuration, see [ApplicationModesGuide.md](./ApplicationModesGuide.md)).*
-5. **Runtime Shader Hot Reloading**: Timestamp-based directory watcher automatically recompiles GLSL files on save with immediate fallback on syntax error.
+5. **inotify-Based Shader Hot Reloading**: Uses Linux `inotify` (not timestamp polling) to detect file modifications on loaded shaders, with automatic `#include` cache invalidation via mtime checks.
+6. **Bloom Post-Processing**: FBO-based bloom pipeline with configurable quality levels (Low=2 passes, Medium=4, High=6, Ultra=8 Gaussian blur passes).
+7. **Headless Rendering & Video Encoding**: `HeadlessRenderer` pipes RGBA frames to ffmpeg via `popen()` for PNG/JPG/PPM video output.
+8. **GLRendererTypes.h**: Extracted GL-only structs and enums (GLBloomConfig, GLParticleConfig, GLPerformanceMetrics, GLRendererError) for testability without GL dependencies.
+9. **UniformUploader**: Cached uniform location dispatch that replaces 30+ lines of manual per-uniform location queries.
 
 ---
 
@@ -61,6 +88,15 @@ uniform float treble;          // High frequency energy (4000-16000 Hz, 0.0 - 1.
 uniform float beat;            // Beat detection pulse (1.0 on beat, 0.0 otherwise)
 uniform float audioData[256];  // Raw FFT magnitude spectrum
 ```
+
+### Audio Utils API
+
+| Function | Description |
+| :--- | :--- |
+| `packAudioForShader(volume, bass, mid, treble, beat, audioData)` | Packs all audio data into the shader uniform buffer |
+| `getDominantFrequency(audioData, sampleRate)` | Returns the dominant frequency from FFT spectrum |
+| `getSpectralCentroid(audioData)` | Returns the spectral centroid (brightness measure) |
+| `bandHasEnergy(audioData, lowHz, highHz, sampleRate)` | Checks if a frequency band has significant energy |
 
 ### Usage Examples
 ```bash
@@ -103,6 +139,10 @@ shadercandy-wayland --list
 
 ## 5. Building on Linux
 
+### Requirements
+- **CMake 3.20+**
+- **C++17** compiler (GCC 8+ or Clang 7+)
+
 ### Package Dependencies
 
 #### Debian / Ubuntu / Mint
@@ -142,7 +182,7 @@ sudo pacman -S --needed base-devel cmake pkgconf \
 
 ```bash
 mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17
 make -j$(nproc)
 
 # Install binaries to /usr/local/bin
@@ -170,8 +210,12 @@ sudo make install
 | **Display Server** | AppKit / Quartz / MetalKit | Wayland / X11 | Dual backend ensures compatibility on legacy X11 and modern Wayland |
 | **Audio Input** | AVFoundation | ALSA / PipeWire + FFTW3 | Native driver capture with zero runtime overhead |
 | **Audio Ray-Tracing** | Metal Performance Shaders | Simplified Acoustic Model | MPS relies on Apple Silicon hardware ray-tracing |
+| **Bloom Post-Processing** | Compute-based (Metal tile memory) | FBO-based (configurable blur passes) | Different GPU memory architectures |
+| **Hot Reloading** | File timestamp polling | inotify (IN_MODIFY events) | inotify provides OS-level file change notifications |
+| **Uniform Upload** | Metal buffer bindings | UniformUploader (cached locations) | Eliminates redundant `glGetUniformLocation` calls |
 | **Neural Effects** | Apple Neural Engine (CoreML)| Not Supported | CoreML is proprietary to Apple Silicon hardware |
-| **HDR Output** | EDR up to 1600 nits (10-bit) | Tone-Mapped SDR (10-bit WIP)| Consistent tone mapping (ACES/Filmic) without fragile driver requirements |
+| **HDR Output** | EDR up to 1600 nits (10-bit) | FBO-based bloom + tone mapping | Consistent tone mapping without fragile driver requirements |
+| **Video Encoding** | Screen capture APIs | ffmpeg via popen pipe | Cross-platform video output via ffmpeg |
 | **Note on Vulkan** | N/A | Evaluated & Retired | Vulkan was removed in favor of robust OpenGL 3.3+/Wayland integration |
 
 ---
@@ -196,6 +240,11 @@ sudo make install
    glslangValidator -S frag shaders/effects/your_shader.frag
    ```
 2. Verify OpenGL driver version: `glxinfo | grep "OpenGL version"` (must be $\ge 3.3$).
+
+### Hot Reload Not Working
+1. Ensure inotify is available in your kernel: `lsmod | grep inotify`
+2. Check that the shader file is actually being watched (file must be loaded first).
+3. The include cache is invalidated by file mtime -- modifying included files (e.g. `common.glsl`) will trigger recompilation.
 
 ---
 

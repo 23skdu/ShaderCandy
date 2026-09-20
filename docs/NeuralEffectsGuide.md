@@ -4,6 +4,8 @@
 
 ShaderCandy integrates Apple's CoreML and the Apple Neural Engine (ANE) to perform real-time neural style transfer on procedural shaders. This system transforms procedural geometry and raymarched fractals into artistic imagery inspired by legendary painters and modern aesthetics.
 
+> **Note:** Neural style transfer is **macOS-only** -- it requires Apple's CoreML framework and the Apple Neural Engine (ANE), which are proprietary to Apple Silicon hardware. No Linux equivalent is currently implemented.
+
 ---
 
 ## Processing Pipeline
@@ -134,6 +136,7 @@ try customModel.load()
 | **Apple M2** | $512 \times 512$ | Apple Neural Engine (ANE) | 7.8 ms | 60 FPS |
 | **Apple M1** | $512 \times 512$ | Apple Neural Engine (ANE) | 11.5 ms | 60 FPS |
 | **Intel Mac (AMD Vega)**| $512 \times 512$ | Metal Performance Shaders | 28.0 ms | 30 FPS |
+| **Linux (any GPU)** | N/A | Not Supported | N/A | N/A |
 
 ---
 

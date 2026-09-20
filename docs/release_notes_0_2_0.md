@@ -9,7 +9,7 @@ We are proud to announce the **v0.2.0** release of ShaderCandy! This release rep
 ### 1. Expanded Procedural Shader Library (113+ Shaders on Linux & macOS)
 - **Dynamic Shader Discovery**: Replaced hardcoded shader lists on Linux with dynamic recursive discovery, instantly expanding available shaders from 33 to **113+ fully working shaders**.
 - **Procedural Gray-Scott Reaction-Diffusion Engine**: Completely redesigned `reaction_diffusion.frag` from a static placeholder into a real-time, interactive, multi-harmonic reaction-diffusion simulator featuring audio reactivity and normal-mapped 3D specular relief lighting.
-- **100% GLSL OpenGL Shader Compatibility**: Audited and fixed syntax errors, variable shadowing, conflicting `hsv2rgb` definitions, and missing uniforms across 51 shaders. All 114 fragment shaders now compile cleanly under OpenGL.
+- **100% GLSL OpenGL Shader Compatibility**: Audited and fixed syntax errors, variable shadowing, conflicting `hsv2rgb` definitions, and missing uniforms across 51 shaders. All fragment shaders now compile cleanly under OpenGL via `GLSLWrapper` with `#include` caching.
 - **New Creative Shaders**: Added `pastel_unicorns.frag` and revamped classic shaders (e.g. `reggae`, `particles`, `aquatic`, `knights`).
 
 ### 2. Linux Ecosystem & Screensaver Hardening
@@ -34,9 +34,9 @@ We are proud to announce the **v0.2.0** release of ShaderCandy! This release rep
 
 ## 🧪 Testing, Quality & Code Coverage
 
-- **Automated Test Suites**: **62 / 62 tests passed (100% pass rate)**.
+- **Automated Test Suites**: **101 / 101 tests passed across 9 suites (100% pass rate)**.
 - **CTest Integration**: Fully automated via `ctest` with verified working directory configurations.
-- **High Test Coverage**: **95.50% overall line coverage** across all tested `src/` modules:
+- **High Test Coverage**: Comprehensive coverage across all tested `src/` modules:
   - `MathUtils.h`: **100.00%**
   - `UniformBuffer.cpp`: **100.00%**
   - `PerformanceMonitor.cpp`: **100.00%**
@@ -47,7 +47,7 @@ We are proud to announce the **v0.2.0** release of ShaderCandy! This release rep
   - `ShaderManager.cpp`: **97.26%**
   - `AudioInput_Linux.cpp`: **91.21%**
   - `GLRenderer.cpp`: **83.46%**
-- **Lint & Memory Safety**: 0 whitespace errors, verified bounds safety, zero-copy pixel buffer creation, and leak-free resource lifecycles.
+- **Lint & Memory Safety**: 0 whitespace errors, verified bounds safety, 0 valgrind errors, 0 application memory leaks.
 
 ---
 

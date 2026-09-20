@@ -138,7 +138,7 @@ xwinwrap -ov -fs -- shadercandy-wallpaper -shader /usr/share/shadercandy/shaders
 3. Open **System Settings $\rightarrow$ Lock Screen / Screen Saver**, select **ShaderCandy**, and click **Options** to select default presets.
 
 ### Linux Installation
-1. Build screensaver: `cmake .. -DBUILD_SCREENSAVER_LINUX=ON && make`
+1. Build screensaver: `cmake .. -DBUILD_SCREENSAVER_LINUX=ON -DCMAKE_CXX_STANDARD=17 && make`
 2. Install binaries: `sudo make install`
 3. Configure `~/.xscreensaver`:
    ```
@@ -147,7 +147,7 @@ xwinwrap -ov -fs -- shadercandy-wallpaper -shader /usr/share/shadercandy/shaders
    ```
 4. For native Wayland compositors (Sway, Hyprland):
    ```bash
-   shadercandy-wayland --shader ./shaders/effects/plasma.glsl
+   shadercandy-wayland --shader ./shaders/effects/plasma.frag
    ```
 
 ---

@@ -3,7 +3,8 @@
 This document provides a complete catalog of all available shaders in ShaderCandy, organized by category.
 
 **Total Shaders:** 110 unique effects  
-**Platforms:** macOS (Metal), Linux (OpenGL/GLSL)
+**Platforms:** macOS (Metal), Linux (OpenGL/GLSL)  
+**Build Requirements:** CMake 3.20+, C++17
 
 ---
 
@@ -1526,6 +1527,7 @@ Infinite corridor effect with perspective and motion.
 - GLSL 4.5 / OpenGL 3.3 core profile
 - Uses `base/common.glsl` for uniform definitions
 - Fragment shaders implement `vec4 effect_main(vec2 centered, vec2 uv)`
+- `GLSLWrapper` provides recursive `#include` resolution with mtime-based file caching
 
 ### Uniform Buffer
 
