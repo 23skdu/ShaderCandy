@@ -405,7 +405,8 @@ Run the internal compilation and regression test suite:
 ```
 
 ### 3. Hot-Reloading in Development
-ShaderCandy continuously monitors shader files for changes:
+ShaderCandy continuously monitors shader files for changes via inotify (Linux) or file timestamp polling (macOS):
 1. Launch the standalone player: `./build/shadercandy-player -shader my_effect`
 2. Modify `shaders/effects/my_effect.frag` or `my_effect.metal` in your code editor.
-3. Save the file. The engine instantly detects the timestamp update, recompiles the pipeline, and swaps the shader state seamlessly with zero frame drops.
+3. Save the file. The inotify file watcher detects the modification, triggers recompilation, and swaps the shader state seamlessly with zero frame drops.
+4. `GLSLWrapper` automatically invalidates its `#include` cache when included files (e.g. `common.glsl`) are modified, ensuring all dependencies are recompiled.

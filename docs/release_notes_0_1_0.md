@@ -16,9 +16,11 @@ We are thrilled to announce the v0.1.0 release of ShaderCandy! This release mark
 - **SIMD Optimizations**: Extensive automatic detection and usage of ARM NEON (Apple Silicon) and AVX2 (x86_64) ensures math routines execute at maximum throughput.
 - **Hot-Reload Architecture**: The robust ShaderManager file watcher now guarantees stability, automatically falling back to previously compiled states if an error is detected. 
 
-## 🗺 Roadmap Status
+## Roadmap Status
 
 Our updated Master Plan places all core rendering, standalone apps, and screensaver implementations into *Production Ready* status. We are focusing on Universal Preset API integrations, modern Linux audio and Wayland improvements, and community distribution channels (Flatpak/App Store).
+
+> **Note:** v0.2.0 has been released with many of these improvements. See [release_notes_0_2_0.md](./release_notes_0_2_0.md) for details.
 
 ---
 *For a complete architectural overview and future steps, see [ArchitectureDiagrams.md](./ArchitectureDiagrams.md), [ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md), and [nextsteps.md](./nextsteps.md).*

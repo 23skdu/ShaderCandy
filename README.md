@@ -7,32 +7,39 @@ ShaderCandy is a cross-platform screensaver application that renders real-time p
 * **Cross-Platform Native Rendering**: Uses Metal on macOS and OpenGL/Wayland/X11 on Linux for direct hardware access.
 * **SIMD Optimizations**: Implements SIMD-accelerated math operations for CPU-side calculations (ARM NEON on Apple Silicon, AVX2 on x86_64).
 * **Modular Shader Architecture**: Provides a shared library of GLSL and Metal shader functions (noise, SDFs, math utilities) to simplify effect creation.
-* **Hot Reloading**: Automatically reloads and recompiles shaders when source files are modified.
-* **Audio Reactivity**: Microphones and system audio input feed directly into FFT spectral analysis for ray-traced audio visualization.
-* **Neural Effects**: Integrated CoreML neural style transfer engine on macOS.
+* **Hot Reloading**: inotify-based file watcher with `#include` caching (mtime-based invalidation) for instant shader recompilation on save.
+* **Audio Reactivity**: Microphones and system audio input feed directly into FFT spectral analysis with Audio Utils (`packAudioForShader`, `getDominantFrequency`, `getSpectralCentroid`, `bandHasEnergy`).
+* **Bloom Post-Processing**: FBO-based bloom pipeline with configurable quality levels (Low/Medium/High/Ultra) and Gaussian blur passes.
+* **Headless Rendering**: `HeadlessRenderer` with ffmpeg video encoding (PNG/JPG/PPM output) and offscreen FBO rendering.
+* **Neural Effects**: Integrated CoreML neural style transfer engine on macOS (macOS-only).
 * **Dynamic Control Systems**: Configurable UI for shader selection, preset save/load, multi-display support, screenshot hotkeys, and OSD notifications.
 * **Advanced Particle Systems**: High-performance compute shader integration for generative multi-million particle simulations.
 * **Shader Cycling**: Configurable per-shader duration with smooth crossfade transitions between effects.
 
 ## Architecture
 
-```
-ShaderCandy/
-├── shaders/                # Shader source files (111 effects)
-│   ├── base/               # Shared utility functions (common.metal, common.glsl)
-│   ├── effects/            # Individual visual effects (fragment shaders)
-│   └── music/              # Audio-reactive music visualization shaders
-├── src/                    # C++/Objective-C++ source code
-│   ├── core/               # Platform-independent core logic (Math, Performance, Utils)
-│   ├── config/             # Configuration and preset management
-│   ├── audio/              # Audio input, FFT, and spatial audio
-│   ├── gl/                 # Linux OpenGL backend (renderer, shader compiler)
-│   ├── metal/              # macOS Metal backend implementation
-│   └── platform/           # OS-specific entry points (ScreenSaverView, X11, Wayland)
-├── tests/                  # Unit and integration tests
-├── install/                # Automated install scripts (Linux & macOS)
-├── docs/                   # Documentation and roadmaps
-└── thumbnails/             # Preview images for each shader
+```mermaid
+graph TD
+    Root[ShaderCandy Repository] --> Shaders[shaders/]
+    Root --> Src[src/]
+    Root --> Tests[tests/]
+    Root --> Docs[docs/]
+    Root --> Install[install/]
+
+    Shaders --> SBase["base/ (common.metal, common.glsl, utils)"]
+    Shaders --> SEffects["effects/ (raymarching, fractals, visual effects)"]
+    Shaders --> SMusic["music/ (audio-reactive genre shaders)"]
+    Shaders --> SAudio["audio/ (audio visualization shaders)"]
+    Shaders --> SNeural["neural/ (neural style transfer)"]
+
+    Src --> Core["core/ (ShaderManager, MultiDisplay, HeadlessRenderer, Uniforms, Performance)"]
+    Src --> Metal["metal/ (MetalRenderer, PipelineCache, HeapManager)"]
+    Src --> GL["gl/ (GLRenderer, GLRendererTypes, UniformUploader, GLShaderCompiler)"]
+    Src --> Platform["platform/ (macos, linux x11/wayland)"]
+    Src --> Audio["audio/ (AudioInput, AudioUtils, AcousticSimulator)"]
+    Src --> Config["config/ (ConfigurationManager, Presets)"]
+
+    Tests --> T1["9 test suites / 101 tests"]
 ```
 
 ## Building and Installation
@@ -40,7 +47,7 @@ ShaderCandy/
 ### Prerequisites
 
 * **macOS**: Xcode Command Line Tools, CMake 3.20+
-* **Linux**: GCC/Clang, CMake 3.20+, X11 development headers (`libx11-dev`, `libxss-dev`)
+* **Linux**: GCC/Clang (C++17), CMake 3.20+, X11 development headers (`libx11-dev`, `libxss-dev`)
 
 ### macOS Build
 
@@ -62,7 +69,7 @@ cd ShaderCandy
 
 ```bash
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17
 make -j$(nproc)
 ```
 
@@ -81,15 +88,27 @@ make -j$(nproc)
 
 ```bash
 # Build with tests enabled
-cmake .. -DBUILD_TESTS=ON
+cmake .. -DBUILD_TESTS=ON -DCMAKE_CXX_STANDARD=17
 make
 
-# Run all tests
+# Run all tests (101 tests across 9 suites)
 ./shadercandy-test
 
 # Run specific test suite
 ./shadercandy-test --run "Math & SIMD Tests"
 ```
+
+**Test Suites:**
+- Logic & Uniform Tests
+- Math & SIMD Tests
+- Core Functionality Tests
+- Shader Compilation Tests (52+ fragment shaders)
+- Renderer Feature Tests
+- Coverage Expansion Tests
+- Shader Regression Tests
+- Shader Wrapper Tests
+- Linux Platform & Audio Tests
+- Memory Leak & Cleanup Tests
 
 ## Keyboard Controls (Screensaver)
 
@@ -106,7 +125,7 @@ make
 | Ctrl+S | Save preset |
 | Ctrl+O | Load preset |
 | Ctrl+/- | Adjust intensity |
-| ESC / Q / Click | Quit |
+| Escape / Q | Quit |
 
 ## Performance Benchmarks
 
@@ -121,12 +140,14 @@ Rough performance metrics on reference hardware (4K resolution):
 
 ## Shader Gallery
 
-ShaderCandy ships with **111 shaders** across four categories:
+ShaderCandy ships with **110+ shaders** across multiple categories:
 
 * **Fractals**: Mandelbulb, Mandelbrot, Julia Set variants, Burning Ship, Sierpinski
 * **Audio-Reactive**: Audio bars, spectrum, wave, ray tracing, circular visualizer
 * **Music**: Genre-themed effects (jazz, hip-hop, electronic, classical, etc.)
 * **Abstract**: Plasma, kaleidoscope, vortex, reaction-diffusion, fluid dynamics
+* **Nature & Environment**: Aurora, fireflies, forest, galaxy, ocean, snow
+* **Character & Creature**: Dragon, knights, orcs, owl, unicorn, elves
 
 ## Documentation
 
@@ -137,14 +158,17 @@ ShaderCandy ships with **111 shaders** across four categories:
 * `docs/LinuxFeatures.md` -- Linux platform architecture, Wayland/X11 details, and build instructions
 * `docs/HdrImplementation.md` -- High-bit-depth rendering and tone mapping documentation
 * `docs/nextsteps.md` -- Active performance and stability engineering roadmap
+* `docs/release_notes_0_1_0.md` -- v0.1.0 release notes
+* `docs/release_notes_0_2_0.md` -- v0.2.0 release notes
+* `docs/NeuralEffectsGuide.md` -- CoreML neural style transfer engine guide (macOS-only)
 
 ## CI/CD
 
-GitHub Actions CI runs on every push and PR:
+GitHub Actions CI runs on every push and PR (all actions v4):
 - Builds on Ubuntu with full dependency matrix
-- Runs the full test suite
+- Runs the full test suite (101 tests)
 - Static analysis with clang-tidy and cppcheck
-- Memory leak detection with valgrind
+- Memory leak detection with valgrind (0 application errors)
 
 ## License
 

@@ -46,7 +46,7 @@ flowchart TD
 - **Multiple Tone Mappers**: ACES, Reinhard, Filmic, and Hable.
 - **Dynamic Range Optimization**: Real-time scene luminance analysis with adaptive knee and shoulder compression.
 - **HDR Metadata**: Automated HDR10 mastering and content light level metadata generation.
-- **Cross-Platform Tone Mapping**: Full hardware EDR on macOS; software-side tone mapping fallback in OpenGL on Linux.
+- **Cross-Platform Tone Mapping**: Full hardware EDR on macOS; FBO-based bloom pipeline with configurable Gaussian blur passes and tone mapping fallback in OpenGL on Linux.
 
 ---
 
