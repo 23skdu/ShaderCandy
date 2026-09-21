@@ -48,6 +48,10 @@ public:
     results.push_back(testRealShaderIntegration());
     results.push_back(testUniformUploaderAndCache());
     results.push_back(testPerformanceBaseline());
+    results.push_back(testGLRendererTransitionEasing());
+    results.push_back(testGLRendererSmartRotationAndParams());
+    results.push_back(testGLRendererCallbacksAndAudioArray());
+    results.push_back(testGLSLWrapperClearCache());
     return results;
   }
 
@@ -1094,6 +1098,597 @@ private:
             "Performance baseline: 1000 uniform updates in " +
                 std::to_string(ms) + "ms",
             ms};
+  }
+
+  TestResult testGLRendererTransitionEasing() {
+#if defined(__linux__)
+    using namespace ShaderCandy::Platform::Linux;
+
+    Display *display = XOpenDisplay(nullptr);
+    if (!display) {
+      return {__func__, true, "Skipped (no X11 display available)", 0.0};
+    }
+
+    int screen = DefaultScreen(display);
+    static int visualAttribs[] = {
+        GLX_X_RENDERABLE, True, GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+        GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, 8,
+        GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, True, 0};
+    int fbcount = 0;
+    GLXFBConfig *fbc =
+        glXChooseFBConfig(display, screen, visualAttribs, &fbcount);
+    if (!fbc || fbcount == 0) {
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot choose GLX FBConfig)", 0.0};
+    }
+
+    XVisualInfo *vi = glXGetVisualFromFBConfig(display, fbc[0]);
+    XSetWindowAttributes swa;
+    swa.colormap = XCreateColormap(display, RootWindow(display, vi->screen),
+                                   vi->visual, AllocNone);
+    swa.border_pixel = 0;
+    swa.event_mask = StructureNotifyMask;
+    Window win = XCreateWindow(display, RootWindow(display, vi->screen), 0, 0,
+                               100, 100, 0, vi->depth, InputOutput, vi->visual,
+                               CWBorderPixel | CWColormap | CWEventMask, &swa);
+
+    GLXContext ctx =
+        glXCreateNewContext(display, fbc[0], GLX_RGBA_TYPE, nullptr, True);
+    if (!ctx) {
+      XDestroyWindow(display, win);
+      XFree(vi);
+      XFree(fbc);
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot create GLX context)", 0.0};
+    }
+
+    glXMakeCurrent(display, win, ctx);
+
+    GLRenderer renderer;
+    bool rInit = renderer.initialize(display, (void *)win);
+    TEST_ASSERT_TRUE(rInit);
+
+    std::string testFrag = "/tmp/test_gl_transition.frag";
+    std::ofstream testFragFile(testFrag);
+    testFragFile << "out vec4 fragColor;\n"
+                    "void main() {\n"
+                    "  fragColor = vec4(0.5, time * 0.1, 0.0, 1.0);\n"
+                    "}\n";
+    testFragFile.close();
+    TEST_ASSERT_TRUE(renderer.loadShader("transition_test", testFrag));
+    TEST_ASSERT_TRUE(renderer.setActiveShader("transition_test"));
+
+    // --- applyEasing() tests (pure math, all 10 curves) ---
+    // applyEasing reads from transitionConfig_.easing, so we must set it
+    GLTransitionConfig tempCfg;
+    tempCfg.enabled = true;
+    tempCfg.duration = 1.0f;
+
+    // Linear at t=0.5 should be 0.5
+    tempCfg.easing = GLEasingFunction::Linear;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.5f, renderer.applyEasing(0.5f));
+
+    // EaseIn at t=0.5 should be 0.25 (t*t)
+    tempCfg.easing = GLEasingFunction::EaseIn;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.25f, renderer.applyEasing(0.5f));
+
+    // EaseOut at t=0.5 should be 0.75 (t*(2-t))
+    tempCfg.easing = GLEasingFunction::EaseOut;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.75f, renderer.applyEasing(0.5f));
+
+    // EaseInOut at t=0.5 should be 0.5 (boundary)
+    tempCfg.easing = GLEasingFunction::EaseInOut;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.5f, renderer.applyEasing(0.5f));
+
+    // CubicIn at t=0.5 should be 0.125 (t^3)
+    tempCfg.easing = GLEasingFunction::CubicIn;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.125f, renderer.applyEasing(0.5f));
+
+    // CubicOut at t=0.5 should be 0.875 (f^3+1 where f=t-1)
+    tempCfg.easing = GLEasingFunction::CubicOut;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.875f, renderer.applyEasing(0.5f));
+
+    // CubicInOut at t=0.5 should be 0.5 (boundary)
+    tempCfg.easing = GLEasingFunction::CubicInOut;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.5f, renderer.applyEasing(0.5f));
+
+    // ExponentialIn at t=0.5 should be 2^(10*(0.5-1)) = 2^-5 ≈ 0.03125
+    tempCfg.easing = GLEasingFunction::ExponentialIn;
+    renderer.setTransitionConfig(tempCfg);
+    float expIn = renderer.applyEasing(0.5f);
+    TEST_ASSERT(expIn > 0.0f && expIn < 0.1f, "ExponentialIn(0.5) should be small");
+
+    // ExponentialOut at t=0.5 should be 1 - 2^(-5) ≈ 0.96875
+    tempCfg.easing = GLEasingFunction::ExponentialOut;
+    renderer.setTransitionConfig(tempCfg);
+    float expOut = renderer.applyEasing(0.5f);
+    TEST_ASSERT(expOut > 0.9f && expOut <= 1.0f, "ExponentialOut(0.5) should be near 1");
+
+    // ExponentialInOut at t=0.5 should be 0.5
+    tempCfg.easing = GLEasingFunction::ExponentialInOut;
+    renderer.setTransitionConfig(tempCfg);
+    TEST_ASSERT_EQUAL(0.5f, renderer.applyEasing(0.5f));
+
+    // Easing at boundary t=0 and t=1 for all curves
+    for (int i = 0; i <= static_cast<int>(GLEasingFunction::ExponentialInOut); ++i) {
+      tempCfg.easing = static_cast<GLEasingFunction>(i);
+      renderer.setTransitionConfig(tempCfg);
+      float atZero = renderer.applyEasing(0.0f);
+      float atOne = renderer.applyEasing(1.0f);
+      TEST_ASSERT(atZero >= 0.0f && atZero <= 0.01f,
+                  "Easing at t=0 should be near 0");
+      TEST_ASSERT(atOne >= 0.99f && atOne <= 1.01f,
+                  "Easing at t=1 should be near 1");
+    }
+
+    // --- Transition system ---
+    TEST_ASSERT_FALSE(renderer.isTransitioning());
+    TEST_ASSERT_EQUAL(0.0f, renderer.getTransitionProgress());
+
+    GLTransitionConfig cfg;
+    cfg.type = GLTransitionType::Dissolve;
+    cfg.easing = GLEasingFunction::CubicInOut;
+    cfg.duration = 2.0f;
+    cfg.enabled = true;
+    renderer.setTransitionConfig(cfg);
+    GLTransitionConfig gotCfg = renderer.getTransitionConfig();
+    TEST_ASSERT_EQUAL(static_cast<int>(GLTransitionType::Dissolve),
+                      static_cast<int>(gotCfg.type));
+    TEST_ASSERT_EQUAL(static_cast<int>(GLEasingFunction::CubicInOut),
+                      static_cast<int>(gotCfg.easing));
+    TEST_ASSERT_EQUAL(2.0f, gotCfg.duration);
+
+    // Begin transition
+    renderer.beginTransition(GLTransitionType::Crossfade,
+                             GLEasingFunction::Linear, 1.0f);
+    TEST_ASSERT_TRUE(renderer.isTransitioning());
+
+    // Update transition incrementally
+    for (int i = 0; i < 10; ++i) {
+      renderer.updateTransition(0.1f);
+      float p = renderer.getTransitionProgress();
+      TEST_ASSERT(p >= 0.0f && p <= 1.0f,
+                  "Transition progress should be in [0,1]");
+    }
+    // After 1.0s (10 * 0.1) of a 1.0s transition, should be done
+    TEST_ASSERT_FALSE(renderer.isTransitioning());
+    TEST_ASSERT_EQUAL(1.0f, renderer.getTransitionProgress());
+
+    // Begin another transition — all easing types
+    for (int e = 0; e <= static_cast<int>(GLEasingFunction::ExponentialInOut); ++e) {
+      renderer.beginTransition(GLTransitionType::Crossfade,
+                               static_cast<GLEasingFunction>(e), 0.5f);
+      TEST_ASSERT_TRUE(renderer.isTransitioning());
+      renderer.updateTransition(1.0f);
+      TEST_ASSERT_FALSE(renderer.isTransitioning());
+    }
+
+    // renderTransition is a no-op but should not crash
+    renderer.renderTransition(1.0f);
+
+    // Begin transition while already transitioning should be no-op
+    renderer.beginTransition(GLTransitionType::WipeLeft,
+                             GLEasingFunction::EaseOut, 2.0f);
+    TEST_ASSERT_TRUE(renderer.isTransitioning());
+    renderer.beginTransition(GLTransitionType::WipeRight,
+                             GLEasingFunction::EaseIn, 2.0f);
+    // Should still be the first transition
+    GLTransitionConfig firstCfg = renderer.getTransitionConfig();
+    TEST_ASSERT_EQUAL(static_cast<int>(GLTransitionType::WipeLeft),
+                      static_cast<int>(firstCfg.type));
+
+    // Complete first transition
+    renderer.updateTransition(3.0f);
+    TEST_ASSERT_FALSE(renderer.isTransitioning());
+
+    // --- Post-Processing config ---
+    GLPostProcessConfig pp;
+    pp.vignetteEnabled = false;
+    pp.vignetteIntensity = 0.5f;
+    pp.vignetteRadius = 0.9f;
+    pp.chromaticAberrationEnabled = false;
+    pp.chromaticAberrationAmount = 0.02f;
+    pp.filmGrainEnabled = true;
+    pp.filmGrainIntensity = 0.15f;
+    pp.crtScanlinesEnabled = true;
+    pp.crtScanlineIntensity = 0.8f;
+    pp.crtScanlineCount = 800.0f;
+    pp.colorTintEnabled = true;
+    pp.colorTintR = 1.5f;
+    pp.colorTintG = 0.8f;
+    pp.colorTintB = 0.6f;
+    renderer.setPostProcessConfig(pp);
+    GLPostProcessConfig gotPP = renderer.getPostProcessConfig();
+    TEST_ASSERT_FALSE(gotPP.vignetteEnabled);
+    TEST_ASSERT_EQUAL(0.5f, gotPP.vignetteIntensity);
+    TEST_ASSERT_EQUAL(0.9f, gotPP.vignetteRadius);
+    TEST_ASSERT_FALSE(gotPP.chromaticAberrationEnabled);
+    TEST_ASSERT_EQUAL(0.02f, gotPP.chromaticAberrationAmount);
+    TEST_ASSERT_TRUE(gotPP.filmGrainEnabled);
+    TEST_ASSERT_EQUAL(0.15f, gotPP.filmGrainIntensity);
+    TEST_ASSERT_TRUE(gotPP.crtScanlinesEnabled);
+    TEST_ASSERT_EQUAL(0.8f, gotPP.crtScanlineIntensity);
+    TEST_ASSERT_EQUAL(800.0f, gotPP.crtScanlineCount);
+    TEST_ASSERT_TRUE(gotPP.colorTintEnabled);
+    TEST_ASSERT_EQUAL(1.5f, gotPP.colorTintR);
+    TEST_ASSERT_EQUAL(0.8f, gotPP.colorTintG);
+    TEST_ASSERT_EQUAL(0.6f, gotPP.colorTintB);
+
+    // --- Adaptive Quality config ---
+    GLAdaptiveQualityConfig aq;
+    aq.enabled = false;
+    aq.targetFPS = 30.0f;
+    aq.lowFPS = 20.0f;
+    aq.highFPS = 35.0f;
+    aq.minResolutionScale = 0.25f;
+    aq.maxResolutionScale = 0.75f;
+    renderer.setAdaptiveQualityConfig(aq);
+    GLAdaptiveQualityConfig gotAQ = renderer.getAdaptiveQualityConfig();
+    TEST_ASSERT_FALSE(gotAQ.enabled);
+    TEST_ASSERT_EQUAL(30.0f, gotAQ.targetFPS);
+    TEST_ASSERT_EQUAL(20.0f, gotAQ.lowFPS);
+    TEST_ASSERT_EQUAL(35.0f, gotAQ.highFPS);
+    TEST_ASSERT_EQUAL(0.25f, gotAQ.minResolutionScale);
+    TEST_ASSERT_EQUAL(0.75f, gotAQ.maxResolutionScale);
+
+    // Render with all configs set
+    renderer.render(1.0f);
+    renderer.render(2.0f);
+
+    std::filesystem::remove(testFrag);
+    renderer.shutdown();
+
+    glXMakeCurrent(display, 0, nullptr);
+    glXDestroyContext(display, ctx);
+    XDestroyWindow(display, win);
+    XFree(vi);
+    XFree(fbc);
+    XCloseDisplay(display);
+#endif
+
+    return {__func__, true, "GLRenderer transition/easing passed", 0.0};
+  }
+
+  TestResult testGLRendererSmartRotationAndParams() {
+#if defined(__linux__)
+    using namespace ShaderCandy::Platform::Linux;
+
+    Display *display = XOpenDisplay(nullptr);
+    if (!display) {
+      return {__func__, true, "Skipped (no X11 display available)", 0.0};
+    }
+
+    int screen = DefaultScreen(display);
+    static int visualAttribs[] = {
+        GLX_X_RENDERABLE, True, GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+        GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, 8,
+        GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, True, 0};
+    int fbcount = 0;
+    GLXFBConfig *fbc =
+        glXChooseFBConfig(display, screen, visualAttribs, &fbcount);
+    if (!fbc || fbcount == 0) {
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot choose GLX FBConfig)", 0.0};
+    }
+
+    XVisualInfo *vi = glXGetVisualFromFBConfig(display, fbc[0]);
+    XSetWindowAttributes swa;
+    swa.colormap = XCreateColormap(display, RootWindow(display, vi->screen),
+                                   vi->visual, AllocNone);
+    swa.border_pixel = 0;
+    swa.event_mask = StructureNotifyMask;
+    Window win = XCreateWindow(display, RootWindow(display, vi->screen), 0, 0,
+                               100, 100, 0, vi->depth, InputOutput, vi->visual,
+                               CWBorderPixel | CWColormap | CWEventMask, &swa);
+
+    GLXContext ctx =
+        glXCreateNewContext(display, fbc[0], GLX_RGBA_TYPE, nullptr, True);
+    if (!ctx) {
+      XDestroyWindow(display, win);
+      XFree(vi);
+      XFree(fbc);
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot create GLX context)", 0.0};
+    }
+
+    glXMakeCurrent(display, win, ctx);
+
+    GLRenderer renderer;
+    bool rInit = renderer.initialize(display, (void *)win);
+    TEST_ASSERT_TRUE(rInit);
+
+    // Load 3 test shaders for rotation testing
+    const char *fragTemplate = R"(
+      out vec4 fragColor;
+      void main() { fragColor = vec4(%f, 0.5, 0.0, 1.0); }
+    )";
+    char buf[512];
+    for (int i = 0; i < 3; ++i) {
+      std::string path = "/tmp/test_smart_rot_" + std::to_string(i) + ".frag";
+      std::ofstream f(path);
+      snprintf(buf, sizeof(buf), fragTemplate, (float)i * 0.1f);
+      f << buf;
+      f.close();
+      std::string name = "smart_" + std::to_string(i);
+      TEST_ASSERT_TRUE(renderer.loadShader(name, path));
+      std::filesystem::remove(path);
+    }
+    TEST_ASSERT_EQUAL(3, (int)renderer.availableShaderNames().size());
+
+    // --- Smart rotation defaults ---
+    TEST_ASSERT_FALSE(renderer.isShuffleMode());
+    TEST_ASSERT_TRUE(renderer.isAutoRotate());
+    TEST_ASSERT_EQUAL(60.0f, renderer.getTimePerShader());
+
+    // --- Shuffle mode ---
+    renderer.setShuffleMode(true);
+    TEST_ASSERT_TRUE(renderer.isShuffleMode());
+    renderer.setShuffleMode(false);
+    TEST_ASSERT_FALSE(renderer.isShuffleMode());
+
+    // --- Auto-rotate ---
+    renderer.setAutoRotate(false);
+    TEST_ASSERT_FALSE(renderer.isAutoRotate());
+    renderer.setAutoRotate(true);
+    TEST_ASSERT_TRUE(renderer.isAutoRotate());
+
+    // --- Time per shader ---
+    renderer.setTimePerShader(30.0f);
+    TEST_ASSERT_EQUAL(30.0f, renderer.getTimePerShader());
+
+    // --- Favorites ---
+    TEST_ASSERT_FALSE(renderer.isFavorite("smart_0"));
+    renderer.addFavorite("smart_0");
+    TEST_ASSERT_TRUE(renderer.isFavorite("smart_0"));
+    renderer.addFavorite("smart_1");
+    TEST_ASSERT_TRUE(renderer.isFavorite("smart_1"));
+    renderer.removeFavorite("smart_0");
+    TEST_ASSERT_FALSE(renderer.isFavorite("smart_0"));
+    TEST_ASSERT_TRUE(renderer.isFavorite("smart_1"));
+    // Remove non-existent — should be safe
+    renderer.removeFavorite("nonexistent");
+    renderer.removeFavorite("smart_1");
+    TEST_ASSERT_FALSE(renderer.isFavorite("smart_1"));
+
+    // --- Skip list ---
+    TEST_ASSERT_FALSE(renderer.isSkipped("smart_2"));
+    renderer.addSkip("smart_2");
+    TEST_ASSERT_TRUE(renderer.isSkipped("smart_2"));
+    renderer.addSkip("smart_0");
+    TEST_ASSERT_TRUE(renderer.isSkipped("smart_0"));
+    renderer.removeSkip("smart_2");
+    TEST_ASSERT_FALSE(renderer.isSkipped("smart_2"));
+    renderer.removeSkip("nonexistent");
+    renderer.removeSkip("smart_0");
+    TEST_ASSERT_FALSE(renderer.isSkipped("smart_0"));
+
+    // --- getNextShaderName() ---
+    TEST_ASSERT_TRUE(renderer.setActiveShader("smart_0"));
+
+    // Sequential: next after 0 should be 1
+    std::string next = renderer.getNextShaderName();
+    TEST_ASSERT(next == "smart_1" || next == "smart_2",
+                "Sequential next should be smart_1 or smart_2");
+
+    // Skip smart_1, next after smart_0 should be smart_2
+    renderer.addSkip("smart_1");
+    renderer.setActiveShader("smart_0");
+    next = renderer.getNextShaderName();
+    TEST_ASSERT(next == "smart_2",
+                "Next after skipping smart_1 should be smart_2");
+    renderer.removeSkip("smart_1");
+
+    // Skip all remaining → wraps to current (smart_0)
+    renderer.addSkip("smart_1");
+    renderer.addSkip("smart_2");
+    renderer.setActiveShader("smart_0");
+    next = renderer.getNextShaderName();
+    TEST_ASSERT(!next.empty(), "getNextShaderName should not be empty");
+    renderer.removeSkip("smart_1");
+    renderer.removeSkip("smart_2");
+
+    // Shuffle mode — just verify it returns a valid name
+    renderer.setShuffleMode(true);
+    bool gotNonEmpty = false;
+    for (int i = 0; i < 20; ++i) {
+      next = renderer.getNextShaderName();
+      TEST_ASSERT(!next.empty(), "Shuffle getNextShaderName should not be empty");
+      if (!next.empty()) gotNonEmpty = true;
+    }
+    TEST_ASSERT(gotNonEmpty, "Shuffle should return at least one name");
+    renderer.setShuffleMode(false);
+
+    // Empty renderer → getNextShaderName returns ""
+    GLRenderer emptyRenderer;
+    TEST_ASSERT(emptyRenderer.getNextShaderName().empty(),
+                "Empty renderer getNextShaderName should be empty");
+
+    // --- Shader parameter setters ---
+    renderer.setShaderParam1(0.1f);
+    renderer.setShaderParam2(0.2f);
+    renderer.setShaderParam3(0.3f);
+    renderer.setShaderParam4(0.4f);
+    renderer.setShaderParam5(0.5f);
+    renderer.setShaderParam6(0.6f);
+    renderer.setColorPalette(3);
+    renderer.setEffectFlags(42);
+
+    // Render with shader params set
+    renderer.render(1.0f);
+
+    renderer.shutdown();
+    glXMakeCurrent(display, 0, nullptr);
+    glXDestroyContext(display, ctx);
+    XDestroyWindow(display, win);
+    XFree(vi);
+    XFree(fbc);
+    XCloseDisplay(display);
+#endif
+
+    return {__func__, true, "GLRenderer smart rotation and params passed", 0.0};
+  }
+
+  TestResult testGLRendererCallbacksAndAudioArray() {
+#if defined(__linux__)
+    using namespace ShaderCandy::Platform::Linux;
+
+    Display *display = XOpenDisplay(nullptr);
+    if (!display) {
+      return {__func__, true, "Skipped (no X11 display available)", 0.0};
+    }
+
+    int screen = DefaultScreen(display);
+    static int visualAttribs[] = {
+        GLX_X_RENDERABLE, True, GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+        GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, 8,
+        GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, True, 0};
+    int fbcount = 0;
+    GLXFBConfig *fbc =
+        glXChooseFBConfig(display, screen, visualAttribs, &fbcount);
+    if (!fbc || fbcount == 0) {
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot choose GLX FBConfig)", 0.0};
+    }
+
+    XVisualInfo *vi = glXGetVisualFromFBConfig(display, fbc[0]);
+    XSetWindowAttributes swa;
+    swa.colormap = XCreateColormap(display, RootWindow(display, vi->screen),
+                                   vi->visual, AllocNone);
+    swa.border_pixel = 0;
+    swa.event_mask = StructureNotifyMask;
+    Window win = XCreateWindow(display, RootWindow(display, vi->screen), 0, 0,
+                               100, 100, 0, vi->depth, InputOutput, vi->visual,
+                               CWBorderPixel | CWColormap | CWEventMask, &swa);
+
+    GLXContext ctx =
+        glXCreateNewContext(display, fbc[0], GLX_RGBA_TYPE, nullptr, True);
+    if (!ctx) {
+      XDestroyWindow(display, win);
+      XFree(vi);
+      XFree(fbc);
+      XCloseDisplay(display);
+      return {__func__, true, "Skipped (cannot create GLX context)", 0.0};
+    }
+
+    glXMakeCurrent(display, win, ctx);
+
+    GLRenderer renderer;
+    bool rInit = renderer.initialize(display, (void *)win);
+    TEST_ASSERT_TRUE(rInit);
+
+    std::string testFrag = "/tmp/test_gl_callbacks.frag";
+    std::ofstream testFragFile(testFrag);
+    testFragFile << "out vec4 fragColor;\n"
+                    "void main() {\n"
+                    "  fragColor = vec4(0.5, 0.3, 0.1, 1.0);\n"
+                    "}\n";
+    testFragFile.close();
+    TEST_ASSERT_TRUE(renderer.loadShader("callback_test", testFrag));
+    TEST_ASSERT_TRUE(renderer.setActiveShader("callback_test"));
+
+    // --- Error callback ---
+    bool errorFired = false;
+    renderer.setErrorCallback([&errorFired](const GLRendererError &) {
+      errorFired = true;
+    });
+    // Trigger an error (load bad shader)
+    std::string badFrag = "/tmp/test_gl_cb_bad.frag";
+    std::ofstream badFragFile(badFrag);
+    badFragFile << "!!! invalid glsl !!!\n";
+    badFragFile.close();
+    renderer.loadShader("bad", badFrag);
+    TEST_ASSERT_TRUE(errorFired);
+    renderer.clearError();
+    renderer.setErrorCallback(nullptr);
+    std::filesystem::remove(badFrag);
+
+    // --- Shader changed callback ---
+    bool shaderChangedFired = false;
+    std::string changedName;
+    renderer.setShaderChangedCallback(
+        [&shaderChangedFired, &changedName](const std::string &name) {
+          shaderChangedFired = true;
+          changedName = name;
+        });
+    // setActiveShader now fires the callback
+    shaderChangedFired = false;
+    TEST_ASSERT_TRUE(renderer.setActiveShader("callback_test"));
+    TEST_ASSERT_TRUE(shaderChangedFired);
+    TEST_ASSERT(changedName == "callback_test",
+                "Callback should receive the shader name");
+    renderer.setShaderChangedCallback(nullptr);
+
+    // --- setAudioDataArray ---
+    float audioArray[256];
+    for (int i = 0; i < 256; ++i) {
+      audioArray[i] = (float)i / 256.0f;
+    }
+    renderer.setAudioDataArray(audioArray, 256);
+    // Render to exercise the path
+    renderer.render(1.0f);
+
+    // Test with smaller array
+    float smallArray[64];
+    for (int i = 0; i < 64; ++i)
+      smallArray[i] = 0.5f;
+    renderer.setAudioDataArray(smallArray, 64);
+    renderer.render(2.0f);
+
+    // Test with zero-length
+    renderer.setAudioDataArray(nullptr, 0);
+    renderer.render(3.0f);
+
+    std::filesystem::remove(testFrag);
+    renderer.shutdown();
+    glXMakeCurrent(display, 0, nullptr);
+    glXDestroyContext(display, ctx);
+    XDestroyWindow(display, win);
+    XFree(vi);
+    XFree(fbc);
+    XCloseDisplay(display);
+#endif
+
+    return {__func__, true, "GLRenderer callbacks and audio array passed", 0.0};
+  }
+
+  TestResult testGLSLWrapperClearCache() {
+    using namespace ShaderCandy::Platform::Linux;
+
+    // Load a shader to populate cache
+    std::string testFile = "/tmp/test_glsl_cache.frag";
+    std::ofstream(testFile) << "void main() {}\n";
+
+    std::string result1 =
+        GLSLWrapper::loadShaderWithIncludes(testFile.c_str(), 0);
+    TEST_ASSERT(!result1.empty(), "First load should return non-empty result");
+
+    // Load again — should hit cache
+    std::string result2 =
+        GLSLWrapper::loadShaderWithIncludes(testFile.c_str(), 0);
+    TEST_ASSERT(!result2.empty(), "Cached load should return non-empty result");
+
+    // Clear cache
+    GLSLWrapper::clearFileCache();
+
+    // Load again — should re-read from disk
+    std::string result3 =
+        GLSLWrapper::loadShaderWithIncludes(testFile.c_str(), 0);
+    TEST_ASSERT(!result3.empty(),
+                "Post-clear load should return non-empty result");
+
+    std::filesystem::remove(testFile);
+
+    return {__func__, true, "GLSLWrapper clear cache passed", 0.0};
   }
 };
 

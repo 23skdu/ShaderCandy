@@ -403,6 +403,10 @@ bool GLRenderer::setActiveShader(const std::string &name) {
   uniformsLocation_ = glGetUniformBlockIndex(currentProgram_, "Uniforms");
   uniformUploader_.invalidate();
 
+  if (shaderChangedCallback_) {
+    shaderChangedCallback_(name);
+  }
+
   return true;
 }
 
