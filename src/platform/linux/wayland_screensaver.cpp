@@ -13,16 +13,19 @@
 #include "LinuxStubs.h"
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <thread>
 #include <time.h>
+#include <unordered_set>
 #include <unistd.h>
 
 using namespace ShaderCandy::Platform::Linux;
@@ -348,6 +351,34 @@ static bool g_sessionLocked = false;
 static bool g_showDebug = false;
 static float g_intensity = 1.0f;
 
+// Transition state
+static bool g_inTransition = false;
+static float g_transitionProgress = 0.0f;
+static float g_transitionDuration = 2.0f;
+static std::chrono::steady_clock::time_point g_transitionStart;
+static GLESShaderProgram *g_nextShader = nullptr;
+
+// Easing
+enum EasingMode { EasingLinear, EasingEaseIn, EasingEaseOut, EasingEaseInOut, EasingCubicInOut, EasingExpOut, Easing_COUNT };
+static int g_easingMode = EasingLinear;
+
+// Transition type
+enum TransitionType { TransCrossfade, TransWipeLeft, TransWipeRight, TransZoomIn, TransZoomOut, Trans_COUNT };
+static int g_transitionType = TransCrossfade;
+
+// Forward declarations
+static const char *easingName(int mode);
+static const char *transitionTypeName(int type);
+static float applyEasing(float t);
+
+// Shuffle
+static bool g_shuffleMode = false;
+static std::mt19937 g_rng{std::random_device{}()};
+
+// Favorites & skip
+static std::unordered_set<std::string> g_favorites;
+static std::unordered_set<std::string> g_skipList;
+
 static void runShaderTestSuite() {
   std::cout << "[Wayland] Triggering internal shader test suite..." << std::endl;
 }
@@ -503,6 +534,42 @@ static void handleKeyboardKey(void *data, struct wl_keyboard *keyboard,
   // Ctrl+Minus = decrease intensity (evdev code 12)
   else if (ctrl && key == 12)
     g_intensity = std::max(0.0f, g_intensity - 0.1f);
+  // S key (no Ctrl) = toggle shuffle (evdev code 31)
+  else if (key == 31 && !ctrl) {
+    g_shuffleMode = !g_shuffleMode;
+    std::cout << "Shuffle: " << (g_shuffleMode ? "ON" : "OFF") << std::endl;
+  }
+  // F key = toggle favorite (evdev code 33) -- only when not goToPreviousShader
+  else if (key == 33 && !ctrl) {
+    if (!g_currentShader.empty()) {
+      auto it = g_favorites.find(g_currentShader);
+      if (it != g_favorites.end()) {
+        g_favorites.erase(it);
+        std::cout << "Removed from favorites: " << g_currentShader << std::endl;
+      } else {
+        g_favorites.insert(g_currentShader);
+        std::cout << "Added to favorites: " << g_currentShader << std::endl;
+      }
+    }
+  }
+  // X key = skip current shader (evdev code 45) -- only when not goToNextShader
+  else if (key == 45 && !ctrl) {
+    if (!g_currentShader.empty()) {
+      g_skipList.insert(g_currentShader);
+      std::cout << "Skipped: " << g_currentShader << std::endl;
+      goToNextShader();
+    }
+  }
+  // E key = cycle easing mode (evdev code 18)
+  else if (key == 18 && !ctrl) {
+    g_easingMode = (g_easingMode + 1) % Easing_COUNT;
+    std::cout << "Easing: " << easingName(g_easingMode) << std::endl;
+  }
+  // Shift+T = cycle transition type (evdev code 20)
+  else if (key == 20 && shift && !ctrl) {
+    g_transitionType = (g_transitionType + 1) % Trans_COUNT;
+    std::cout << "Transition: " << transitionTypeName(g_transitionType) << std::endl;
+  }
 }
 static void handleKeyboardModifiers(void *data, struct wl_keyboard *keyboard,
                                     uint32_t serial, uint32_t modsDepressed,
@@ -768,29 +835,98 @@ static bool initOpenGLES() {
   return true;
 }
 
+static float applyEasing(float t) {
+  switch (g_easingMode) {
+  case EasingEaseIn: return t * t;
+  case EasingEaseOut: return t * (2.0f - t);
+  case EasingEaseInOut: return t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
+  case EasingCubicInOut: return t < 0.5f ? 4.0f * t * t * t : (t - 1.0f) * (2.0f * t - 2.0f) * (2.0f * t - 2.0f) + 1.0f;
+  case EasingExpOut: return (t >= 1.0f) ? 1.0f : 1.0f - std::pow(2.0f, -10.0f * t);
+  default: return t;
+  }
+}
+
+static const char *easingName(int mode) {
+  switch (mode) {
+  case EasingLinear: return "Linear";
+  case EasingEaseIn: return "EaseIn";
+  case EasingEaseOut: return "EaseOut";
+  case EasingEaseInOut: return "EaseInOut";
+  case EasingCubicInOut: return "CubicInOut";
+  case EasingExpOut: return "ExpOut";
+  default: return "Linear";
+  }
+}
+
+static const char *transitionTypeName(int type) {
+  switch (type) {
+  case TransCrossfade: return "Crossfade";
+  case TransWipeLeft: return "WipeLeft";
+  case TransWipeRight: return "WipeRight";
+  case TransZoomIn: return "ZoomIn";
+  case TransZoomOut: return "ZoomOut";
+  default: return "Crossfade";
+  }
+}
+
 static void renderFrame() {
   if (!g_shader)
     return;
 
   glClear(GL_COLOR_BUFFER_BIT);
 
-  g_shader->update(1.0f / 60.0f, g_width, g_height, g_mouseX, g_mouseY);
+  if (g_inTransition && g_nextShader && g_nextShader->program) {
+    float alpha1 = 1.0f - g_transitionProgress;
+    float alpha2 = g_transitionProgress;
 
-  glUseProgram(g_shader->program);
+    // Draw current shader
+    g_shader->update(1.0f / 60.0f, g_width, g_height, g_mouseX, g_mouseY);
+    glUseProgram(g_shader->program);
+    float vertices[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
+    GLint posLoc = glGetAttribLocation(g_shader->program, "position");
+    if (posLoc >= 0) {
+      glEnableVertexAttribArray(posLoc);
+      glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    }
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    // Blend next shader on top
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-  // Draw fullscreen quad
-  float vertices[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
+    g_nextShader->update(1.0f / 60.0f, g_width, g_height, g_mouseX, g_mouseY);
+    g_nextShader->uniforms.alpha = alpha2;
+    glBindBuffer(GL_UNIFORM_BUFFER, g_nextShader->ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Uniforms), &g_nextShader->uniforms);
+    glUseProgram(g_nextShader->program);
+    posLoc = glGetAttribLocation(g_nextShader->program, "position");
+    if (posLoc >= 0) {
+      glEnableVertexAttribArray(posLoc);
+      glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    }
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-  GLint posLoc = glGetAttribLocation(g_shader->program, "position");
-  if (posLoc >= 0) {
-    glEnableVertexAttribArray(posLoc);
-    glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    glDisable(GL_BLEND);
+    glUseProgram(0);
+  } else {
+    g_shader->update(1.0f / 60.0f, g_width, g_height, g_mouseX, g_mouseY);
+
+    glUseProgram(g_shader->program);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    // Draw fullscreen quad
+    float vertices[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
+
+    GLint posLoc = glGetAttribLocation(g_shader->program, "position");
+    if (posLoc >= 0) {
+      glEnableVertexAttribArray(posLoc);
+      glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    }
+
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   }
-
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
 static void handleSignal(int signum) { g_running = false; }
@@ -850,8 +986,48 @@ static bool loadShaderByIndex(size_t index) {
 static void goToNextShader() {
   if (g_shaderList.empty())
     return;
-  size_t nextIndex = (g_currentShaderIndex + 1) % g_shaderList.size();
-  loadShaderByIndex(nextIndex);
+
+  size_t nextIndex;
+  if (g_shuffleMode) {
+    std::vector<size_t> candidates;
+    for (size_t i = 0; i < g_shaderList.size(); i++) {
+      if (i != g_currentShaderIndex &&
+          g_skipList.find(g_shaderList[i]) == g_skipList.end()) {
+        candidates.push_back(i);
+      }
+    }
+    if (candidates.empty()) {
+      for (size_t i = 0; i < g_shaderList.size(); i++) {
+        if (i != g_currentShaderIndex) candidates.push_back(i);
+      }
+    }
+    if (candidates.empty()) return;
+    std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+    nextIndex = candidates[dist(g_rng)];
+  } else {
+    nextIndex = (g_currentShaderIndex + 1) % g_shaderList.size();
+    int attempts = 0;
+    while (g_skipList.find(g_shaderList[nextIndex]) != g_skipList.end() &&
+           attempts < static_cast<int>(g_shaderList.size())) {
+      nextIndex = (nextIndex + 1) % g_shaderList.size();
+      attempts++;
+    }
+  }
+
+  // Load new shader without destroying old one (for transition)
+  if (g_shaderList.empty() || nextIndex >= g_shaderList.size())
+    return;
+
+  GLESShaderProgram *nextProg = new GLESShaderProgram();
+  if (!nextProg->loadFromFile(g_shaderList[nextIndex].c_str())) {
+    delete nextProg;
+    return;
+  }
+
+  g_nextShader = nextProg;
+  g_inTransition = true;
+  g_transitionProgress = 0.0f;
+  g_transitionStart = std::chrono::steady_clock::now();
 }
 
 static void goToPreviousShader() {
@@ -913,6 +1089,10 @@ static bool loadShader(const std::string &path) {
 }
 
 static void cleanupAll() {
+  if (g_nextShader) {
+    delete g_nextShader;
+    g_nextShader = nullptr;
+  }
   if (g_shader) {
     delete g_shader;
     g_shader = nullptr;
@@ -1109,11 +1289,33 @@ int main(int argc, char *argv[]) {
     // Check for shader hot-reload
     checkForShaderChanges();
 
-    // Check for shader auto-switch
     auto now = std::chrono::steady_clock::now();
+
+    // Update transition
+    if (g_inTransition && g_nextShader) {
+      float elapsed =
+          std::chrono::duration<float>(now - g_transitionStart).count();
+      float rawProgress = elapsed / g_transitionDuration;
+      g_transitionProgress = applyEasing(std::min(rawProgress, 1.0f));
+      if (rawProgress >= 1.0f) {
+        // Complete transition
+        if (g_shader) delete g_shader;
+        g_shader = g_nextShader;
+        g_nextShader = nullptr;
+        g_currentShader = g_shaderList[g_currentShaderIndex];
+        g_inTransition = false;
+        g_transitionProgress = 0.0f;
+        g_shaderStartTime = now;
+        std::cout << "Loaded shader [" << g_currentShaderIndex
+                  << "]: " << g_currentShader << std::endl;
+      }
+    }
+
+    // Check for shader auto-switch
     float shaderTime =
         std::chrono::duration<float>(now - g_shaderStartTime).count();
-    if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1) {
+    if (shaderTime > g_shaderDisplayTime && g_shaderList.size() > 1 &&
+        !g_inTransition) {
       goToNextShader();
     }
 
