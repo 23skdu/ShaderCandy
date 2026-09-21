@@ -290,7 +290,64 @@ flowchart TD
 
 ---
 
-## 7. Uniform Buffer Data Flow
+## 7. Transition System
+
+Configurable shader-to-shader transitions with easing functions, defined in `GLRendererTypes.h`:
+
+```mermaid
+flowchart TD
+    subgraph "GLTransitionConfig"
+        TC["type: GLTransitionType\neasing: GLEasingFunction\nduration: float (seconds)\nenabled: bool"]
+    end
+
+    subgraph "GLTransitionType"
+        TT["Crossfade | Dissolve\nWipeLeft | WipeRight | WipeUp | WipeDown\nZoomIn | ZoomOut\nSpinClockwise | SpinCounterClockwise"]
+    end
+
+    subgraph "GLEasingFunction"
+        EF["Linear | EaseIn | EaseOut | EaseInOut\nCubicIn | CubicOut | CubicInOut\nExponentialIn | ExponentialOut | ExponentialInOut"]
+    end
+
+    TC --> TT
+    TC --> EF
+
+    subgraph "Transition Execution"
+        A[Shader A: Outgoing] --> Blend["Blend Shader\n(mix uniform based on eased progress)"]
+        B[Shader B: Incoming] --> Blend
+        TC --> Blend
+        Blend --> Output[Rendered Frame]
+    end
+```
+
+---
+
+## 8. Post-Processing Config
+
+Full-screen post-processing effects managed via `GLPostProcessConfig` in `GLRendererTypes.h`:
+
+```mermaid
+flowchart TD
+    Scene[Scene Rendered to FBO] --> Vignette
+    Scene --> Chromatic
+    Scene --> FilmGrain
+    Scene --> CRT
+    Scene --> ColorTint
+
+    subgraph "GLPostProcessConfig"
+        Vignette["Vignette\nenabled | intensity | radius"]
+        Chromatic["Chromatic Aberration\nenabled | amount"]
+        FilmGrain["Film Grain\nenabled | intensity"]
+        CRT["CRT Scanlines\nenabled | intensity"]
+        ColorTint["Color Tint\nenabled | R | G | B"]
+    end
+
+    Vignette & Chromatic & FilmGrain & CRT & ColorTint --> Composite["Composite Pass"]
+    Composite --> Output[Final Frame]
+```
+
+---
+
+## 9. Uniform Buffer Data Flow
 
 Double-buffered CPU-to-GPU data synchronization ensuring zero frame tearing:
 
@@ -319,9 +376,9 @@ flowchart TD
 
 ---
 
-## 8. Test Framework & Regression Architecture
+## 10. Test Framework & Regression Architecture
 
-Comprehensive test suite with 101 tests across 9 suites:
+Comprehensive test suite with 105 tests across 9 suites:
 
 ```mermaid
 flowchart TD
@@ -345,7 +402,7 @@ flowchart TD
 
 ---
 
-## 9. Project Directory Layout
+## 11. Project Directory Layout
 
 ```mermaid
 graph TD

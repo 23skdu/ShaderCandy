@@ -20,7 +20,12 @@ All initial P0 blockers and Phase 1 core improvements have been completed, plus 
 - **UniformUploader**: Cached uniform location dispatch for GLRenderer (`src/gl/UniformUploader.h`).
 - **Shader Include Caching**: `GLSLWrapper` with mtime-based file caching for fast `#include` resolution.
 - **Audio Utils**: `packAudioForShader`, `getDominantFrequency`, `getSpectralCentroid`, `bandHasEnergy` (`src/audio/Utils`).
-- **Test Suite**: **101 tests across 9 suites**, 0 valgrind errors, 0 application memory leaks.
+- **Transition System**: 10 transition types + 10 easing functions with `GLTransitionConfig` (`src/gl/GLRendererTypes.h`).
+- **Post-Processing Config**: `GLPostProcessConfig` — vignette, chromatic aberration, film grain, CRT scanlines, color tint.
+- **Adaptive Quality**: `GLAdaptiveQualityConfig` — dynamic resolution scaling to maintain target FPS.
+- **Smart Shader Rotation**: Shuffle, favorites/skip lists, auto-rotate with configurable per-shader duration.
+- **UniformUploader Enhancements**: Now uploads ShaderParams (param1-6, colorPalette, effectFlags) and full audioData[256]; null-guard for headless mode.
+- **Test Suite**: **105 tests across 9 suites**, 0 valgrind errors, 0 application memory leaks.
 
 ---
 
