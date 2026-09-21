@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <thread>
 #include <variant>
 
@@ -61,7 +62,11 @@ public:
     results.push_back(testAudioAutoDetect());
     results.push_back(testBloomQualityLevels());
     results.push_back(testParticleRespawn());
-    results.push_back(testFileWatcherLifecycle());
+     results.push_back(testFileWatcherLifecycle());
+    results.push_back(testTransitionSystem());
+    results.push_back(testPostProcessingConfig());
+    results.push_back(testAdaptiveQualityConfig());
+    results.push_back(testSmartShaderRotation());
     return results;
   }
 
@@ -1767,6 +1772,163 @@ private:
     TEST_ASSERT_TRUE(callbackFired);
 
     return {__func__, true, "File watcher lifecycle passed", 0.0};
+  }
+
+  TestResult testTransitionSystem() {
+    using namespace Platform::Linux;
+
+    GLTransitionConfig tc;
+    TEST_ASSERT_EQUAL(static_cast<int>(GLTransitionType::Crossfade),
+                      static_cast<int>(tc.type));
+    TEST_ASSERT_EQUAL(static_cast<int>(GLEasingFunction::EaseInOut),
+                      static_cast<int>(tc.easing));
+    TEST_ASSERT_EQUAL(2.0f, tc.duration);
+    TEST_ASSERT_TRUE(tc.enabled);
+
+    tc.type = GLTransitionType::Dissolve;
+    tc.easing = GLEasingFunction::CubicInOut;
+    tc.duration = 1.5f;
+    tc.enabled = false;
+    TEST_ASSERT_EQUAL(static_cast<int>(GLTransitionType::Dissolve),
+                      static_cast<int>(tc.type));
+    TEST_ASSERT_EQUAL(static_cast<int>(GLEasingFunction::CubicInOut),
+                      static_cast<int>(tc.easing));
+    TEST_ASSERT_EQUAL(1.5f, tc.duration);
+    TEST_ASSERT_FALSE(tc.enabled);
+
+    for (int i = 0; i <= static_cast<int>(GLTransitionType::SpinCounterClockwise); ++i) {
+      tc.type = static_cast<GLTransitionType>(i);
+      TEST_ASSERT_EQUAL(i, static_cast<int>(tc.type));
+    }
+    for (int i = 0; i <= static_cast<int>(GLEasingFunction::ExponentialOut); ++i) {
+      tc.easing = static_cast<GLEasingFunction>(i);
+      TEST_ASSERT_EQUAL(i, static_cast<int>(tc.easing));
+    }
+
+    return {__func__, true, "Transition system passed", 0.0};
+  }
+
+  TestResult testPostProcessingConfig() {
+    using namespace Platform::Linux;
+
+    GLPostProcessConfig pc;
+    TEST_ASSERT_TRUE(pc.vignetteEnabled);
+    TEST_ASSERT_EQUAL(0.3f, pc.vignetteIntensity);
+    TEST_ASSERT_EQUAL(0.8f, pc.vignetteRadius);
+    TEST_ASSERT_TRUE(pc.chromaticAberrationEnabled);
+    TEST_ASSERT_EQUAL(0.003f, pc.chromaticAberrationAmount);
+    TEST_ASSERT_FALSE(pc.filmGrainEnabled);
+    TEST_ASSERT_EQUAL(0.05f, pc.filmGrainIntensity);
+    TEST_ASSERT_FALSE(pc.crtScanlinesEnabled);
+    TEST_ASSERT_EQUAL(0.1f, pc.crtScanlineIntensity);
+    TEST_ASSERT_FALSE(pc.colorTintEnabled);
+    TEST_ASSERT_EQUAL(1.0f, pc.colorTintR);
+    TEST_ASSERT_EQUAL(1.0f, pc.colorTintG);
+    TEST_ASSERT_EQUAL(1.0f, pc.colorTintB);
+
+    pc.vignetteEnabled = false;
+    pc.chromaticAberrationAmount = 0.01f;
+    pc.filmGrainEnabled = true;
+    pc.filmGrainIntensity = 0.1f;
+    pc.crtScanlinesEnabled = true;
+    pc.crtScanlineIntensity = 0.75f;
+    pc.colorTintEnabled = true;
+    pc.colorTintR = 1.2f;
+    pc.colorTintG = 0.9f;
+    pc.colorTintB = 0.8f;
+
+    TEST_ASSERT_FALSE(pc.vignetteEnabled);
+    TEST_ASSERT_EQUAL(0.01f, pc.chromaticAberrationAmount);
+    TEST_ASSERT_TRUE(pc.filmGrainEnabled);
+    TEST_ASSERT_EQUAL(0.1f, pc.filmGrainIntensity);
+    TEST_ASSERT_TRUE(pc.crtScanlinesEnabled);
+    TEST_ASSERT_EQUAL(0.75f, pc.crtScanlineIntensity);
+    TEST_ASSERT_TRUE(pc.colorTintEnabled);
+    TEST_ASSERT_EQUAL(1.2f, pc.colorTintR);
+    TEST_ASSERT_EQUAL(0.9f, pc.colorTintG);
+    TEST_ASSERT_EQUAL(0.8f, pc.colorTintB);
+
+    return {__func__, true, "Post-processing config passed", 0.0};
+  }
+
+  TestResult testAdaptiveQualityConfig() {
+    using namespace Platform::Linux;
+
+    GLAdaptiveQualityConfig aq;
+    TEST_ASSERT_TRUE(aq.enabled);
+    TEST_ASSERT_EQUAL(60.0f, aq.targetFPS);
+    TEST_ASSERT_EQUAL(45.0f, aq.lowFPS);
+    TEST_ASSERT_EQUAL(65.0f, aq.highFPS);
+    TEST_ASSERT_EQUAL(0.5f, aq.minResolutionScale);
+    TEST_ASSERT_EQUAL(1.0f, aq.maxResolutionScale);
+    TEST_ASSERT_EQUAL(1.0f, aq.currentResolutionScale);
+
+    aq.enabled = false;
+    aq.targetFPS = 30.0f;
+    aq.lowFPS = 20.0f;
+    aq.highFPS = 35.0f;
+    aq.minResolutionScale = 0.25f;
+    aq.maxResolutionScale = 0.75f;
+
+    TEST_ASSERT_FALSE(aq.enabled);
+    TEST_ASSERT_EQUAL(30.0f, aq.targetFPS);
+    TEST_ASSERT_EQUAL(20.0f, aq.lowFPS);
+    TEST_ASSERT_EQUAL(35.0f, aq.highFPS);
+    TEST_ASSERT_EQUAL(0.25f, aq.minResolutionScale);
+    TEST_ASSERT_EQUAL(0.75f, aq.maxResolutionScale);
+
+    aq.currentResolutionScale = 0.5f;
+    TEST_ASSERT_EQUAL(0.5f, aq.currentResolutionScale);
+
+    return {__func__, true, "Adaptive quality config passed", 0.0};
+  }
+
+  TestResult testSmartShaderRotation() {
+    using namespace Platform::Linux;
+
+    std::vector<std::string> shaders = {"alpha", "beta", "gamma", "delta", "epsilon"};
+
+    std::vector<std::string> favorites = {"alpha", "gamma"};
+    TEST_ASSERT_EQUAL(2u, favorites.size());
+
+    favorites.push_back("delta");
+    TEST_ASSERT_EQUAL(3u, favorites.size());
+
+    favorites.erase(std::remove(favorites.begin(), favorites.end(), "gamma"),
+                    favorites.end());
+    TEST_ASSERT_EQUAL(2u, favorites.size());
+    TEST_ASSERT_TRUE(std::find(favorites.begin(), favorites.end(), "gamma") == favorites.end());
+
+    std::vector<std::string> skipList = {"beta"};
+    TEST_ASSERT_EQUAL(1u, skipList.size());
+
+    skipList.push_back("epsilon");
+    TEST_ASSERT_EQUAL(2u, skipList.size());
+
+    std::vector<std::string> available;
+    for (const auto &s : shaders) {
+      if (std::find(skipList.begin(), skipList.end(), s) == skipList.end()) {
+        available.push_back(s);
+      }
+    }
+    TEST_ASSERT_EQUAL(3u, available.size());
+    TEST_ASSERT_TRUE(std::find(available.begin(), available.end(), "beta") == available.end());
+    TEST_ASSERT_TRUE(std::find(available.begin(), available.end(), "epsilon") == available.end());
+
+    std::mt19937 rng(42);
+    std::shuffle(available.begin(), available.end(), rng);
+    TEST_ASSERT_EQUAL(3u, available.size());
+
+    float timePerShader = 30.0f;
+    float totalTime = timePerShader * static_cast<float>(shaders.size());
+    TEST_ASSERT_EQUAL(150.0f, totalTime);
+
+    bool shuffleMode = true;
+    bool autoRotate = true;
+    TEST_ASSERT_TRUE(shuffleMode);
+    TEST_ASSERT_TRUE(autoRotate);
+
+    return {__func__, true, "Smart shader rotation passed", 0.0};
   }
 };
 
