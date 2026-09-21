@@ -616,6 +616,27 @@ if(LINUX AND BUILD_SCREENSAVER_LINUX)
                 install(TARGETS shadercandy-player
                     RUNTIME DESTINATION bin
                 )
+
+                # Benchmark tool
+                add_executable(shadercandy-bench src/tools/ShaderBenchmark.cpp)
+                target_include_directories(shadercandy-bench PRIVATE
+                    src/core
+                    src/platform/linux
+                    ${GLFW_INCLUDE_DIRS}
+                )
+                target_link_libraries(shadercandy-bench PRIVATE
+                    shadercandy_core
+                    ${GLFW_LIBRARIES}
+                    ${GLFW_STATIC_LIBRARIES}
+                    GL
+                    pthread
+                )
+                target_compile_options(shadercandy-bench PRIVATE
+                    ${GLFW_CFLAGS_OTHER}
+                )
+                install(TARGETS shadercandy-bench
+                    RUNTIME DESTINATION bin
+                )
             else()
                 message(STATUS "GLFW3 not found. Standalone player will not be built.")
             endif()
@@ -861,6 +882,7 @@ endif()
 install(FILES
     docs/man/shadercandy-screensaver.1
     docs/man/shadercandy-player.1
+    docs/man/shadercandy-bench.1
     DESTINATION share/man/man1
 )
 

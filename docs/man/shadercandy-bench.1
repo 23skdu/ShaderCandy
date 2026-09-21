@@ -1,0 +1,50 @@
+.TH SHADERCANDY-BENCH 1 "2026-09-20" "ShaderCandy 0.2.0" "User Commands"
+.SH NAME
+shadercandy-bench \- GPU shader performance benchmark
+.SH SYNOPSIS
+.B shadercandy-bench
+.RI [ options ]
+.SH DESCRIPTION
+.B shadercandy-bench
+compiles all shaders, measures render FPS, and outputs a baseline performance
+report. It uses an offscreen GLFW context for rendering and reports compile
+times, average/min/max FPS per shader.
+.SH OPTIONS
+.TP
+.BI \-dir " path"
+Add a shader directory (can be used multiple times).
+.TP
+.BI \-frames " n"
+Render frames per shader (default: 120).
+.TP
+.BI \-width " pixels"
+Render width (default: 1920).
+.TP
+.BI \-height " pixels"
+Render height (default: 1080).
+.TP
+.BI \-output " path"
+Save report to a JSON file.
+.TP
+.B \-h\fR, \fB\-\-help
+Show usage information.
+.SH OUTPUT
+The benchmark prints a table with columns: Shader name, compile time (ms),
+average FPS, minimum FPS, and maximum FPS. A summary section follows with
+aggregate statistics.
+.SH EXAMPLES
+.nf
+# Benchmark all shaders in ./shaders
+shadercandy-bench -dir shaders
+
+# Benchmark with custom parameters
+shadercandy-bench -dir shaders -frames 300 -width 1280 -height 720
+
+# Save JSON report
+shadercandy-bench -dir shaders -output baseline.json
+.fi
+.SH SEE ALSO
+.BR shadercandy-screensaver (1),
+.BR shadercandy-player (1)
+.SH AUTHORS
+ShaderCandy contributors.

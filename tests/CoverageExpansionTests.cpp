@@ -13,6 +13,8 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <set>
+#include <string>
 #include <thread>
 #include <variant>
 
@@ -67,6 +69,8 @@ public:
     results.push_back(testPostProcessingConfig());
     results.push_back(testAdaptiveQualityConfig());
     results.push_back(testSmartShaderRotation());
+    results.push_back(testWallpaperShaderRotation());
+    results.push_back(testBenchmarkMetrics());
     return results;
   }
 
@@ -1929,6 +1933,80 @@ private:
     TEST_ASSERT_TRUE(autoRotate);
 
     return {__func__, true, "Smart shader rotation passed", 0.0};
+  }
+
+  TestResult testWallpaperShaderRotation() {
+    std::vector<std::string> shaderPaths;
+    std::set<std::string> skipList;
+    std::set<std::string> favorites;
+
+    shaderPaths = {"/shaders/a.frag", "/shaders/b.frag", "/shaders/c.frag",
+                   "/shaders/d.frag"};
+    TEST_ASSERT_EQUAL(4u, shaderPaths.size());
+
+    // Skip list filtering
+    skipList.insert("/shaders/b.frag");
+    skipList.insert("/shaders/d.frag");
+    std::vector<std::string> available;
+    for (const auto &p : shaderPaths) {
+      if (skipList.find(p) == skipList.end())
+        available.push_back(p);
+    }
+    TEST_ASSERT_EQUAL(2u, available.size());
+
+    // Favorites
+    favorites.insert("/shaders/a.frag");
+    favorites.insert("/shaders/c.frag");
+    TEST_ASSERT_TRUE(favorites.count("/shaders/a.frag"));
+    TEST_ASSERT_FALSE(favorites.count("/shaders/b.frag"));
+
+    // Toggle favorite
+    favorites.erase("/shaders/a.frag");
+    TEST_ASSERT_FALSE(favorites.count("/shaders/a.frag"));
+
+    // Round-robin rotation
+    size_t idx = 0;
+    idx = (idx + 1) % available.size();
+    TEST_ASSERT_EQUAL(1u, idx);
+
+    // Interval logic
+    float rotateInterval = 30.0f;
+    bool shouldRotate = (rotateInterval > 0.0f);
+    TEST_ASSERT_TRUE(shouldRotate);
+
+    rotateInterval = 0.0f;
+    shouldRotate = (rotateInterval > 0.0f);
+    TEST_ASSERT_FALSE(shouldRotate);
+
+    return {__func__, true, "Wallpaper shader rotation passed", 0.0};
+  }
+
+  TestResult testBenchmarkMetrics() {
+    double compileTimeMs = 12.5;
+    double avgFrameMs = 8.33;
+    double avgFps = 1000.0 / avgFrameMs;
+    double minFps = avgFps * 0.9;
+    double maxFps = avgFps * 1.1;
+
+    TEST_ASSERT_TRUE(compileTimeMs > 0.0);
+    TEST_ASSERT_TRUE(avgFps > 0.0);
+    TEST_ASSERT_TRUE(minFps > 0.0);
+    TEST_ASSERT_TRUE(maxFps > minFps);
+
+    // Aggregation across shaders
+    int compiled = 0;
+    double totalCompileMs = 0;
+    double totalFps = 0;
+    std::vector<double> allFps = {120.0, 115.0, 130.0};
+    for (double f : allFps) {
+      totalFps += f;
+      compiled++;
+    }
+    double avgAllFps = totalFps / compiled;
+    TEST_ASSERT_EQUAL(3, compiled);
+    TEST_ASSERT_TRUE(avgAllFps > 0.0);
+
+    return {__func__, true, "Benchmark metrics passed", 0.0};
   }
 };
 

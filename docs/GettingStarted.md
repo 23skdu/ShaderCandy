@@ -48,7 +48,20 @@ echo "programs: \n  shadercandy-screensaver -root \\n" >> ~/.xscreensaver
 
 ### Wallpaper Mode
 ```bash
+# Single shader
 ./shadercandy-wallpaper --shader ./shaders/effects/plasma.frag
+
+# Auto-rotate through directory with 20s interval and shuffle
+./shadercandy-wallpaper -dir ./shaders -rotate 20 -shuffle
+```
+
+### Benchmark
+```bash
+# Run GPU performance benchmark
+./shadercandy-bench -dir shaders
+
+# Save JSON report
+./shadercandy-bench -dir shaders -output baseline.json -frames 300
 ```
 
 ## Keyboard Shortcuts
