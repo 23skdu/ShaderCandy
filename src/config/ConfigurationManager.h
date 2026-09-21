@@ -113,6 +113,7 @@ public:
   std::vector<ShaderConfig>
   getShadersByCategory(const std::string &category) const;
   ShaderConfig *getShaderConfig(const std::string &shaderName);
+  ShaderConfig getShaderMetadata(const std::string &shaderName) const;
 
   // Parameter values
   void setParameter(const std::string &shader, const std::string &param,

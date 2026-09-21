@@ -76,6 +76,18 @@ ConfigurationManager::getShaderConfig(const std::string &shaderName) {
   return (it != shaderConfigs_.end()) ? &it->second : nullptr;
 }
 
+ShaderConfig ConfigurationManager::getShaderMetadata(
+    const std::string &shaderName) const {
+  auto it = shaderConfigs_.find(shaderName);
+  if (it != shaderConfigs_.end()) {
+    return it->second;
+  }
+  ShaderConfig empty;
+  empty.shaderName = shaderName;
+  empty.displayName = shaderName;
+  return empty;
+}
+
 void ConfigurationManager::setParameter(const std::string &shader,
                                         const std::string &param,
                                         ConfigValue value) {

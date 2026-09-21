@@ -10,6 +10,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <string>
 #include <thread>
@@ -315,6 +316,9 @@ private:
   std::thread fileWatcherThread_;
   std::atomic<bool> fileWatcherRunning_{false};
   std::unordered_map<std::string, int> watchDescriptors_;
+
+  // Thread safety: guards shaderPrograms_, shaderPaths_, shaderModTimes_
+  mutable std::mutex shaderMutex_;
 };
 
 } // namespace Linux

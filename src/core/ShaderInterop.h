@@ -9,6 +9,10 @@
 /// @details Defines the Uniforms struct and vector types used to pass
 ///          per-frame data from the application to shaders on both platforms.
 
+// Shader API version — increment when the uniform block layout changes.
+// Shaders can check this at compile time: #if SHADERCANDY_API_VERSION >= 2
+#define SHADERCANDY_API_VERSION 1
+
 // Metal shaders include metal_stdlib before this file
 // For non-Metal C++ code, we need these includes
 #ifndef __METAL_VERSION__

@@ -845,6 +845,25 @@ install(FILES
                 WORLD_READ WORLD_EXECUTE
 )
 
+# Desktop file and icons
+install(FILES linux/shadercandy.desktop
+    DESTINATION share/applications
+)
+# Install icons if they exist
+file(GLOB ICON_FILES "linux/*.png" "linux/*.svg")
+if(ICON_FILES)
+    install(FILES ${ICON_FILES}
+        DESTINATION share/icons/hicolor/scalable/apps
+    )
+endif()
+
+# Man pages
+install(FILES
+    docs/man/shadercandy-screensaver.1
+    docs/man/shadercandy-player.1
+    DESTINATION share/man/man1
+)
+
 # Documentation
 find_package(Doxygen)
 if(Doxygen_FOUND)

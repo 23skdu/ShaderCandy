@@ -1,0 +1,57 @@
+.TH SHADERCANDY-PLAYER 1 "2026-09-20" "ShaderCandy 0.2.0" "User Commands"
+.SH NAME
+shadercandy-player \- standalone shader player with interactive controls
+.SH SYNOPSIS
+.B shadercandy-player
+.RI [ options ]
+.SH DESCRIPTION
+.B shadercandy-player
+is a standalone GLFW-based shader player with interactive keyboard controls,
+crossfade transitions, shuffle mode, and audio reactivity.
+.SH OPTIONS
+.TP
+.BI \-shader " path"
+Start with a specific shader file.
+.TP
+.BI \-dir " path"
+Add a shader directory.
+.TP
+.B \-audio
+Enable audio reactivity.
+.TP
+.B \-w\fR, \fB\-\-width " pixels"
+Set window width (default: 1280).
+.TP
+.B \-h\fR, \fB\-\-height " pixels"
+Set window height (default: 720).
+.SH KEYBOARD CONTROLS
+.TP
+.B Right Arrow / Space / P / Tab
+Next shader (with crossfade transition).
+.TP
+.B Left Arrow / N
+Previous shader.
+.TP
+.B S
+Toggle shuffle mode.
+.TP
+.B X
+Skip current shader.
+.TP
+.B F / F11
+Toggle fullscreen.
+.TP
+.B R
+Force recompile and reload.
+.TP
+.B D
+Toggle debug overlay.
+.TP
+.B ESC
+Quit.
+.SH SEE ALSO
+.BR shadercandy-screensaver (1),
+.BR shadercandy-wallpaper (1),
+.BR shadercandy-wayland (1)
+.SH AUTHORS
+ShaderCandy contributors.
