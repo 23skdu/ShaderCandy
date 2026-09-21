@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keyboard shortcuts: S (shuffle), F (favorite), X (skip), E (cycle easing), Shift+T (cycle transition type)
 - inotify-based file watcher with 100ms polling for shader hot-reload
 - GLSL include caching with mtime-based invalidation
+- Wallpaper multi-shader rotation with `-dir`, `-rotate`, `-shuffle` options
+- `shadercandy-bench` GPU shader performance benchmark tool with JSON export
+- Thread safety: `std::mutex` guards on GLRenderer shared state
+- TSAN + UBSAN CI jobs alongside ASAN
+- Man pages for all executables, GettingStarted.md, CHANGELOG.md
+- `SHADERCANDY_API_VERSION` define for shader compile-time API checks
+- `getShaderMetadata()` API on ConfigurationManager
+- CMake install targets for desktop files, icons, man pages
 - FBO-based post-processing with tone mapping and bloom pipeline
 - HeadlessRenderer video encoding via ffmpeg (PNG/JPG/PPM output)
 - Error callback propagation (setErrorCallback)
@@ -35,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Wayland screensaver now has full feature parity with X11 (transitions, shuffle, easing, favorites, skip)
 - PulseAudio preferred over ALSA per CMakeLists.txt (documentation corrected)
-- Test count: 109 tests across 10 suites, 0 valgrind errors
+- Test count: 111 tests across 10 suites, 0 valgrind errors
 
 ## [0.2.0] - 2025-01-01
 

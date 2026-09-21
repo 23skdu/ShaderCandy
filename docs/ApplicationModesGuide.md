@@ -1,9 +1,10 @@
 # ShaderCandy Application & Desktop Modes Guide
 
-ShaderCandy provides three distinct execution modes across macOS and Linux:
+ShaderCandy provides four execution modes across macOS and Linux:
 1. **Standalone Player Mode**: Resizable, windowed or fullscreen interactive player with UI controls, preset management, and parameter adjustments.
-2. **Desktop Wallpaper Mode**: Real-time procedural wallpaper rendering behind desktop icons and windows.
+2. **Desktop Wallpaper Mode**: Real-time procedural wallpaper rendering behind desktop icons and windows, with multi-shader rotation support.
 3. **Screensaver Mode**: Lock-screen and idle screensaver with automatic wake detection and display power management.
+4. **Benchmark Mode**: GPU shader performance benchmark for profiling and baseline measurements.
 
 ---
 

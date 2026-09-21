@@ -14,16 +14,21 @@
 #include <X11/extensions/Xrender.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <random>
+#include <set>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
 #include <thread>
+#include <vector>
 
 #include "../../audio/AudioInput.h"
 using namespace ShaderCandy::Audio;
@@ -87,6 +92,16 @@ public:
 
   std::string currentShaderPath;
 
+  // Shader rotation
+  std::vector<std::string> shaderPaths;
+  size_t currentShaderIndex = 0;
+  bool shuffleMode = false;
+  float rotateInterval = 30.0f;
+  std::chrono::steady_clock::time_point lastRotateTime;
+  std::set<std::string> favorites;
+  std::set<std::string> skipList;
+  std::mt19937 rng{std::random_device{}()};
+
   // Audio
   std::unique_ptr<AudioInput> audioInput;
   // IPC
@@ -99,6 +114,11 @@ public:
   bool loadShader(const char *path);
   void render();
   void updateUniforms();
+  void scanShaderDir(const std::string &dir);
+  void rotateShader();
+  std::string getNextShaderPath();
+  void toggleFavorite();
+  void skipCurrentShader();
 
 private:
   std::string loadShaderWithIncludes(const char *path, int depth = 0);
@@ -354,19 +374,41 @@ bool WallpaperEngine::setupRenderWindow() {
 
 bool WallpaperEngine::initialize(int argc, char **argv) {
   std::string shaderPath;
+  std::vector<std::string> shaderDirs;
 
   // Parse arguments
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-shader") == 0 && i + 1 < argc) {
       shaderPath = argv[++i];
+    } else if (strcmp(argv[i], "-dir") == 0 && i + 1 < argc) {
+      shaderDirs.push_back(argv[++i]);
+    } else if (strcmp(argv[i], "-rotate") == 0 && i + 1 < argc) {
+      rotateInterval = std::stof(argv[++i]);
+    } else if (strcmp(argv[i], "-shuffle") == 0) {
+      shuffleMode = true;
     } else if (strcmp(argv[i], "-audio") == 0) {
       enableAudio = true;
     }
   }
 
-  // Default shader
+  // Scan shader directories
+  for (const auto &dir : shaderDirs) {
+    scanShaderDir(dir);
+  }
+
+  // If no explicit shader and no dirs found, scan defaults
+  if (shaderPath.empty() && shaderPaths.empty()) {
+    scanShaderDir("./shaders");
+    scanShaderDir(getHomeDir() + "/.local/share/shadercandy/shaders");
+  }
+
+  // Default shader if no rotation pool
   if (shaderPath.empty()) {
-    shaderPath = "./shaders/nebula.frag";
+    if (!shaderPaths.empty()) {
+      shaderPath = shaderPaths[0];
+    } else {
+      shaderPath = "./shaders/nebula.frag";
+    }
   }
 
   // Open display
@@ -489,8 +531,80 @@ void WallpaperEngine::render() {
   glXSwapBuffers(display, renderWindow);
 }
 
+void WallpaperEngine::scanShaderDir(const std::string &dir) {
+  namespace fs = std::filesystem;
+  if (!fs::exists(dir) || !fs::is_directory(dir))
+    return;
+
+  for (const auto &entry : fs::directory_iterator(dir)) {
+    if (!entry.is_regular_file())
+      continue;
+    auto ext = entry.path().extension().string();
+    if (ext == ".frag" || ext == ".glsl") {
+      shaderPaths.push_back(entry.path().string());
+    }
+  }
+
+  std::sort(shaderPaths.begin(), shaderPaths.end());
+  std::cout << "Found " << shaderPaths.size() << " shaders in " << dir
+            << std::endl;
+}
+
+std::string WallpaperEngine::getNextShaderPath() {
+  if (shaderPaths.empty())
+    return "";
+
+  if (shuffleMode) {
+    std::uniform_int_distribution<size_t> dist(0, shaderPaths.size() - 1);
+    return shaderPaths[dist(rng)];
+  }
+
+  size_t attempts = 0;
+  do {
+    currentShaderIndex = (currentShaderIndex + 1) % shaderPaths.size();
+    attempts++;
+  } while (skipList.count(shaderPaths[currentShaderIndex]) &&
+           attempts < shaderPaths.size());
+
+  return shaderPaths[currentShaderIndex];
+}
+
+void WallpaperEngine::rotateShader() {
+  if (shaderPaths.empty())
+    return;
+
+  std::string nextPath = getNextShaderPath();
+  if (nextPath.empty())
+    return;
+
+  std::cout << "Rotating to shader: " << nextPath << std::endl;
+  loadShader(nextPath.c_str());
+}
+
+void WallpaperEngine::toggleFavorite() {
+  if (currentShaderPath.empty())
+    return;
+  auto it = favorites.find(currentShaderPath);
+  if (it != favorites.end()) {
+    favorites.erase(it);
+    std::cout << "Removed from favorites: " << currentShaderPath << std::endl;
+  } else {
+    favorites.insert(currentShaderPath);
+    std::cout << "Added to favorites: " << currentShaderPath << std::endl;
+  }
+}
+
+void WallpaperEngine::skipCurrentShader() {
+  if (currentShaderPath.empty())
+    return;
+  skipList.insert(currentShaderPath);
+  std::cout << "Skipped: " << currentShaderPath << std::endl;
+  rotateShader();
+}
+
 void WallpaperEngine::run() {
   XEvent event;
+  lastRotateTime = std::chrono::steady_clock::now();
 
   while (running) {
     // Process X11 events (non-blocking)
@@ -504,6 +618,17 @@ void WallpaperEngine::run() {
           height = event.xconfigure.height;
           glViewport(0, 0, width, height);
         }
+      }
+    }
+
+    // Auto-rotate shaders
+    if (rotateInterval > 0.0f && !shaderPaths.empty()) {
+      auto now = std::chrono::steady_clock::now();
+      float elapsed =
+          std::chrono::duration<float>(now - lastRotateTime).count();
+      if (elapsed >= rotateInterval) {
+        rotateShader();
+        lastRotateTime = now;
       }
     }
 
@@ -562,14 +687,16 @@ void printUsage(const char *program) {
       << "ShaderCandy Linux Wallpaper\n"
       << "Usage: " << program << " [options]\n"
       << "Options:\n"
-      << "  -shader <path>     Path to shader file (default: "
-         "./shaders/nebula.frag)\n"
+      << "  -shader <path>     Path to shader file\n"
+      << "  -dir <path>        Add shader directory (can be used multiple times)\n"
+      << "  -rotate <seconds>  Auto-rotate interval (default: 30, 0 = off)\n"
+      << "  -shuffle           Enable shuffle mode\n"
       << "  -audio             Enable audio reactivity\n"
       << "\nNote: This requires a compositor that supports desktop windows.\n"
       << "      For best results, use with xwinwrap or a similar tool.\n"
       << "\nExample with xwinwrap:\n"
       << "  xwinwrap -ov -fs -- " << program
-      << " -shader ./shaders/plasma.frag\n";
+      << " -dir ./shaders -rotate 20 -shuffle\n";
 }
 
 int main(int argc, char **argv) {
