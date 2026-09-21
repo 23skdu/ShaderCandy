@@ -2,7 +2,7 @@
 
 This document provides a complete catalog of all available shaders in ShaderCandy, organized by category.
 
-**Total Shaders:** 110 unique effects  
+**Total Shaders:** 113 unique effects  
 **Platforms:** macOS (Metal), Linux (OpenGL/GLSL)  
 **Build Requirements:** CMake 3.20+, C++17
 
@@ -1565,8 +1565,8 @@ shaders/
 │   ├── common.metal     # Metal common definitions
 │   ├── utils.metal      # Metal utility functions
 │   └── default.metal    # Default shader
-├── effects/             # Visual effects (49 shaders)
-├── music/              # Music-reactive (10 shaders)
+├── effects/             # Visual effects (52 shaders)
+├── music/               # Music-reactive (10 shaders)
 ├── audio/               # Audio visualization (1 shader)
 ├── neural/              # Neural network effects (1 shader)
 ├── system/

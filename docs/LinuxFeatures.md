@@ -43,16 +43,11 @@ flowchart TD
         HR --> Ffmpeg["ffmpeg Video Encoding\n(PNG / JPG / PPM output)"]
     end
 
-    subgraph "Capture & Encoding"
-        GL --> HR2["HeadlessRenderer"]
-        HR2 --> Ffmpeg2["ffmpeg Video Encoding\n(PNG / JPG / PPM output)"]
-    end
-
     subgraph "Audio Capture Subsystem"
         Audio["System Audio / Microphone"] --> AudioChoice{Audio Backend}
-        AudioChoice -->|Default| ALSA["ALSA Direct Capture + FFTW3"]
-        AudioChoice -->|Pulse/PipeWire| PW["PulseAudio Wrapper / PipeWire 0.3 SPA"]
-        ALSA & PW --> FFT["Spectral Analysis (256 FFT Bins, Bass/Mid/Treble/Beat)"]
+        AudioChoice -->|Default| PW["PulseAudio / PipeWire\n(preferred via CMake)"]
+        AudioChoice -->|Fallback| ALSA["ALSA Direct Capture + FFTW3"]
+        PW & ALSA --> FFT["Spectral Analysis (256 FFT Bins, Bass/Mid/Treble/Beat)"]
         FFT --> AU["Audio Utils\n(packAudioForShader, getDominantFrequency,\ngetSpectralCentroid, bandHasEnergy)"]
     end
 
