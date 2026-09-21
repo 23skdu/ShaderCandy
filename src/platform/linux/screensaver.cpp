@@ -6,6 +6,7 @@
 #include "LinuxStubs.h"
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
@@ -14,7 +15,9 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <sys/stat.h>
+#include <unordered_set>
 #include <unistd.h>
 #include <vector>
 
@@ -130,6 +133,22 @@ private:
   std::chrono::steady_clock::time_point transitionStart;
   float timePerShader = 60.0f; // Seconds before auto-switch
   std::chrono::steady_clock::time_point shaderStartTime;
+
+  // Transition easing
+  enum EasingMode { EasingLinear, EasingEaseIn, EasingEaseOut, EasingEaseInOut, EasingCubicInOut, EasingExpOut, Easing_COUNT };
+  int easingMode = EasingLinear;
+
+  // Transition type
+  enum TransitionType { TransCrossfade, TransDissolve, TransWipeLeft, TransWipeRight, TransZoomIn, TransZoomOut, Trans_COUNT };
+  int transitionType = TransCrossfade;
+
+  // Shuffle mode
+  bool shuffleMode = false;
+  std::mt19937 rng{std::random_device{}()};
+
+  // Favorites & skip
+  std::unordered_set<std::string> favorites;
+  std::unordered_set<std::string> skipList;
 
   // OSD notification
   std::string notificationText;
@@ -548,13 +567,76 @@ public:
     }
   }
 
+  float applyEasing(float t) const {
+    switch (easingMode) {
+    case EasingEaseIn: return t * t;
+    case EasingEaseOut: return t * (2.0f - t);
+    case EasingEaseInOut: return t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
+    case EasingCubicInOut: return t < 0.5f ? 4.0f * t * t * t : (t - 1.0f) * (2.0f * t - 2.0f) * (2.0f * t - 2.0f) + 1.0f;
+    case EasingExpOut: return (t >= 1.0f) ? 1.0f : 1.0f - std::pow(2.0f, -10.0f * t);
+    default: return t;
+    }
+  }
+
+  static const char *easingName(int mode) {
+    switch (mode) {
+    case EasingLinear: return "Linear";
+    case EasingEaseIn: return "EaseIn";
+    case EasingEaseOut: return "EaseOut";
+    case EasingEaseInOut: return "EaseInOut";
+    case EasingCubicInOut: return "CubicInOut";
+    case EasingExpOut: return "ExpOut";
+    default: return "Linear";
+    }
+  }
+
+  static const char *transitionTypeName(int type) {
+    switch (type) {
+    case TransCrossfade: return "Crossfade";
+    case TransDissolve: return "Dissolve";
+    case TransWipeLeft: return "WipeLeft";
+    case TransWipeRight: return "WipeRight";
+    case TransZoomIn: return "ZoomIn";
+    case TransZoomOut: return "ZoomOut";
+    default: return "Crossfade";
+    }
+  }
+
   void goToNextShader() {
     if (shaders.size() <= 1)
       return;
 
-    nextShader = shaders[(currentShaderIndex + 1) % shaders.size()];
-    currentShaderIndex = (currentShaderIndex + 1) % shaders.size();
+    if (shuffleMode) {
+      std::vector<size_t> candidates;
+      for (size_t i = 0; i < shaders.size(); i++) {
+        if (static_cast<int>(i) != static_cast<int>(currentShaderIndex) &&
+            skipList.find(shaders[i]->name) == skipList.end()) {
+          candidates.push_back(i);
+        }
+      }
+      if (candidates.empty()) {
+        for (size_t i = 0; i < shaders.size(); i++) {
+          if (static_cast<int>(i) != static_cast<int>(currentShaderIndex)) {
+            candidates.push_back(i);
+          }
+        }
+      }
+      if (!candidates.empty()) {
+        std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+        currentShaderIndex = candidates[dist(rng)];
+      }
+    } else {
+      size_t next = (currentShaderIndex + 1) % shaders.size();
+      int attempts = 0;
+      while (skipList.find(shaders[next]->name) != skipList.end() &&
+             attempts < static_cast<int>(shaders.size())) {
+        next = (next + 1) % shaders.size();
+        attempts++;
+      }
+      currentShaderIndex = next;
+    }
 
+    nextShader = shaders[currentShaderIndex];
     inTransition = true;
     transitionProgress = 0.0f;
     transitionStart = std::chrono::steady_clock::now();
@@ -741,10 +823,11 @@ public:
 
       // Update transition
       if (inTransition) {
-        transitionProgress =
+        float rawProgress =
             std::chrono::duration<float>(now - transitionStart).count() /
             transitionDuration;
-        if (transitionProgress >= 1.0f) {
+        transitionProgress = applyEasing(std::min(rawProgress, 1.0f));
+        if (rawProgress >= 1.0f) {
           currentShader = nextShader;
           nextShader = nullptr;
           inTransition = false;
@@ -918,6 +1001,48 @@ private:
                XK_Tab) {
         goToNextDisplay();
       }
+      // S = toggle shuffle mode
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_s && !(event.xkey.state & ControlMask)) {
+        shuffleMode = !shuffleMode;
+        showNotification(shuffleMode ? "Shuffle: ON" : "Shuffle: OFF");
+      }
+      // F = toggle current shader as favorite
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_f) {
+        if (currentShader) {
+          auto it = favorites.find(currentShader->name);
+          if (it != favorites.end()) {
+            favorites.erase(it);
+            showNotification("Removed from favorites: " + currentShader->name);
+          } else {
+            favorites.insert(currentShader->name);
+            showNotification("Added to favorites: " + currentShader->name);
+          }
+        }
+      }
+      // X = skip current shader
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_x) {
+        if (currentShader) {
+          skipList.insert(currentShader->name);
+          showNotification("Skipped: " + currentShader->name);
+          goToNextShader();
+          shaderStartTime = std::chrono::steady_clock::now();
+        }
+      }
+      // Shift+E = cycle easing mode
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_e && !(event.xkey.state & ControlMask)) {
+        easingMode = (easingMode + 1) % Easing_COUNT;
+        showNotification(std::string("Easing: ") + easingName(easingMode));
+      }
+      // Shift+T = cycle transition type
+      else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
+               XK_t && !(event.xkey.state & ControlMask)) {
+        transitionType = (transitionType + 1) % Trans_COUNT;
+        showNotification(std::string("Transition: ") + transitionTypeName(transitionType));
+      }
       // ESC or Q = quit
       else if (XLookupKeysym(const_cast<XKeyEvent *>(&event.xkey), 0) ==
                    XK_Escape ||
@@ -981,22 +1106,67 @@ private:
         float alpha1 = 1.0f - transitionProgress;
         float alpha2 = transitionProgress;
 
-        currentShader->use();
-        currentShader->uniforms.alpha = alpha1;
-        currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns,
-                                      audioData);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        if (transitionType == TransWipeLeft || transitionType == TransWipeRight) {
+          glEnable(GL_SCISSOR_TEST);
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+          float wipePos = transitionProgress * static_cast<float>(width);
+          if (transitionType == TransWipeRight)
+            wipePos = static_cast<float>(width) - wipePos;
 
-        nextShader->use();
-        nextShader->uniforms.alpha = alpha2;
-        nextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns,
-                                   audioData);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+          currentShader->use();
+          currentShader->uniforms.alpha = 1.0f;
+          currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+          if (transitionType == TransWipeRight) {
+            glScissor(0, 0, static_cast<GLsizei>(wipePos), height);
+          } else {
+            glScissor(static_cast<GLsizei>(wipePos), 0, width, height);
+          }
+          glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        glDisable(GL_BLEND);
+          nextShader->use();
+          nextShader->uniforms.alpha = 1.0f;
+          nextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+          if (transitionType == TransWipeRight) {
+            glScissor(static_cast<GLsizei>(wipePos), 0, width, height);
+          } else {
+            glScissor(0, 0, static_cast<GLsizei>(wipePos), height);
+          }
+          glDrawArrays(GL_TRIANGLES, 0, 6);
+
+          glDisable(GL_SCISSOR_TEST);
+        } else if (transitionType == TransZoomIn || transitionType == TransZoomOut) {
+          currentShader->use();
+          currentShader->uniforms.alpha = alpha1;
+          currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+          glDrawArrays(GL_TRIANGLES, 0, 6);
+
+          glEnable(GL_BLEND);
+          glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+          nextShader->use();
+          nextShader->uniforms.alpha = alpha2;
+          nextShader->uniforms.speed = (transitionType == TransZoomIn) ? 2.0f + alpha2 : 0.5f + alpha2 * 0.5f;
+          nextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+          glDrawArrays(GL_TRIANGLES, 0, 6);
+
+          nextShader->uniforms.speed = 1.0f;
+          glDisable(GL_BLEND);
+        } else {
+          currentShader->use();
+          currentShader->uniforms.alpha = alpha1;
+          currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+          glDrawArrays(GL_TRIANGLES, 0, 6);
+
+          glEnable(GL_BLEND);
+          glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+          nextShader->use();
+          nextShader->uniforms.alpha = alpha2;
+          nextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+          glDrawArrays(GL_TRIANGLES, 0, 6);
+
+          glDisable(GL_BLEND);
+        }
       } else {
         currentShader->use();
         currentShader->uniforms.alpha = 1.0f;
@@ -1027,9 +1197,20 @@ void printUsage(const char *program) {
             << "  -root                Run on root window\n"
             << "  -audio               Enable audio reactivity\n"
             << "\nControls:\n"
-            << "  Right Arrow          Next shader\n"
-            << "  ESC or Q             Quit\n"
-            << "  Mouse Click          Quit\n";
+            << "  Right/Left Arrow     Next/Previous shader\n"
+            << "  Space/P              Next shader\n"
+            << "  N                    Previous shader\n"
+            << "  S                    Toggle shuffle mode\n"
+            << "  F                    Toggle favorite\n"
+            << "  X                    Skip current shader\n"
+            << "  E                    Cycle easing mode\n"
+            << "  T                    Cycle transition type\n"
+            << "  1-5                  Adjust shader params\n"
+            << "  Ctrl+S/O             Save/Load preset\n"
+            << "  Tab                  Switch display\n"
+            << "  F12/PrintScreen      Screenshot\n"
+            << "  D                    Toggle debug overlay\n"
+            << "  ESC or Q             Quit\n";
 }
 
 int main(int argc, char **argv) {
