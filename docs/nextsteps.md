@@ -25,7 +25,7 @@ All initial P0 blockers and Phase 1 core improvements have been completed, plus 
 - **Adaptive Quality**: `GLAdaptiveQualityConfig` — dynamic resolution scaling to maintain target FPS.
 - **Smart Shader Rotation**: Shuffle, favorites/skip lists, auto-rotate with configurable per-shader duration.
 - **UniformUploader Enhancements**: Now uploads ShaderParams (param1-6, colorPalette, effectFlags) and full audioData[256]; null-guard for headless mode.
-- **Test Suite**: **105 tests across 9 suites**, 0 valgrind errors, 0 application memory leaks.
+- **Test Suite**: **109 tests across 10 suites**, 0 valgrind errors, 0 application memory leaks.
 
 ---
 

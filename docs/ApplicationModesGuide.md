@@ -166,7 +166,7 @@ xwinwrap -ov -fs -- shadercandy-wallpaper -shader /usr/share/shadercandy/shaders
 
 ## Unified Keyboard Controls
 
-All operational modes across both platforms implement identical keyboard shortcuts:
+All operational modes across all platforms (X11 screensaver, Wayland screensaver, standalone player) implement identical keyboard shortcuts:
 
 | Shortcut | Action | Scope |
 | :--- | :--- | :--- |
@@ -181,6 +181,11 @@ All operational modes across both platforms implement identical keyboard shortcu
 | **Ctrl++** / **Ctrl+-** | Increase / decrease visual intensity | All Modes |
 | **D** | Toggle on-screen performance debug overlay (FPS, P99, GPU ms) | All Modes |
 | **T** | Trigger internal test suite verification | All Modes |
+| **S** | Toggle shuffle mode (random shader selection) | Screensaver / Wayland |
+| **F** | Toggle current shader as favorite | Screensaver / Wayland |
+| **X** | Skip current shader (add to skip list, auto-advance) | Screensaver / Wayland / Player |
+| **E** | Cycle easing mode (Linear → EaseIn → EaseOut → EaseInOut → CubicInOut → ExpOut) | Screensaver / Wayland |
+| **Shift+T** | Cycle transition type (Crossfade → WipeLeft → WipeRight → ZoomIn → ZoomOut) | Screensaver / Wayland |
 | **F** / **F11** | Toggle fullscreen mode | Standalone Player |
 | **R** | Force recompile and reload current shader | Standalone Player |
 

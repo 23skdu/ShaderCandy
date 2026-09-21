@@ -103,7 +103,7 @@ A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapc
 - **Post-Processing Config**: `GLPostProcessConfig` with vignette (intensity, radius), chromatic aberration (amount), film grain (intensity), CRT scanlines (intensity), and color tint (R, G, B) — each independently toggleable.
 - **Adaptive Quality**: `GLAdaptiveQualityConfig` dynamically scales resolution to maintain target FPS with configurable min/max resolution scale bounds.
 - **Smart Shader Rotation**: Shuffle mode, favorites list, skip list, and auto-rotate with configurable per-shader duration for hands-free browsing.
-- **105 Tests, 0 Valgrind Errors**: Comprehensive unit and integration test coverage across 9 suites with verified memory safety.
+- **109 Tests, 0 Valgrind Errors**: Comprehensive unit and integration test coverage across 10 suites with verified memory safety.
 
 ---
 

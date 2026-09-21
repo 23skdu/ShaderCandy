@@ -43,7 +43,7 @@ graph TD
     Src --> Audio["audio/ (AudioInput, AudioUtils, AcousticSimulator)"]
     Src --> Config["config/ (ConfigurationManager, Presets)"]
 
-    Tests --> T1["9 test suites / 105 tests"]
+    Tests --> T1["10 suites / 109 tests"]
 ```
 
 ## Building and Installation
@@ -95,7 +95,7 @@ make -j$(nproc)
 cmake .. -DBUILD_TESTS=ON -DCMAKE_CXX_STANDARD=17
 make
 
-# Run all tests (105 tests across 9 suites)
+# Run all tests (109 tests across 10 suites)
 ./shadercandy-test
 
 # Run specific test suite
@@ -170,7 +170,7 @@ ShaderCandy ships with **110+ shaders** across multiple categories:
 
 GitHub Actions CI runs on every push and PR (all actions v4):
 - Builds on Ubuntu with full dependency matrix
-- Runs the full test suite (105 tests)
+- Runs the full test suite (109 tests)
 - Static analysis with clang-tidy and cppcheck
 - Memory leak detection with valgrind (0 application errors)
 

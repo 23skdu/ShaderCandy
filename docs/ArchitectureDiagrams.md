@@ -376,9 +376,52 @@ flowchart TD
 
 ---
 
-## 10. Test Framework & Regression Architecture
+## 10. Transition System Architecture
 
-Comprehensive test suite with 105 tests across 9 suites:
+All screensaver and player modes share a unified transition system:
+
+```mermaid
+flowchart TD
+    subgraph "Transition State Machine"
+        Idle["Idle State\n(currentShader renders at alpha=1)"]
+        Begin["beginTransition()\nsets type, easing, duration,\nstores nextShader pointer"]
+        Update["updateTransition(deltaTime)\nincrements transitionTime,\napplies easing curve"]
+        Complete["Transition Complete\nold shader deleted,\nnextShader becomes current"]
+    end
+
+    Idle -->|"goToNextShader()"| Begin
+    Begin --> Update
+    Update -->|"progress < 1.0"| Update
+    Update -->|"progress >= 1.0"| Complete
+    Complete --> Idle
+
+    subgraph "Easing Functions"
+        Easing["applyEasing(t)"]
+        Easing --> E1["Linear: t"]
+        Easing --> E2["EaseIn: t²"]
+        Easing --> E3["EaseOut: t(2-t)"]
+        Easing --> E4["EaseInOut: piecewise quadratic"]
+        Easing --> E5["CubicInOut: 4t³ / (t-1)(2t-2)²+1"]
+        Easing --> E6["ExpOut: 1 - 2^(-10t)"]
+    end
+
+    subgraph "Render Blending (per frame)"
+        R1["Current Shader\nalpha = 1 - easedProgress"]
+        R2["Next Shader\nalpha = easedProgress"]
+        R1 --> Blend["GL_SRC_ALPHA /\nGL_ONE_MINUS_SRC_ALPHA"]
+        R2 --> Blend
+        Blend --> Screen["Screen Output"]
+    end
+
+    Update --> Easing
+    Update --> R1 & R2
+```
+
+---
+
+## 11. Test Framework & Regression Architecture
+
+Comprehensive test suite with 109 tests across 10 suites:
 
 ```mermaid
 flowchart TD
@@ -387,15 +430,16 @@ flowchart TD
         Reg --> S1["Logic & Uniform Tests\n(Alignment, Presets, Math)"]
         Reg --> S2["Math & SIMD Tests\n(AVX2 / NEON / Scalar)"]
         Reg --> S3["Core Functionality Tests\n(Configuration, Presets)"]
-        Reg --> S4["Shader Compilation Tests\n(52+ Fragment Shaders via GLSLWrapper)"]
+        Reg --> S4["Shader Compilation Tests\n(Fragment Shaders via GLSLWrapper)"]
         Reg --> S5["Renderer Feature Tests\n(Resolution, Thermal, MultiDisplay)"]
         Reg --> S6["Coverage Expansion Tests\n(Bloom, FBO, HeadlessRenderer, Audio)"]
         Reg --> S7["Shader Wrapper Tests\n(#include resolution, metadata)"]
         Reg --> S8["Linux Platform & Audio Tests\n(IPC, AudioInput, UniformUploader)"]
         Reg --> S9["Memory Leak & Cleanup Tests\n(Valgrind-verified, 0 app leaks)"]
+        Reg --> S10["Shader Regression Tests\n(Compilation timing, baseline comparison)"]
     end
 
-    S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 --> Runner[TestSuite.run]
+    S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 & S10 --> Runner[TestSuite.run]
     Runner --> Results["std::vector<TestResult>"]
     Results --> Format["Console Summary & Exit Code Report"]
 ```
