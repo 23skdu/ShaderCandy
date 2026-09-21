@@ -61,6 +61,73 @@ struct GLParticleConfig {
   float speed = 1.0f;
 };
 
+enum class GLTransitionType {
+  None = 0,
+  Crossfade,
+  Dissolve,
+  WipeLeft,
+  WipeRight,
+  WipeUp,
+  WipeDown,
+  ZoomIn,
+  ZoomOut,
+  SpinClockwise,
+  SpinCounterClockwise
+};
+
+enum class GLEasingFunction {
+  Linear = 0,
+  EaseIn,
+  EaseOut,
+  EaseInOut,
+  CubicIn,
+  CubicOut,
+  CubicInOut,
+  ExponentialIn,
+  ExponentialOut,
+  ExponentialInOut
+};
+
+struct GLTransitionConfig {
+  GLTransitionType type = GLTransitionType::Crossfade;
+  GLEasingFunction easing = GLEasingFunction::EaseInOut;
+  float duration = 2.0f;
+  bool enabled = true;
+};
+
+struct GLPostProcessConfig {
+  bool vignetteEnabled = true;
+  float vignetteIntensity = 0.3f;
+  float vignetteRadius = 0.8f;
+
+  bool chromaticAberrationEnabled = true;
+  float chromaticAberrationAmount = 0.003f;
+
+  bool filmGrainEnabled = false;
+  float filmGrainIntensity = 0.05f;
+
+  bool crtScanlinesEnabled = false;
+  float crtScanlineIntensity = 0.1f;
+  float crtScanlineCount = 480.0f;
+
+  float colorTintR = 1.0f;
+  float colorTintG = 1.0f;
+  float colorTintB = 1.0f;
+  bool colorTintEnabled = false;
+};
+
+struct GLAdaptiveQualityConfig {
+  bool enabled = true;
+  float targetFPS = 60.0f;
+  float lowFPS = 45.0f;
+  float highFPS = 65.0f;
+  float minResolutionScale = 0.5f;
+  float maxResolutionScale = 1.0f;
+  float currentResolutionScale = 1.0f;
+  int adaptationSpeed = 2;
+  bool thermalThrottlingEnabled = true;
+};
+
 } // namespace Linux
 } // namespace Platform
 } // namespace ShaderCandy

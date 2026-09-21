@@ -10,9 +10,11 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../core/ShaderInterop.h"
@@ -53,7 +55,18 @@ public:
   void setMouse(float x, float y, int buttons);
   void setAudioData(float volume, float bass, float mid, float treble,
                     float beat);
+  void setAudioDataArray(const float *audioData, int count);
   void setGravity(float gravity) { uniforms_.gravity = gravity; }
+
+  // Shader Parameters (param1-6, colorPalette, effectFlags)
+  void setShaderParam1(float v) { shaderParams_.param1 = v; }
+  void setShaderParam2(float v) { shaderParams_.param2 = v; }
+  void setShaderParam3(float v) { shaderParams_.param3 = v; }
+  void setShaderParam4(float v) { shaderParams_.param4 = v; }
+  void setShaderParam5(float v) { shaderParams_.param5 = v; }
+  void setShaderParam6(float v) { shaderParams_.param6 = v; }
+  void setColorPalette(int v) { shaderParams_.colorPalette = v; }
+  void setEffectFlags(int v) { shaderParams_.effectFlags = v; }
 
   // Audio Reactivity
   void setAudioReactivityEnabled(bool enabled) {
@@ -79,6 +92,53 @@ public:
   GLToneMapping getToneMapping() const { return toneMapping_; }
   bool initToneMapping();
   void renderToneMap();
+
+  // Transitions
+  void setTransitionConfig(const GLTransitionConfig &config) {
+    transitionConfig_ = config;
+  }
+  GLTransitionConfig getTransitionConfig() const { return transitionConfig_; }
+  bool isTransitioning() const { return inTransition_; }
+  float getTransitionProgress() const { return transitionProgress_; }
+
+  void beginTransition(GLTransitionType type, GLEasingFunction easing,
+                       float duration);
+  void updateTransition(float deltaTime);
+  float applyEasing(float t) const;
+  void renderTransition(float time);
+
+  // Post-Processing
+  void setPostProcessConfig(const GLPostProcessConfig &config) {
+    postProcessConfig_ = config;
+  }
+  GLPostProcessConfig getPostProcessConfig() const {
+    return postProcessConfig_;
+  }
+
+  // Adaptive Quality
+  void setAdaptiveQualityConfig(const GLAdaptiveQualityConfig &config) {
+    adaptiveQualityConfig_ = config;
+  }
+  GLAdaptiveQualityConfig getAdaptiveQualityConfig() const {
+    return adaptiveQualityConfig_;
+  }
+
+  // Smart Shader Rotation
+  void setShuffleMode(bool enabled) { shuffleMode_ = enabled; }
+  bool isShuffleMode() const { return shuffleMode_; }
+  void setAutoRotate(bool enabled) { autoRotate_ = enabled; }
+  bool isAutoRotate() const { return autoRotate_; }
+  void setTimePerShader(float seconds) { timePerShader_ = seconds; }
+  float getTimePerShader() const { return timePerShader_; }
+  std::string getNextShaderName() const;
+
+  // Favorites / Skip list
+  void addFavorite(const std::string &name);
+  void removeFavorite(const std::string &name);
+  bool isFavorite(const std::string &name) const;
+  void addSkip(const std::string &name);
+  void removeSkip(const std::string &name);
+  bool isSkipped(const std::string &name) const;
 
   // Performance
   GLPerformanceMetrics getMetrics();
@@ -125,6 +185,10 @@ private:
   unsigned int fboTexture_ = 0;
   unsigned int rbo_ = 0;
 
+  // Second FBO for ping-pong post-processing
+  unsigned int fbo2_ = 0;
+  unsigned int fboTexture2_ = 0;
+
   // Bloom
   unsigned int bloomFBO_[2] = {0, 0};
   unsigned int bloomTexture_[2] = {0, 0};
@@ -138,6 +202,9 @@ private:
   unsigned int toneMapQuadVAO_ = 0;
   unsigned int toneMapQuadVBO_ = 0;
 
+  // Post-processing shader programs
+  unsigned int postProcessProgram_ = 0;
+
   // Quad VAO/VBO
   void setupQuad();
 
@@ -148,6 +215,7 @@ private:
 
   // Uniforms
   Uniforms uniforms_;
+  ShaderParams shaderParams_;
   int uniformsLocation_ = -1;
   UniformUploader uniformUploader_;
 
@@ -157,6 +225,33 @@ private:
   // HDR
   bool hdrEnabled_ = false;
   GLToneMapping toneMapping_ = GLToneMapping::ACES;
+
+  // Transitions
+  GLTransitionConfig transitionConfig_;
+  bool inTransition_ = false;
+  float transitionProgress_ = 0.0f;
+  float transitionTime_ = 0.0f;
+  std::string transitionFromShader_;
+  std::string transitionToShader_;
+
+  // Post-Processing
+  GLPostProcessConfig postProcessConfig_;
+
+  // Adaptive Quality
+  GLAdaptiveQualityConfig adaptiveQualityConfig_;
+  float currentResolutionScale_ = 1.0f;
+
+  // Smart Shader Rotation
+  bool shuffleMode_ = false;
+  bool autoRotate_ = true;
+  float timePerShader_ = 60.0f;
+  std::vector<std::string> shaderHistory_;
+  int historyIndex_ = -1;
+  std::mt19937 rng_;
+
+  // Favorites / Skip
+  std::unordered_set<std::string> favorites_;
+  std::unordered_set<std::string> skipList_;
 
   // Particles
   struct Particle {
@@ -179,6 +274,7 @@ private:
   double lastFrameTime_ = 0.0;
   double fpsAccumulator_ = 0.0;
   int frameCount_ = 0;
+  int droppedFrameCount_ = 0;
 
   // Hot reload
   bool hotReloadEnabled_ = true;
@@ -192,11 +288,13 @@ private:
   void initPostProcessingFBO();
   void initBloom();
   void renderBloom();
+  void initPostProcessShader();
+  void renderPostProcess();
 
   int renderWidth_ = 0;
   int renderHeight_ = 0;
 
-  // Blit program (passthrough for FBO → screen when HDR off)
+  // Blit program (passthrough for FBO -> screen when HDR off)
   unsigned int blitProgram_ = 0;
 
   // Video encoding state
