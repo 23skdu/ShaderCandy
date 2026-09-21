@@ -99,12 +99,15 @@ void GLRenderer::shutdown() {
 
   stopFileWatcher();
 
-  for (auto &program : shaderPrograms_) {
-    if (program.second) {
-      glDeleteProgram(program.second);
+  {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    for (auto &program : shaderPrograms_) {
+      if (program.second) {
+        glDeleteProgram(program.second);
+      }
     }
+    shaderPrograms_.clear();
   }
-  shaderPrograms_.clear();
 
   if (bloomProgram_) {
     glDeleteProgram(bloomProgram_);
@@ -300,8 +303,11 @@ bool GLRenderer::loadShader(const std::string &name, const std::string &path) {
     glDeleteProgram(shaderPrograms_[name]);
   }
 
-  shaderPrograms_[name] = program;
-  shaderPaths_[name] = path;
+  {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    shaderPrograms_[name] = program;
+    shaderPaths_[name] = path;
+  }
   uniformUploader_.invalidate();
 
 #if defined(__linux__)
@@ -382,6 +388,7 @@ bool GLRenderer::reloadCurrentShader() {
 }
 
 std::vector<std::string> GLRenderer::availableShaderNames() const {
+  std::lock_guard<std::mutex> lock(shaderMutex_);
   std::vector<std::string> names;
   for (const auto &shader : shaderPrograms_) {
     names.push_back(shader.first);
@@ -873,19 +880,28 @@ void GLRenderer::checkForShaderReload() {
     return;
   }
 
-  auto pathIt = shaderPaths_.find(currentShader_);
-  if (pathIt == shaderPaths_.end()) {
-    return;
+  std::string path;
+  {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    auto pathIt = shaderPaths_.find(currentShader_);
+    if (pathIt == shaderPaths_.end()) {
+      return;
+    }
+    path = pathIt->second;
   }
 
   struct stat st;
-  if (stat(pathIt->second.c_str(), &st) != 0) {
+  if (stat(path.c_str(), &st) != 0) {
     return;
   }
 
-  auto timeIt = shaderModTimes_.find(currentShader_);
-  if (timeIt != shaderModTimes_.end() && st.st_mtime <= timeIt->second) {
-    return;
+  {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    auto timeIt = shaderModTimes_.find(currentShader_);
+    if (timeIt != shaderModTimes_.end() && st.st_mtime <= timeIt->second) {
+      return;
+    }
+    shaderModTimes_[currentShader_] = st.st_mtime;
   }
 
   reloadCurrentShader();

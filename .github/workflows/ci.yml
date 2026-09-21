@@ -99,3 +99,69 @@ jobs:
           if [ -f shadercandy-test ]; then
             ./shadercandy-test
           fi
+
+  build-tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake \
+            libx11-dev libxss-dev libxmu-dev \
+            libgl-dev libpulse-dev libfftw3-dev \
+            pkg-config
+
+      - name: Configure with ThreadSanitizer
+        run: |
+          mkdir -p build-tsan && cd build-tsan
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+
+      - name: Build
+        run: cmake --build build-tsan -j$(nproc)
+
+      - name: Run tests under TSAN
+        run: |
+          cd build-tsan
+          if [ -f shadercandy-test ]; then
+            ./shadercandy-test
+          fi
+
+  build-ubsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake \
+            libx11-dev libxss-dev libxmu-dev \
+            libgl-dev libpulse-dev libfftw3-dev \
+            pkg-config
+
+      - name: Configure with UBSan
+        run: |
+          mkdir -p build-ubsan && cd build-ubsan
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
+
+      - name: Build
+        run: cmake --build build-ubsan -j$(nproc)
+
+      - name: Run tests under UBSAN
+        run: |
+          cd build-ubsan
+          if [ -f shadercandy-test ]; then
+            ./shadercandy-test
+          fi

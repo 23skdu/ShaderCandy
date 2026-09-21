@@ -1,0 +1,83 @@
+.TH SHADERCANDY-SCREENSAVER 1 "2026-09-20" "ShaderCandy 0.2.0" "User Commands"
+.SH NAME
+shadercandy-screensaver \- GPU-accelerated procedural screensaver
+.SH SYNOPSIS
+.B shadercandy-screensaver
+.RI [ options ]
+.SH DESCRIPTION
+.B ShaderCandy
+is a GPU-accelerated screensaver that renders real-time procedural shaders
+using OpenGL. It supports X11/XScreenSaver integration, multi-display setups,
+audio reactivity, hot-reload, and configurable transitions between shaders.
+.SH OPTIONS
+.TP
+.BI \-shader " name"
+Start with a specific shader.
+.TP
+.BI \-shader\-dir " path"
+Add a shader directory to search.
+.TP
+.BI \-window\-id " id"
+Run inside an existing X11 window (XScreenSaver mode).
+.TP
+.B \-root
+Render on the root window.
+.TP
+.B \-audio
+Enable audio reactivity via microphone/system audio.
+.TP
+.B \-h\fR, \fB\-\-help
+Show usage information.
+.SH KEYBOARD CONTROLS
+.TP
+.B Right Arrow / Space / P
+Next shader.
+.TP
+.B Left Arrow / N
+Previous shader.
+.TP
+.B S
+Toggle shuffle mode.
+.TP
+.B F
+Toggle current shader as favorite.
+.TP
+.B X
+Skip current shader (add to skip list).
+.TP
+.B E
+Cycle easing mode.
+.TP
+.B Shift+T
+Cycle transition type.
+.TP
+.B 1\-5
+Adjust shader parameters.
+.TP
+.B Ctrl+S / Ctrl+O
+Save / load preset.
+.TP
+.B Tab
+Cycle multi-monitor display target.
+.TP
+.B D
+Toggle debug overlay.
+.TP
+.B F12 / PrintScreen
+Take screenshot (PPM format).
+.TP
+.B ESC / Q / Ctrl+Q
+Quit.
+.SH FILES
+.TP
+.I ~/.config/shadercandy/
+Configuration and preset directory.
+.TP
+.I ~/.local/share/shadercandy/shaders/
+User shader directory.
+.SH SEE ALSO
+.BR shadercandy-player (1),
+.BR shadercandy-wallpaper (1),
+.BR shadercandy-wayland (1)
+.SH AUTHORS
+ShaderCandy contributors.
