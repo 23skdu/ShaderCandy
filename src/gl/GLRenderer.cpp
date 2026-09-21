@@ -1,5 +1,6 @@
 #include "GLRenderer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <ctime>
 #include <fstream>
@@ -24,7 +25,7 @@ namespace ShaderCandy {
 namespace Platform {
 namespace Linux {
 
-GLRenderer::GLRenderer() = default;
+GLRenderer::GLRenderer() : rng_(std::random_device{}()) {}
 
 GLRenderer::~GLRenderer() { shutdown(); }
 
@@ -81,6 +82,7 @@ bool GLRenderer::initialize(void *display, void *window, bool isGLES) {
   renderHeight_ = 1080;
   initPostProcessingFBO();
   initBloom();
+  initPostProcessShader();
 
   if (hotReloadEnabled_) {
     startFileWatcher();
@@ -111,6 +113,11 @@ void GLRenderer::shutdown() {
   if (blitProgram_) {
     glDeleteProgram(blitProgram_);
     blitProgram_ = 0;
+  }
+
+  if (postProcessProgram_) {
+    glDeleteProgram(postProcessProgram_);
+    postProcessProgram_ = 0;
   }
 
   if (toneMapProgram_) {
@@ -411,6 +418,11 @@ void GLRenderer::render(float time) {
     metrics_.frameTimeMs = delta * 1000.0;
     metrics_.currentFPS = 1.0 / delta;
 
+    if (metrics_.currentFPS < metrics_.minFPS)
+      metrics_.minFPS = metrics_.currentFPS;
+    if (metrics_.currentFPS > metrics_.maxFPS)
+      metrics_.maxFPS = metrics_.currentFPS;
+
     fpsAccumulator_ += metrics_.currentFPS;
     frameCount_++;
 
@@ -419,11 +431,49 @@ void GLRenderer::render(float time) {
       fpsAccumulator_ = 0.0;
       frameCount_ = 0;
     }
+
+    // Adaptive quality: scale resolution based on FPS
+    if (adaptiveQualityConfig_.enabled) {
+      float fps = (float)metrics_.currentFPS;
+      if (fps < adaptiveQualityConfig_.lowFPS &&
+          currentResolutionScale_ > adaptiveQualityConfig_.minResolutionScale) {
+        currentResolutionScale_ =
+            std::max(adaptiveQualityConfig_.minResolutionScale,
+                     currentResolutionScale_ - 0.01f * adaptiveQualityConfig_.adaptationSpeed);
+        int newW = (int)(1920 * currentResolutionScale_);
+        int newH = (int)(1080 * currentResolutionScale_);
+        if (newW != renderWidth_ || newH != renderHeight_) {
+          renderWidth_ = newW;
+          renderHeight_ = newH;
+          initPostProcessingFBO();
+          if (bloomConfig_.enabled) initBloom();
+        }
+      } else if (fps > adaptiveQualityConfig_.highFPS &&
+                 currentResolutionScale_ < adaptiveQualityConfig_.maxResolutionScale) {
+        currentResolutionScale_ =
+            std::min(adaptiveQualityConfig_.maxResolutionScale,
+                     currentResolutionScale_ + 0.005f * adaptiveQualityConfig_.adaptationSpeed);
+        int newW = (int)(1920 * currentResolutionScale_);
+        int newH = (int)(1080 * currentResolutionScale_);
+        if (newW != renderWidth_ || newH != renderHeight_) {
+          renderWidth_ = newW;
+          renderHeight_ = newH;
+          initPostProcessingFBO();
+          if (bloomConfig_.enabled) initBloom();
+        }
+      }
+    }
   }
   lastFrameTime_ = currentTime;
 
   uniforms_.time = time;
   uniforms_.frame++;
+
+  // Update transition
+  if (inTransition_) {
+    updateTransition(static_cast<float>(delta));
+    uniforms_.alpha = transitionProgress_;
+  }
 
   // Update particles
   if (particleConfig_.enabled && !particles_.empty()) {
@@ -446,7 +496,7 @@ void GLRenderer::render(float time) {
     glUniformBlockBinding(currentProgram_, uniformsLocation_, 0);
   }
 
-  uniformUploader_.upload(currentProgram_, uniforms_, audioReactivityEnabled_);
+  uniformUploader_.upload(currentProgram_, uniforms_, shaderParams_, audioReactivityEnabled_);
 
   glBindVertexArray(vao_);
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -458,6 +508,11 @@ void GLRenderer::render(float time) {
 
   glBindVertexArray(0);
   glUseProgram(0);
+
+  // Post-processing chain: apply effects to FBO texture before blitting
+  if (useFBO && postProcessProgram_) {
+    renderPostProcess();
+  }
 
   // Blit scene from FBO to screen
   if (useFBO) {
@@ -1086,6 +1141,295 @@ void GLRenderer::renderBloom() {
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
   glDisable(GL_BLEND);
 
+  glBindVertexArray(0);
+  glUseProgram(0);
+}
+
+void GLRenderer::setAudioDataArray(const float *audioData, int count) {
+  int maxCount = std::min(count, 256);
+  for (int i = 0; i < maxCount; i++) {
+    uniforms_.audioData[i] = audioData[i];
+  }
+}
+
+// ============================================================================
+// Transition System
+// ============================================================================
+
+void GLRenderer::beginTransition(GLTransitionType type, GLEasingFunction easing,
+                                 float duration) {
+  if (inTransition_)
+    return;
+
+  transitionConfig_.type = type;
+  transitionConfig_.easing = easing;
+  transitionConfig_.duration = duration;
+  transitionTime_ = 0.0f;
+  transitionProgress_ = 0.0f;
+  inTransition_ = true;
+}
+
+void GLRenderer::updateTransition(float deltaTime) {
+  if (!inTransition_)
+    return;
+
+  transitionTime_ += deltaTime;
+  float t = transitionTime_ / transitionConfig_.duration;
+  if (t >= 1.0f) {
+    t = 1.0f;
+    inTransition_ = false;
+    transitionProgress_ = 1.0f;
+  } else {
+    transitionProgress_ = applyEasing(t);
+  }
+}
+
+float GLRenderer::applyEasing(float t) const {
+  switch (transitionConfig_.easing) {
+  case GLEasingFunction::Linear:
+    return t;
+  case GLEasingFunction::EaseIn:
+    return t * t;
+  case GLEasingFunction::EaseOut:
+    return t * (2.0f - t);
+  case GLEasingFunction::EaseInOut:
+    return t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
+  case GLEasingFunction::CubicIn:
+    return t * t * t;
+  case GLEasingFunction::CubicOut: {
+    float f = t - 1.0f;
+    return f * f * f + 1.0f;
+  }
+  case GLEasingFunction::CubicInOut:
+    return t < 0.5f ? 4.0f * t * t * t
+                     : (t - 1.0f) * (2.0f * t - 2.0f) * (2.0f * t - 2.0f) +
+                           1.0f;
+  case GLEasingFunction::ExponentialIn:
+    return (t == 0.0f) ? 0.0f : std::pow(2.0f, 10.0f * (t - 1.0f));
+  case GLEasingFunction::ExponentialOut:
+    return (t == 1.0f) ? 1.0f : 1.0f - std::pow(2.0f, -10.0f * t);
+  case GLEasingFunction::ExponentialInOut:
+    if (t == 0.0f) return 0.0f;
+    if (t == 1.0f) return 1.0f;
+    if (t < 0.5f)
+      return 0.5f * std::pow(2.0f, 20.0f * t - 10.0f);
+    else
+      return 1.0f - 0.5f * std::pow(2.0f, -20.0f * t + 10.0f);
+  default:
+    return t;
+  }
+}
+
+void GLRenderer::renderTransition(float time) {
+  // Transition rendering is handled via alpha uniform in the render() method
+}
+
+// ============================================================================
+// Smart Shader Rotation
+// ============================================================================
+
+std::string GLRenderer::getNextShaderName() const {
+  auto names = availableShaderNames();
+  if (names.empty())
+    return "";
+
+  std::vector<std::string> available;
+  for (const auto &name : names) {
+    if (!isSkipped(name)) {
+      available.push_back(name);
+    }
+  }
+  if (available.empty())
+    return names.empty() ? "" : names[0];
+
+  if (shuffleMode_) {
+    std::uniform_int_distribution<size_t> dist(0, available.size() - 1);
+    return available[dist(const_cast<std::mt19937 &>(rng_))];
+  }
+
+  auto it = std::find(available.begin(), available.end(), currentShader_);
+  if (it == available.end()) {
+    return available[0];
+  }
+  ++it;
+  if (it == available.end()) {
+    return available[0];
+  }
+  return *it;
+}
+
+void GLRenderer::addFavorite(const std::string &name) {
+  favorites_.insert(name);
+}
+
+void GLRenderer::removeFavorite(const std::string &name) {
+  favorites_.erase(name);
+}
+
+bool GLRenderer::isFavorite(const std::string &name) const {
+  return favorites_.count(name) > 0;
+}
+
+void GLRenderer::addSkip(const std::string &name) { skipList_.insert(name); }
+
+void GLRenderer::removeSkip(const std::string &name) {
+  skipList_.erase(name);
+}
+
+bool GLRenderer::isSkipped(const std::string &name) const {
+  return skipList_.count(name) > 0;
+}
+
+// ============================================================================
+// Post-Processing
+// ============================================================================
+
+void GLRenderer::initPostProcessShader() {
+  if (postProcessProgram_) {
+    glDeleteProgram(postProcessProgram_);
+    postProcessProgram_ = 0;
+  }
+
+  const char *vertSrc = R"(
+    #version 330 core
+    layout(location = 0) in vec2 aPosition;
+    layout(location = 1) in vec2 aTexCoord;
+    out vec2 vTexCoord;
+    void main() {
+      gl_Position = vec4(aPosition, 0.0, 1.0);
+      vTexCoord = aTexCoord;
+    }
+  )";
+
+  std::string fragSrc = R"(
+    #version 330 core
+    in vec2 vTexCoord;
+    out vec4 fragColor;
+    uniform sampler2D screenTexture;
+    uniform vec2 resolution;
+    uniform float time;
+
+    uniform bool vignetteEnabled;
+    uniform float vignetteIntensity;
+    uniform float vignetteRadius;
+
+    uniform bool chromaticAberrationEnabled;
+    uniform float chromaticAberrationAmount;
+
+    uniform bool filmGrainEnabled;
+    uniform float filmGrainIntensity;
+
+    uniform bool crtScanlinesEnabled;
+    uniform float crtScanlineIntensity;
+    uniform float crtScanlineCount;
+
+    uniform bool colorTintEnabled;
+    uniform vec3 colorTint;
+
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+
+    void main() {
+      vec2 uv = vTexCoord;
+      vec3 color;
+
+      if (chromaticAberrationEnabled) {
+        float amount = chromaticAberrationAmount;
+        vec2 dir = uv - 0.5;
+        float dist = length(dir);
+        amount *= dist;
+        float r = texture(screenTexture, uv + dir * amount).r;
+        float g = texture(screenTexture, uv).g;
+        float b = texture(screenTexture, uv - dir * amount).b;
+        color = vec3(r, g, b);
+      } else {
+        color = texture(screenTexture, uv).rgb;
+      }
+
+      if (crtScanlinesEnabled) {
+        float scanline = sin(uv.y * crtScanlineCount * 3.14159) * 0.5 + 0.5;
+        color *= 1.0 - crtScanlineIntensity * (1.0 - scanline);
+      }
+
+      if (filmGrainEnabled) {
+        float grain = hash(uv * resolution + time * 100.0) * 2.0 - 1.0;
+        color += grain * filmGrainIntensity;
+      }
+
+      if (vignetteEnabled) {
+        vec2 center = uv - 0.5;
+        float dist = length(center);
+        float vig = smoothstep(vignetteRadius, vignetteRadius - 0.4, dist);
+        color *= mix(1.0 - vignetteIntensity, 1.0, vig);
+      }
+
+      if (colorTintEnabled) {
+        color *= colorTint;
+      }
+
+      color = clamp(color, 0.0, 1.0);
+      fragColor = vec4(color, 1.0);
+    }
+  )";
+
+  unsigned int vs = compileShader(vertSrc, GL_VERTEX_SHADER);
+  unsigned int fs = compileShader(fragSrc, GL_FRAGMENT_SHADER);
+
+  if (vs && fs) {
+    postProcessProgram_ = linkProgram(vs, fs);
+  }
+  if (vs) glDeleteShader(vs);
+  if (fs) glDeleteShader(fs);
+}
+
+void GLRenderer::renderPostProcess() {
+  if (!postProcessProgram_ || !fboTexture_)
+    return;
+
+  glUseProgram(postProcessProgram_);
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, fboTexture_);
+  glUniform1i(glGetUniformLocation(postProcessProgram_, "screenTexture"), 0);
+  glUniform2f(glGetUniformLocation(postProcessProgram_, "resolution"),
+              (float)renderWidth_, (float)renderHeight_);
+  glUniform1f(glGetUniformLocation(postProcessProgram_, "time"), uniforms_.time);
+
+  glUniform1i(glGetUniformLocation(postProcessProgram_, "vignetteEnabled"),
+              postProcessConfig_.vignetteEnabled ? 1 : 0);
+  glUniform1f(glGetUniformLocation(postProcessProgram_, "vignetteIntensity"),
+              postProcessConfig_.vignetteIntensity);
+  glUniform1f(glGetUniformLocation(postProcessProgram_, "vignetteRadius"),
+              postProcessConfig_.vignetteRadius);
+
+  glUniform1i(
+      glGetUniformLocation(postProcessProgram_, "chromaticAberrationEnabled"),
+      postProcessConfig_.chromaticAberrationEnabled ? 1 : 0);
+  glUniform1f(
+      glGetUniformLocation(postProcessProgram_, "chromaticAberrationAmount"),
+      postProcessConfig_.chromaticAberrationAmount);
+
+  glUniform1i(glGetUniformLocation(postProcessProgram_, "filmGrainEnabled"),
+              postProcessConfig_.filmGrainEnabled ? 1 : 0);
+  glUniform1f(glGetUniformLocation(postProcessProgram_, "filmGrainIntensity"),
+              postProcessConfig_.filmGrainIntensity);
+
+  glUniform1i(glGetUniformLocation(postProcessProgram_, "crtScanlinesEnabled"),
+              postProcessConfig_.crtScanlinesEnabled ? 1 : 0);
+  glUniform1f(glGetUniformLocation(postProcessProgram_, "crtScanlineIntensity"),
+              postProcessConfig_.crtScanlineIntensity);
+  glUniform1f(glGetUniformLocation(postProcessProgram_, "crtScanlineCount"),
+              postProcessConfig_.crtScanlineCount);
+
+  glUniform1i(glGetUniformLocation(postProcessProgram_, "colorTintEnabled"),
+              postProcessConfig_.colorTintEnabled ? 1 : 0);
+  glUniform3f(glGetUniformLocation(postProcessProgram_, "colorTint"),
+              postProcessConfig_.colorTintR, postProcessConfig_.colorTintG,
+              postProcessConfig_.colorTintB);
+
+  glBindVertexArray(vao_);
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
   glUseProgram(0);
 }
