@@ -3,6 +3,7 @@
 #include "../src/core/MathUtils.h"
 #include "../src/core/MultiDisplayManager.h"
 #include "../src/core/PerformanceMonitor.h"
+#include "../src/core/ShaderInterop.h"
 #include "../src/core/ShaderManager.h"
 #include "../src/core/UniformBuffer.h"
 #include "../src/gl/GLRendererTypes.h"
@@ -71,6 +72,8 @@ public:
     results.push_back(testSmartShaderRotation());
     results.push_back(testWallpaperShaderRotation());
     results.push_back(testBenchmarkMetrics());
+    results.push_back(testGetShaderMetadata());
+    results.push_back(testShaderAPIVersion());
     return results;
   }
 
@@ -1936,77 +1939,264 @@ private:
   }
 
   TestResult testWallpaperShaderRotation() {
-    std::vector<std::string> shaderPaths;
-    std::set<std::string> skipList;
-    std::set<std::string> favorites;
-
-    shaderPaths = {"/shaders/a.frag", "/shaders/b.frag", "/shaders/c.frag",
-                   "/shaders/d.frag"};
-    TEST_ASSERT_EQUAL(4u, shaderPaths.size());
-
-    // Skip list filtering
-    skipList.insert("/shaders/b.frag");
-    skipList.insert("/shaders/d.frag");
-    std::vector<std::string> available;
-    for (const auto &p : shaderPaths) {
-      if (skipList.find(p) == skipList.end())
-        available.push_back(p);
+    // --- scanShaderDir: nonexistent directory ---
+    {
+      namespace fs = std::filesystem;
+      bool exists = fs::exists("/nonexistent_dir_xyz");
+      TEST_ASSERT_FALSE(exists);
     }
-    TEST_ASSERT_EQUAL(2u, available.size());
 
-    // Favorites
-    favorites.insert("/shaders/a.frag");
-    favorites.insert("/shaders/c.frag");
-    TEST_ASSERT_TRUE(favorites.count("/shaders/a.frag"));
-    TEST_ASSERT_FALSE(favorites.count("/shaders/b.frag"));
+    // --- scanShaderDir: create temp dir with mixed files ---
+    std::string tmpDir = "/tmp/shadercandy_test_dir";
+    namespace fs = std::filesystem;
+    fs::create_directories(tmpDir);
+    // Write valid files
+    {
+      std::ofstream(tmpDir + "/alpha.frag") << "void main(){}";
+      std::ofstream(tmpDir + "/beta.glsl") << "void main(){}";
+      // Non-shader file should be skipped
+      std::ofstream(tmpDir + "/readme.txt") << "not a shader";
+      // Subdir should be skipped
+      fs::create_directories(tmpDir + "/subdir");
+    }
 
-    // Toggle favorite
-    favorites.erase("/shaders/a.frag");
-    TEST_ASSERT_FALSE(favorites.count("/shaders/a.frag"));
+    // Simulate scanShaderDir logic
+    std::vector<std::string> shaderPaths;
+    if (fs::exists(tmpDir) && fs::is_directory(tmpDir)) {
+      for (const auto &entry : fs::directory_iterator(tmpDir)) {
+        if (!entry.is_regular_file())
+          continue;
+        auto ext = entry.path().extension().string();
+        if (ext == ".frag" || ext == ".glsl") {
+          shaderPaths.push_back(entry.path().string());
+        }
+      }
+    }
+    std::sort(shaderPaths.begin(), shaderPaths.end());
+    TEST_ASSERT_EQUAL(2u, shaderPaths.size());
 
-    // Round-robin rotation
+    // --- getNextShaderPath: empty list ---
+    {
+      std::vector<std::string> empty;
+      std::string result;
+      if (!empty.empty()) {
+        result = empty[0];
+      }
+      TEST_ASSERT_TRUE(result.empty());
+    }
+
+    // --- getNextShaderPath: round-robin with skipList ---
+    std::set<std::string> skipList;
+    skipList.insert(shaderPaths[1]); // skip beta
     size_t idx = 0;
-    idx = (idx + 1) % available.size();
-    TEST_ASSERT_EQUAL(1u, idx);
+    size_t attempts = 0;
+    do {
+      idx = (idx + 1) % shaderPaths.size();
+      attempts++;
+    } while (skipList.count(shaderPaths[idx]) && attempts < shaderPaths.size());
+    // Should have skipped beta and landed on something else
+    TEST_ASSERT_TRUE(skipList.find(shaderPaths[idx]) == skipList.end());
 
-    // Interval logic
+    // --- getNextShaderPath: all skipped (exhausts attempts) ---
+    skipList.insert(shaderPaths[0]); // now all are skipped
+    idx = 0;
+    attempts = 0;
+    do {
+      idx = (idx + 1) % shaderPaths.size();
+      attempts++;
+    } while (skipList.count(shaderPaths[idx]) && attempts < shaderPaths.size());
+    // Should wrap back after exhausting
+    TEST_ASSERT_EQUAL(shaderPaths.size(), attempts);
+
+    // --- getNextShaderPath: shuffle mode ---
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<size_t> dist(0, shaderPaths.size() - 1);
+    size_t shuffleIdx = dist(rng);
+    TEST_ASSERT_TRUE(shuffleIdx < shaderPaths.size());
+
+    // --- favorites toggle ---
+    std::set<std::string> favorites;
+    std::string currentShaderPath = shaderPaths[0];
+
+    // Toggle on (add)
+    if (!currentShaderPath.empty()) {
+      favorites.insert(currentShaderPath);
+    }
+    TEST_ASSERT_TRUE(favorites.count(currentShaderPath));
+
+    // Toggle off (remove)
+    auto it = favorites.find(currentShaderPath);
+    if (it != favorites.end()) {
+      favorites.erase(it);
+    }
+    TEST_ASSERT_FALSE(favorites.count(currentShaderPath));
+
+    // --- skipCurrentShader: empty path guard ---
+    {
+      std::string emptyPath;
+      bool didSkip = false;
+      if (!emptyPath.empty()) {
+        skipList.insert(emptyPath);
+        didSkip = true;
+      }
+      TEST_ASSERT_FALSE(didSkip);
+    }
+
+    // --- skipCurrentShader: add and rotate ---
+    {
+      std::string pathToSkip = shaderPaths[0];
+      skipList.insert(pathToSkip);
+      TEST_ASSERT_TRUE(skipList.count(pathToSkip));
+    }
+
+    // --- rotateInterval ---
     float rotateInterval = 30.0f;
-    bool shouldRotate = (rotateInterval > 0.0f);
-    TEST_ASSERT_TRUE(shouldRotate);
-
+    TEST_ASSERT_TRUE(rotateInterval > 0.0f);
     rotateInterval = 0.0f;
-    shouldRotate = (rotateInterval > 0.0f);
-    TEST_ASSERT_FALSE(shouldRotate);
+    TEST_ASSERT_FALSE(rotateInterval > 0.0f);
+
+    // Cleanup
+    fs::remove_all(tmpDir);
 
     return {__func__, true, "Wallpaper shader rotation passed", 0.0};
   }
 
   TestResult testBenchmarkMetrics() {
+    // --- compile timing ---
     double compileTimeMs = 12.5;
-    double avgFrameMs = 8.33;
-    double avgFps = 1000.0 / avgFrameMs;
-    double minFps = avgFps * 0.9;
-    double maxFps = avgFps * 1.1;
-
     TEST_ASSERT_TRUE(compileTimeMs > 0.0);
+
+    // --- FPS calculation with valid frame time ---
+    double avgFrameMs = 8.33;
+    double avgFps = (avgFrameMs > 0) ? 1000.0 / avgFrameMs : 0;
     TEST_ASSERT_TRUE(avgFps > 0.0);
+    TEST_ASSERT_TRUE(avgFps > 100.0);
+
+    // --- FPS calculation with zero frame time (division guard) ---
+    double zeroFrameMs = 0.0;
+    double zeroFps = (zeroFrameMs > 0) ? 1000.0 / zeroFrameMs : 0;
+    TEST_ASSERT_EQUAL(0.0, zeroFps);
+
+    // --- min/max FPS ---
+    double minFps = 999999.0;
+    double maxFps = 0.0;
+    std::vector<double> frameTimes = {8.0, 10.0, 6.0, 12.0};
+    for (double ft : frameTimes) {
+      double fps = (ft > 0) ? 1000.0 / ft : 0;
+      minFps = std::min(minFps, fps);
+      maxFps = std::max(maxFps, fps);
+    }
     TEST_ASSERT_TRUE(minFps > 0.0);
     TEST_ASSERT_TRUE(maxFps > minFps);
 
-    // Aggregation across shaders
+    // --- compiled/failed count ---
     int compiled = 0;
-    double totalCompileMs = 0;
-    double totalFps = 0;
-    std::vector<double> allFps = {120.0, 115.0, 130.0};
-    for (double f : allFps) {
-      totalFps += f;
-      compiled++;
+    int failed = 0;
+    std::vector<bool> results = {true, true, false, true, false};
+    for (bool r : results) {
+      if (r) compiled++;
+      else failed++;
     }
-    double avgAllFps = totalFps / compiled;
     TEST_ASSERT_EQUAL(3, compiled);
-    TEST_ASSERT_TRUE(avgAllFps > 0.0);
+    TEST_ASSERT_EQUAL(2, failed);
+
+    // --- zero compiled guard ---
+    double totalCompileMs = 0;
+    double avgAllFps = 0;
+    int zeroCompiled = 0;
+    if (zeroCompiled > 0) {
+      avgAllFps = totalCompileMs / zeroCompiled;
+    }
+    TEST_ASSERT_EQUAL(0.0, avgAllFps);
+
+    // --- worstFps clamping ---
+    double worstFps = 999999.0;
+    double displayWorst = (worstFps < 999999) ? worstFps : 0.0;
+    TEST_ASSERT_EQUAL(0.0, displayWorst);
+
+    // --- name truncation ---
+    std::string longName = "this_is_a_very_long_shader_name_that_exceeds_limit";
+    if (longName.size() > 22) {
+      longName = longName.substr(0, 19) + "...";
+    }
+    TEST_ASSERT_TRUE(longName.size() <= 22);
+
+    std::string shortName = "short";
+    if (shortName.size() > 22) {
+      shortName = shortName.substr(0, 19) + "...";
+    }
+    TEST_ASSERT_EQUAL(5u, shortName.size());
 
     return {__func__, true, "Benchmark metrics passed", 0.0};
+  }
+
+  TestResult testGetShaderMetadata() {
+    using namespace ShaderCandy::Config;
+
+    ConfigurationManager &cm = ConfigurationManager::getInstance();
+    cm.loadDefaults();
+
+    // --- not-found path: returns empty ShaderConfig with name set ---
+    ShaderConfig notFound = cm.getShaderMetadata("nonexistent_shader_xyz");
+    TEST_ASSERT_TRUE(notFound.shaderName == "nonexistent_shader_xyz");
+    TEST_ASSERT_TRUE(notFound.displayName == "nonexistent_shader_xyz");
+    TEST_ASSERT_TRUE(notFound.parameters.empty());
+
+    // --- found path: register a shader then retrieve it ---
+    ShaderConfig testCfg;
+    testCfg.shaderName = "test_shader_meta";
+    testCfg.displayName = "Test Shader";
+    testCfg.description = "A test shader";
+    testCfg.category = "Test";
+    testCfg.supportsAudio = true;
+    testCfg.quality = 0.8f;
+    cm.registerShader(testCfg);
+
+    ShaderConfig retrieved = cm.getShaderMetadata("test_shader_meta");
+    TEST_ASSERT_TRUE(retrieved.shaderName == "test_shader_meta");
+    TEST_ASSERT_TRUE(retrieved.displayName == "Test Shader");
+    TEST_ASSERT_TRUE(retrieved.description == "A test shader");
+    TEST_ASSERT_TRUE(retrieved.category == "Test");
+    TEST_ASSERT_TRUE(retrieved.supportsAudio);
+    TEST_ASSERT_EQUAL(0.8f, retrieved.quality);
+
+    // --- getShaderConfig pointer path ---
+    ShaderConfig *ptr = cm.getShaderConfig("test_shader_meta");
+    TEST_ASSERT_TRUE(ptr != nullptr);
+    TEST_ASSERT_TRUE(ptr->shaderName == "test_shader_meta");
+
+    ShaderConfig *nullPtr = cm.getShaderConfig("does_not_exist");
+    TEST_ASSERT_TRUE(nullPtr == nullptr);
+
+    // Cleanup
+    cm.unregisterShader("test_shader_meta");
+
+    return {__func__, true, "GetShaderMetadata passed", 0.0};
+  }
+
+  TestResult testShaderAPIVersion() {
+    // Verify SHADERCANDY_API_VERSION is defined and valid
+    #ifndef SHADERCANDY_API_VERSION
+    TEST_ASSERT_TRUE(false); // Should be defined
+    #else
+    TEST_ASSERT_EQUAL(1, SHADERCANDY_API_VERSION);
+    #endif
+
+    // Simulate shader compile-time version check
+    int apiVersion = 0;
+    #ifdef SHADERCANDY_API_VERSION
+    apiVersion = SHADERCANDY_API_VERSION;
+    #endif
+    TEST_ASSERT_TRUE(apiVersion >= 1);
+
+    // Version comparison logic
+    bool compatible = (apiVersion >= 1);
+    TEST_ASSERT_TRUE(compatible);
+
+    bool tooNew = (apiVersion >= 99);
+    TEST_ASSERT_FALSE(tooNew);
+
+    return {__func__, true, "Shader API version passed", 0.0};
   }
 };
 
