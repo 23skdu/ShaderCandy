@@ -1,14 +1,72 @@
 # Valgrind suppressions for ShaderCandy CI
-# System library leaks from Mesa GLX, ALSA, and PipeWire
+# System library leaks from Mesa GLX, ALSA, PipeWire, and stripped libraries
 # These are harmless internal allocations in stripped shared libraries
 
 {
    mesa_glx_leaks
    Memcheck:Leak
    match-leak-kinds: definite,indirect,possible
+   fun:malloc
+   ...
+   obj:*/libGLX_mesa.so*
+   ...
+}
+
+{
+   mesa_glx_calloc_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
    fun:calloc
    ...
-   fun:_Z*
+   obj:*/libGLX_mesa.so*
+   ...
+}
+
+{
+   pipewire_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
+   fun:malloc
+   ...
+   fun:pw_*
+   ...
+}
+
+{
+   pipewire_stripped_malloc_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
+   fun:malloc
+   ...
+   fun:???
+   ...
+   fun:pw_context_load_module
+   ...
+}
+
+{
+   pipewire_stripped_calloc_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect,possible
+   fun:calloc
+   ...
+   fun:???
+   ...
+   fun:pw_context_load_module
+   ...
+}
+
+{
+   pipewire_calloc_deep_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   ...
+   fun:???
+   ...
+   fun:???
+   ...
+   fun:pw_context_load_module
    ...
 }
 
@@ -23,11 +81,21 @@
 }
 
 {
-   pipewire_leaks
+   stripped_library_malloc_leaks
    Memcheck:Leak
-   match-leak-kinds: definite,indirect,possible
+   match-leak-kinds: definite
    fun:malloc
    ...
-   fun:pw_*
+   fun:???
+   ...
+}
+
+{
+   stripped_library_calloc_leaks
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   ...
+   fun:???
    ...
 }

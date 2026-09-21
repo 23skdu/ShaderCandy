@@ -299,28 +299,23 @@ bool GLRenderer::loadShader(const std::string &name, const std::string &path) {
     return false;
   }
 
-  if (shaderPrograms_.count(name)) {
-    glDeleteProgram(shaderPrograms_[name]);
-  }
-
+  GLuint oldProgram = 0;
   {
     std::lock_guard<std::mutex> lock(shaderMutex_);
+    if (shaderPrograms_.count(name)) {
+      oldProgram = shaderPrograms_[name];
+    }
     shaderPrograms_[name] = program;
     shaderPaths_[name] = path;
   }
-  uniformUploader_.invalidate();
-
-#if defined(__linux__)
-  if (fileWatcherRunning_) {
-    struct stat st;
-    if (stat(path.c_str(), &st) == 0) {
-      shaderModTimes_[name] = st.st_mtime;
-    }
+  if (oldProgram) {
+    glDeleteProgram(oldProgram);
   }
-#endif
+  uniformUploader_.invalidate();
 
   struct stat st;
   if (stat(path.c_str(), &st) == 0) {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
     shaderModTimes_[name] = st.st_mtime;
   }
 
