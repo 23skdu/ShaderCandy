@@ -76,9 +76,13 @@ A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapc
 | **Persistent PSO Disk Cache** | ✅ | ❌ | Production Ready on Metal (`MetalPipelineCache`) |
 | **HDR (10-bit / EDR)** | ✅ | ✅ | Production Ready on macOS (EDR); FBO bloom + tone mapping on Linux |
 | **Headless Rendering** | ✅ | ✅ | Offscreen FBO + ffmpeg video encoding (PNG/JPG/PPM) |
-| **Uniform Upload** | Metal buffer bindings | ✅ | UniformUploader with cached location dispatch |
+| **Uniform Upload** | Metal buffer bindings | ✅ | UniformUploader with cached location dispatch; uploads ShaderParams and audioData[256]; null-guard for headless |
 | **Neural Effects (CoreML)** | ✅ | ❌ | macOS-Only (Apple Neural Engine / Metal) |
 | **Ray-Traced Audio (MPS)** | ✅ | ❌ | macOS-Only (Metal Performance Shaders) |
+| **Transition System** | ❌ | ✅ | 10 transition types + 10 easing functions (`GLRendererTypes.h`) |
+| **Post-Processing Config** | ❌ | ✅ | Vignette, chromatic aberration, film grain, CRT scanlines, color tint |
+| **Adaptive Quality** | ❌ | ✅ | Dynamic resolution scaling to maintain target FPS |
+| **Smart Shader Rotation** | ❌ | ✅ | Shuffle, favorites/skip lists, auto-rotate with configurable duration |
 
 ---
 
@@ -92,16 +96,20 @@ A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapc
 - **Spatial Audio MPS Optimization**: Transitioned `AcousticSimulator.mm` to hardware-accelerated ray-tracing using Metal Performance Shaders (`MPSRayIntersector`, `MTLAccelerationStructure`).
 - **Persistent Pipeline State Object (PSO) Disk Cache**: Serialized pipeline state caching preventing runtime hitches during shader compilation.
 - **Battery-Aware Rendering**: Integrated power source monitoring (`IOPSCopyPowerSourcesInfo`) across macOS player and screensaver modes to throttle frame rates and adjust quality on battery.
-- **GLRendererTypes.h & UniformUploader**: Extracted GL-only types for testability; cached uniform location dispatch eliminating redundant `glGetUniformLocation` calls.
+- **GLRendererTypes.h & UniformUploader**: Extracted GL-only types for testability; cached uniform location dispatch eliminating redundant `glGetUniformLocation` calls. UniformUploader now uploads ShaderParams (param1-6, colorPalette, effectFlags) and full audioData[256] with null-guard for headless mode.
 - **Shader Include Caching**: `GLSLWrapper` with mtime-based file caching for fast `#include` resolution across 52+ fragment shaders.
 - **Audio Utils**: `packAudioForShader`, `getDominantFrequency`, `getSpectralCentroid`, `bandHasEnergy` for efficient audio data packing and analysis.
-- **101 Tests, 0 Valgrind Errors**: Comprehensive unit and integration test coverage across 9 suites with verified memory safety.
+- **Transition System**: 10 transition types (Crossfade, Dissolve, WipeLeft/Right/Up/Down, ZoomIn/Out, SpinClockwise/CounterClockwise) with 10 easing functions (Linear, EaseIn/Out/InOut, Cubic variants, Exponential variants) via `GLTransitionConfig`.
+- **Post-Processing Config**: `GLPostProcessConfig` with vignette (intensity, radius), chromatic aberration (amount), film grain (intensity), CRT scanlines (intensity), and color tint (R, G, B) — each independently toggleable.
+- **Adaptive Quality**: `GLAdaptiveQualityConfig` dynamically scales resolution to maintain target FPS with configurable min/max resolution scale bounds.
+- **Smart Shader Rotation**: Shuffle mode, favorites list, skip list, and auto-rotate with configurable per-shader duration for hands-free browsing.
+- **105 Tests, 0 Valgrind Errors**: Comprehensive unit and integration test coverage across 9 suites with verified memory safety.
 
 ---
 
 ## Roadmap & Future Work
 
-Detailed engineering objectives are maintained in **[nextsteps.md](./nextsteps.md)**. All 8 original roadmap items are now completed. Current focus areas include expanding test coverage, improving documentation, and community distribution channels.
+Detailed engineering objectives are maintained in **[nextsteps.md](./nextsteps.md)**. All 8 original roadmap items are now completed, plus additional Linux GL features (transition system, post-processing, adaptive quality, smart rotation). Current focus areas include expanding test coverage, improving documentation, and community distribution channels.
 
 ---
 

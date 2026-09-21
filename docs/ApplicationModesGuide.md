@@ -73,7 +73,19 @@ The standalone player allows interactive browsing, fine-tuning, and full-screen 
 | `-fps` / `--fps` | `<int>` | Target frame rate cap (default: `60`) |
 | `-width` / `-height` | `<int>` | Initial window dimensions (Linux) |
 | `-shaders` / `--shaders` | `<path>` | Path to custom shader directory |
+| `-transition` / `--transition` | `<type>` | Transition type between shaders (e.g. `crossfade`, `dissolve`, `wipeleft`) |
+| `-transition-duration` / `--transition-duration` | `<float>` | Transition duration in seconds (default: `1.0`) |
 | `-help` / `--help` | None | Display command-line usage manual |
+
+### Shader Transitions
+
+ShaderCandy supports smooth visual transitions when cycling between shaders. The transition system is configured via `GLTransitionConfig`:
+
+**Transition Types**: Crossfade, Dissolve, WipeLeft, WipeRight, WipeUp, WipeDown, ZoomIn, ZoomOut, SpinClockwise, SpinCounterClockwise
+
+**Easing Functions**: Linear, EaseIn, EaseOut, EaseInOut, CubicIn, CubicOut, CubicInOut, ExponentialIn, ExponentialOut, ExponentialInOut
+
+Transitions apply automatically during shader cycling in all modes (player, screensaver, wallpaper). The transition blends between the outgoing and incoming shader using the selected easing curve over the configured duration.
 
 ---
 
@@ -198,6 +210,19 @@ flowchart LR
 - **`SpanAll`**: Computes the global bounding box of all displays and stretches a seamless virtual canvas across the entire monitor wall.
 - **`Clone`**: Broadcasts the identical animation and uniform state to every display.
 - **`Independent`**: Assigns unique procedural shaders and independent parameter sets to each display output.
+
+---
+
+## Smart Shader Rotation
+
+For hands-free shader browsing, ShaderCandy supports automatic rotation with configurable behavior:
+
+- **Auto-Rotate**: Cycle through shaders at a configurable interval (per-shader duration in seconds).
+- **Shuffle Mode**: Randomize shader order instead of sequential catalog traversal.
+- **Favorites List**: Pin preferred shaders for rotation — only favorites play when enabled.
+- **Skip List**: Exclude specific shaders from rotation.
+
+These settings are useful for screensaver and wallpaper modes where unattended operation is desired.
 
 ---
 

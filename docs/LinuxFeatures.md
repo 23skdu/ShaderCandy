@@ -20,14 +20,17 @@ flowchart TD
 
     subgraph "Rendering Core"
         X11 & WL & GLFW --> GL["GLRenderer (OpenGL 3.3+ Core Profile)"]
-        GL --> UL["UniformUploader\n(cached uniform location dispatch)"]
+        GL --> UL["UniformUploader\n(cached uniform location dispatch,\nShaderParams + audioData[256])"]
         UL --> Prog["GLShaderProgram\n(Auto-init LDR, reload support)"]
         Prog --> GLSL["GLSLWrapper\n(#include resolver with mtime cache)"]
+        GL --> Trans["Transition System\n(10 types, 10 easing functions)"]
     end
 
     subgraph "Post-Processing Pipeline"
         GL --> Bloom["Bloom Pipeline\n(threshold → blur passes → composite)"]
         Bloom --> FBO["FBO Post-Processing\n(offscreen render → tone map → screen)"]
+        GL --> PP["Full-Screen Effects\n(vignette, chromatic aberration,\nfilm grain, CRT scanlines, color tint)"]
+        PP --> FBO
     end
 
     subgraph "File Watcher"
@@ -67,12 +70,41 @@ flowchart TD
 5. **inotify-Based Shader Hot Reloading**: Uses Linux `inotify` (not timestamp polling) to detect file modifications on loaded shaders, with automatic `#include` cache invalidation via mtime checks.
 6. **Bloom Post-Processing**: FBO-based bloom pipeline with configurable quality levels (Low=2 passes, Medium=4, High=6, Ultra=8 Gaussian blur passes).
 7. **Headless Rendering & Video Encoding**: `HeadlessRenderer` pipes RGBA frames to ffmpeg via `popen()` for PNG/JPG/PPM video output.
-8. **GLRendererTypes.h**: Extracted GL-only structs and enums (GLBloomConfig, GLParticleConfig, GLPerformanceMetrics, GLRendererError) for testability without GL dependencies.
-9. **UniformUploader**: Cached uniform location dispatch that replaces 30+ lines of manual per-uniform location queries.
+8. **GLRendererTypes.h**: Extracted GL-only structs and enums (GLBloomConfig, GLParticleConfig, GLPerformanceMetrics, GLRendererError, GLTransitionType, GLEasingFunction, GLTransitionConfig, GLPostProcessConfig, GLAdaptiveQualityConfig) for testability without GL dependencies.
+9. **UniformUploader**: Cached uniform location dispatch that replaces 30+ lines of manual per-uniform location queries. Now uploads ShaderParams (param1-6, colorPalette, effectFlags) and full audioData[256] array. Guards against null GL function pointers in headless mode.
+10. **Transition System**: Configurable shader-to-shader transitions with 10 transition types (Crossfade, Dissolve, Wipe directions, Zoom, Spin) and 10 easing functions (Linear, EaseIn/Out, Cubic, Exponential variants).
+11. **Post-Processing Pipeline**: Full-screen effects via `GLPostProcessConfig`: vignette, chromatic aberration, film grain, CRT scanlines, and color tint — each independently toggleable with intensity parameters.
+12. **Adaptive Quality**: `GLAdaptiveQualityConfig` dynamically scales resolution to maintain target FPS, with configurable min/max resolution scale bounds and FPS thresholds.
+13. **Smart Shader Rotation**: Shuffle mode, favorites/skip lists, and auto-rotate with configurable per-shader duration for hands-free browsing.
+
+## 3. Adaptive Quality & Smart Rotation
+
+### Adaptive Quality
+
+`GLAdaptiveQualityConfig` in `GLRendererTypes.h` provides dynamic resolution scaling to maintain a target frame rate:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `enabled` | bool | Toggle adaptive quality on/off |
+| `targetFPS` | int | Desired frame rate (default: 60) |
+| `lowFPS` | int | FPS threshold below which resolution scales down |
+| `highFPS` | int | FPS threshold above which resolution scales up |
+| `minResolutionScale` | float | Minimum resolution multiplier (e.g. 0.5 = half res) |
+| `maxResolutionScale` | float | Maximum resolution multiplier (e.g. 1.0 = full res) |
+| `currentResolutionScale` | float | Current active resolution scale |
+
+### Smart Shader Rotation
+
+Configurable automatic shader cycling for hands-free operation:
+
+- **Shuffle Mode**: Randomize shader traversal order.
+- **Favorites List**: Only rotate through pinned shaders.
+- **Skip List**: Exclude specific shaders from rotation.
+- **Auto-Rotate Interval**: Configurable per-shader duration before transitioning.
 
 ---
 
-## 3. Audio Reactivity
+## 4. Audio Reactivity
 
 The Linux audio implementation utilizes ALSA for direct hardware sample streaming and FFTW3 for Fast Fourier Transform spectral decomposition.
 
@@ -112,7 +144,7 @@ shadercandy-wallpaper -shader ./shaders/effects/audio_spectrum.frag -audio
 
 ---
 
-## 4. Wayland Compositor Integration
+## 5. Wayland Compositor Integration
 
 ShaderCandy provides first-class native Wayland support without requiring XWayland.
 
@@ -137,7 +169,7 @@ shadercandy-wayland --list
 
 ---
 
-## 5. Building on Linux
+## 6. Building on Linux
 
 ### Requirements
 - **CMake 3.20+**
@@ -202,7 +234,7 @@ sudo make install
 
 ---
 
-## 6. Linux Differences from macOS
+## 7. Linux Differences from macOS
 
 | Architectural Area | macOS Backend | Linux Backend | Design Rationale |
 | :--- | :--- | :--- | :--- |
@@ -220,7 +252,7 @@ sudo make install
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 ### Audio Not Reacting
 1. List available recording devices: `arecord -l`
@@ -248,7 +280,7 @@ sudo make install
 
 ---
 
-## 8. See Also
+## 9. See Also
 
 - **[ApplicationModesGuide.md](./ApplicationModesGuide.md)**: Usage guide for player, wallpaper, and screensaver modes.
 - **[ShaderAuthoringGuide.md](./ShaderAuthoringGuide.md)**: Developer guide for creating and translating GLSL shaders.

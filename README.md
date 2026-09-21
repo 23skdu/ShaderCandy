@@ -15,6 +15,10 @@ ShaderCandy is a cross-platform screensaver application that renders real-time p
 * **Dynamic Control Systems**: Configurable UI for shader selection, preset save/load, multi-display support, screenshot hotkeys, and OSD notifications.
 * **Advanced Particle Systems**: High-performance compute shader integration for generative multi-million particle simulations.
 * **Shader Cycling**: Configurable per-shader duration with smooth crossfade transitions between effects.
+* **Transition System**: 10 transition types (crossfade, dissolve, wipe, zoom, spin) with 10 easing functions for smooth shader blending.
+* **Post-Processing Pipeline**: Vignette, chromatic aberration, film grain, CRT scanlines, and color tint effects.
+* **Adaptive Quality**: Dynamic resolution scaling to maintain target FPS on varying hardware.
+* **Smart Shader Rotation**: Shuffle mode, favorites/skip lists, and auto-rotate with configurable duration.
 
 ## Architecture
 
@@ -39,7 +43,7 @@ graph TD
     Src --> Audio["audio/ (AudioInput, AudioUtils, AcousticSimulator)"]
     Src --> Config["config/ (ConfigurationManager, Presets)"]
 
-    Tests --> T1["9 test suites / 101 tests"]
+    Tests --> T1["9 test suites / 105 tests"]
 ```
 
 ## Building and Installation
@@ -91,7 +95,7 @@ make -j$(nproc)
 cmake .. -DBUILD_TESTS=ON -DCMAKE_CXX_STANDARD=17
 make
 
-# Run all tests (101 tests across 9 suites)
+# Run all tests (105 tests across 9 suites)
 ./shadercandy-test
 
 # Run specific test suite
@@ -166,7 +170,7 @@ ShaderCandy ships with **110+ shaders** across multiple categories:
 
 GitHub Actions CI runs on every push and PR (all actions v4):
 - Builds on Ubuntu with full dependency matrix
-- Runs the full test suite (101 tests)
+- Runs the full test suite (105 tests)
 - Static analysis with clang-tidy and cppcheck
 - Memory leak detection with valgrind (0 application errors)
 
