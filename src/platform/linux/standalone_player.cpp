@@ -13,15 +13,18 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <unordered_set>
 #include <vector>
 
 // Audio support
@@ -149,6 +152,18 @@ public:
   // Performance
   float currentFPS = 60.0f;
   std::chrono::steady_clock::time_point lastFrameTime;
+
+  // Transitions
+  bool inTransition = false;
+  float transitionProgress = 0.0f;
+  float transitionDuration = 1.5f;
+  std::chrono::steady_clock::time_point transitionStart;
+  ShaderProgram *pendingNextShader = nullptr;
+
+  // Shuffle
+  bool shuffleMode = false;
+  std::unordered_set<std::string> skipList;
+  std::mt19937 rng{std::random_device{}()};
 
   bool initialize(int argc, char **argv);
   void run();
@@ -544,6 +559,26 @@ void StandalonePlayer::run() {
   while (!glfwWindowShouldClose(window) && running) {
     glfwPollEvents();
     updateFPS();
+
+    if (inTransition) {
+      auto now = std::chrono::steady_clock::now();
+      float elapsed = std::chrono::duration<float>(now - transitionStart).count();
+      float rawProgress = elapsed / transitionDuration;
+      // Ease-out transition
+      transitionProgress = rawProgress * (2.0f - rawProgress);
+      if (rawProgress >= 1.0f) {
+        transitionProgress = 1.0f;
+        currentShader = pendingNextShader;
+        pendingNextShader = nullptr;
+        inTransition = false;
+        transitionProgress = 0.0f;
+        std::string title = "ShaderCandy Player - " + currentShader->name + " (" +
+                            std::to_string(currentShaderIndex + 1) + "/" +
+                            std::to_string(shaders.size()) + ")";
+        glfwSetWindowTitle(window, title.c_str());
+      }
+    }
+
     render();
     glfwSwapBuffers(window);
   }
@@ -563,20 +598,43 @@ void StandalonePlayer::updateFPS() {
 void StandalonePlayer::render() {
   glClear(GL_COLOR_BUFFER_BIT);
 
-  if (currentShader) {
-    const AudioData *audioData = nullptr;
-    AudioData currentAudio;
-    if (audioInput && audioInput->isRunning()) {
-      currentAudio = audioInput->getCurrentData();
-      audioData = &currentAudio;
-    }
+  if (!currentShader) return;
+
+  const AudioData *audioData = nullptr;
+  AudioData currentAudio;
+  if (audioInput && audioInput->isRunning()) {
+    currentAudio = audioInput->getCurrentData();
+    audioData = &currentAudio;
+  }
+
+  glBindVertexArray(vao);
+
+  if (inTransition && pendingNextShader && pendingNextShader->program) {
+    float alpha1 = 1.0f - transitionProgress;
+    float alpha2 = transitionProgress;
 
     currentShader->use();
+    currentShader->uniforms.alpha = alpha1;
+    currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    pendingNextShader->use();
+    pendingNextShader->uniforms.alpha = alpha2;
+    pendingNextShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glDisable(GL_BLEND);
+  } else {
+    currentShader->use();
     currentShader->uniforms.alpha = 1.0f;
-    currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns,
-                                  audioData);
+    currentShader->updateUniforms(width, height, mouseX, mouseY, mouseBtns, audioData);
     glDrawArrays(GL_TRIANGLES, 0, 6);
   }
+
+  glBindVertexArray(0);
 }
 
 void StandalonePlayer::cleanup() {
@@ -603,7 +661,38 @@ void StandalonePlayer::cleanup() {
 void StandalonePlayer::nextShader() {
   if (shaders.size() <= 1)
     return;
-  selectShader((currentShaderIndex + 1) % shaders.size());
+
+  size_t nextIndex;
+  if (shuffleMode) {
+    std::vector<size_t> candidates;
+    for (size_t i = 0; i < shaders.size(); i++) {
+      if (i != currentShaderIndex && skipList.find(shaders[i]->name) == skipList.end()) {
+        candidates.push_back(i);
+      }
+    }
+    if (candidates.empty()) {
+      for (size_t i = 0; i < shaders.size(); i++) {
+        if (i != currentShaderIndex) candidates.push_back(i);
+      }
+    }
+    if (candidates.empty()) return;
+    std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+    nextIndex = candidates[dist(rng)];
+  } else {
+    nextIndex = (currentShaderIndex + 1) % shaders.size();
+    int attempts = 0;
+    while (skipList.find(shaders[nextIndex]->name) != skipList.end() &&
+           attempts < static_cast<int>(shaders.size())) {
+      nextIndex = (nextIndex + 1) % shaders.size();
+      attempts++;
+    }
+  }
+
+  pendingNextShader = shaders[nextIndex];
+  currentShaderIndex = nextIndex;
+  inTransition = true;
+  transitionProgress = 0.0f;
+  transitionStart = std::chrono::steady_clock::now();
 }
 
 void StandalonePlayer::previousShader() {
@@ -749,6 +838,19 @@ void StandalonePlayer::keyCallback(GLFWwindow *window, int key, int scancode,
   case GLFW_KEY_D:
     player->showDebug = !player->showDebug;
     std::cout << "Debug overlay: " << (player->showDebug ? "ON" : "OFF") << std::endl;
+    break;
+  case GLFW_KEY_S:
+    if (!(mods & GLFW_MOD_CONTROL)) {
+      player->shuffleMode = !player->shuffleMode;
+      std::cout << "Shuffle: " << (player->shuffleMode ? "ON" : "OFF") << std::endl;
+    }
+    break;
+  case GLFW_KEY_X:
+    if (player->currentShader) {
+      player->skipList.insert(player->currentShader->name);
+      std::cout << "Skipped: " << player->currentShader->name << std::endl;
+      player->nextShader();
+    }
     break;
   case GLFW_KEY_T:
     player->runShaderTestSuite();
