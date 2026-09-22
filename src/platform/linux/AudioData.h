@@ -1,6 +1,8 @@
 #pragma once
 
-#ifndef HAS_AUDIO
+#if defined(HAS_AUDIO)
+#include "../../audio/AudioInput.h"
+#else
 
 #include <algorithm>
 #include <vector>
@@ -9,7 +11,7 @@ namespace ShaderCandy {
 namespace Audio {
 
 // Audio analysis data structure
-// Stub version for builds without full audio support.
+// Fallback version for builds without full audio support.
 // Matches the interface in AudioInput.h.
 struct AudioData {
   std::vector<float> waveform;
@@ -35,3 +37,4 @@ struct AudioData {
 } // namespace ShaderCandy
 
 #endif // HAS_AUDIO
+

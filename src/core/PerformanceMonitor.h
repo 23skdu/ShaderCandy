@@ -61,6 +61,14 @@ public:
   static float calculateDynamicResolutionScale(float p99LatencyMs,
                                                float targetFrameTimeMs = 16.67f);
 
+  // Smoothed dynamic resolution scaling with hysteresis / exponential damping
+  static float calculateSmoothedDynamicResolutionScale(
+      float p99LatencyMs, float targetFrameTimeMs, float currentScale,
+      float smoothingFactor = 0.15f);
+
+  // Variance / jitter of frame times (ms^2)
+  float getFrameTimeVarianceMs() const;
+
   // Enable/disable monitoring
   void setEnabled(bool enabled) { enabled_ = enabled; }
   bool isEnabled() const { return enabled_; }

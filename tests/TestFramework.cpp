@@ -51,6 +51,15 @@ bool TestFramework::runTest(const std::string &name) {
   return false;
 }
 
+std::vector<std::string> TestFramework::getSuiteNames() const {
+  std::vector<std::string> names;
+  names.reserve(suites_.size());
+  for (const auto &suite : suites_) {
+    names.push_back(suite->getName());
+  }
+  return names;
+}
+
 const std::vector<TestResult> &TestFramework::getResults() const {
   return results_;
 }

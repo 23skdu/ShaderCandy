@@ -38,6 +38,9 @@ public:
   // Run specific test
   bool runTest(const std::string &name);
 
+  // Get registered suite names
+  std::vector<std::string> getSuiteNames() const;
+
   // Get results
   const std::vector<TestResult> &getResults() const;
 

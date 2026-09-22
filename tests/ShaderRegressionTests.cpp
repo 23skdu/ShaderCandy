@@ -18,7 +18,7 @@ public:
     std::vector<TestResult> run() override {
         std::vector<TestResult> results;
         if (!hasGlslangValidator()) {
-            results.push_back({__func__, true, "glslangValidator not found — skipping regression tests", 0.0});
+            results.push_back(testOfflineShaderSyntaxValidation());
             return results;
         }
         results.push_back(testShaderCompilationTimes());
@@ -38,18 +38,83 @@ private:
     }
 
     std::vector<std::string> findFragShaders() {
-        std::vector<std::string> searchPaths = {"shaders/effects", "../shaders/effects"};
+        std::vector<std::string> searchPaths = {
+            "shaders", "shaders/effects", "../shaders", "../shaders/effects"
+        };
         std::vector<std::string> fragFiles;
         for (const auto &path : searchPaths) {
             if (!std::filesystem::exists(path)) continue;
             for (const auto &entry : std::filesystem::directory_iterator(path)) {
-                if (entry.path().extension() == ".frag") {
+                if (!entry.is_regular_file()) continue;
+                auto stem = entry.path().stem().string();
+                if (stem == "common" || stem == "vertex" || stem == "debug_overlay") continue;
+                auto ext = entry.path().extension();
+                if (ext == ".frag" || ext == ".glsl") {
                     fragFiles.push_back(entry.path().string());
                 }
             }
             if (!fragFiles.empty()) break;
         }
         return fragFiles;
+    }
+
+    TestResult testOfflineShaderSyntaxValidation() {
+        auto fragFiles = findFragShaders();
+        if (fragFiles.empty()) {
+            return {__func__, true, "No shaders found to validate", 0.0};
+        }
+
+        int validCount = 0;
+        for (const auto &fragPath : fragFiles) {
+            std::ifstream file(fragPath);
+            if (!file.is_open()) continue;
+            std::string content((std::istreambuf_iterator<char>(file)),
+                                 std::istreambuf_iterator<char>());
+
+            int braceCount = 0;
+            int parenCount = 0;
+            bool inLineComment = false;
+            bool inBlockComment = false;
+
+            for (size_t i = 0; i < content.size(); ++i) {
+                char c = content[i];
+                if (inLineComment) {
+                    if (c == '\n') inLineComment = false;
+                    continue;
+                }
+                if (inBlockComment) {
+                    if (c == '*' && i + 1 < content.size() && content[i + 1] == '/') {
+                        inBlockComment = false;
+                        i++;
+                    }
+                    continue;
+                }
+                if (c == '/' && i + 1 < content.size()) {
+                    if (content[i + 1] == '/') {
+                        inLineComment = true;
+                        i++;
+                        continue;
+                    }
+                    if (content[i + 1] == '*') {
+                        inBlockComment = true;
+                        i++;
+                        continue;
+                    }
+                }
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+                else if (c == '(') parenCount++;
+                else if (c == ')') parenCount--;
+            }
+
+            TEST_ASSERT(braceCount == 0, "Mismatched braces in: " + fragPath);
+            TEST_ASSERT(parenCount == 0, "Mismatched parentheses in: " + fragPath);
+            TEST_ASSERT(content.find("main(") != std::string::npos, "Missing main() in: " + fragPath);
+            validCount++;
+        }
+
+        return {__func__, true,
+                "Offline syntax validated " + std::to_string(validCount) + " shaders (balanced braces, parens, main entry)", 0.0};
     }
 
     double measureCompileTime(const std::string &fragPath) {

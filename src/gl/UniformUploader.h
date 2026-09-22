@@ -33,12 +33,19 @@ public:
         locations_[name] = loc;
       }
     }
-    // Cache audioData array locations
-    for (int i = 0; i < 256; i++) {
-      std::string arrName = "audioData[" + std::to_string(i) + "]";
-      int loc = glGetUniformLocation(program, arrName.c_str());
-      if (loc >= 0) {
-        locations_[arrName] = loc;
+    // Cache audioData base array location for fast single-call upload
+    audioDataLoc_ = glGetUniformLocation(program, "audioData");
+    if (audioDataLoc_ < 0) {
+      audioDataLoc_ = glGetUniformLocation(program, "audioData[0]");
+    }
+    // Fallback: cache individual indices if driver does not support array base location
+    if (audioDataLoc_ < 0) {
+      for (int i = 0; i < 256; i++) {
+        std::string arrName = "audioData[" + std::to_string(i) + "]";
+        int loc = glGetUniformLocation(program, arrName.c_str());
+        if (loc >= 0) {
+          locations_[arrName] = loc;
+        }
       }
     }
   }
@@ -46,7 +53,7 @@ public:
   void upload(unsigned int program, const Uniforms &u,
               const ShaderParams &sp = ShaderParams{},
               bool audioEnabled = false) {
-    if (locations_.empty()) {
+    if (locations_.empty() && audioDataLoc_ < 0) {
       cacheLocations(program);
     }
 
@@ -105,21 +112,30 @@ public:
       set1f("treble", u.treble);
       set1f("beat", u.beat);
 
-      // Upload full audioData[256] array
-      for (int i = 0; i < 256; i++) {
-        std::string arrName = "audioData[" + std::to_string(i) + "]";
-        auto it = locations_.find(arrName);
-        if (it != locations_.end()) {
-          glUniform1f(it->second, u.audioData[i]);
+      // Fast path: upload entire 256-float audio buffer in one driver call
+      if (audioDataLoc_ >= 0 && glUniform1fv) {
+        glUniform1fv(audioDataLoc_, 256, u.audioData);
+      } else {
+        // Fallback: upload individual array elements
+        for (int i = 0; i < 256; i++) {
+          std::string arrName = "audioData[" + std::to_string(i) + "]";
+          auto it = locations_.find(arrName);
+          if (it != locations_.end()) {
+            glUniform1f(it->second, u.audioData[i]);
+          }
         }
       }
     }
   }
 
-  void invalidate() { locations_.clear(); }
+  void invalidate() {
+    locations_.clear();
+    audioDataLoc_ = -1;
+  }
 
 private:
   std::unordered_map<std::string, int> locations_;
+  int audioDataLoc_ = -1;
 };
 
 } // namespace Linux

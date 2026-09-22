@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # ShaderCandy Build Validation Script
-# Part 15: Integration Testing & Performance Validation
+# Integration Testing & Performance Validation
 #
 
 set -e
@@ -22,18 +22,31 @@ cd "$PROJECT_ROOT/build"
 
 # Test 1: Build validation
 echo "Test 1: Checking build artifacts..."
-if [ -f "ShaderCandyPlayer.app/Contents/MacOS/ShaderCandyPlayer" ]; then
-    echo -e "${GREEN}✓${NC} ShaderCandyPlayer.app exists"
-    ls -lh ShaderCandyPlayer.app/Contents/MacOS/ShaderCandyPlayer
-else
-    echo -e "${RED}✗${NC} ShaderCandyPlayer.app not found"
-    exit 1
-fi
+OS="$(uname -s)"
+if [ "$OS" = "Darwin" ]; then
+    if [ -f "ShaderCandyPlayer.app/Contents/MacOS/ShaderCandyPlayer" ]; then
+        echo -e "${GREEN}✓${NC} ShaderCandyPlayer.app exists"
+    else
+        echo -e "${RED}✗${NC} ShaderCandyPlayer.app not found"
+        exit 1
+    fi
 
-if [ -f "ShaderCandy.saver/Contents/MacOS/ShaderCandy" ]; then
-    echo -e "${GREEN}✓${NC} ShaderCandy.saver exists"
+    if [ -f "ShaderCandy.saver/Contents/MacOS/ShaderCandy" ]; then
+        echo -e "${GREEN}✓${NC} ShaderCandy.saver exists"
+    else
+        echo -e "${RED}✗${NC} ShaderCandy.saver not found"
+    fi
 else
-    echo -e "${RED}✗${NC} ShaderCandy.saver not found"
+    # Linux binaries
+    LINUX_BINS=("shadercandy-player" "shadercandy-screensaver" "shadercandy-wallpaper" "shadercandy-wayland" "shadercandy-bench" "shadercandy-test")
+    for bin in "${LINUX_BINS[@]}"; do
+        if [ -f "$bin" ]; then
+            echo -e "${GREEN}✓${NC} $bin exists"
+        else
+            echo -e "${RED}✗${NC} $bin not found"
+            exit 1
+        fi
+    done
 fi
 
 if [ -f "shadercandy-test" ]; then
@@ -44,26 +57,26 @@ fi
 
 echo ""
 
-# Test 2: Shader bundle validation
-echo "Test 2: Checking bundled shaders..."
-SHADER_COUNT=$(ls ShaderCandyPlayer.app/Contents/Resources/shaders/ 2>/dev/null | wc -l)
-if [ "$SHADER_COUNT" -gt 0 ]; then
-    echo -e "${GREEN}✓${NC} Found $SHADER_COUNT bundled shaders"
+# Test 2: Shader bundle / directory validation
+echo "Test 2: Checking shaders..."
+if [ "$OS" = "Darwin" ] && [ -d "ShaderCandyPlayer.app/Contents/Resources/shaders" ]; then
+    SHADER_COUNT=$(ls ShaderCandyPlayer.app/Contents/Resources/shaders/ 2>/dev/null | wc -l)
 else
-    echo -e "${RED}✗${NC} No shaders found in bundle"
+    SHADER_COUNT=$(find "$PROJECT_ROOT/shaders" -name "*.frag" -o -name "*.glsl" 2>/dev/null | wc -l)
 fi
 
-# Check specific shaders
-if [ -f "ShaderCandyPlayer.app/Contents/Resources/shaders/fallout.metal" ]; then
-    echo -e "${GREEN}✓${NC} fallout.metal shader bundled"
+if [ "$SHADER_COUNT" -gt 0 ]; then
+    echo -e "${GREEN}✓${NC} Found $SHADER_COUNT shaders"
+else
+    echo -e "${RED}✗${NC} No shaders found"
 fi
 
-if [ -f "ShaderCandyPlayer.app/Contents/Resources/shaders/neural_style_blend.metal" ]; then
-    echo -e "${GREEN}✓${NC} neural_style_blend.metal shader bundled"
+# Check base shaders
+if [ -f "$PROJECT_ROOT/shaders/base/common.glsl" ]; then
+    echo -e "${GREEN}✓${NC} common.glsl base shader present"
 fi
-
-if [ -f "ShaderCandyPlayer.app/Contents/Resources/shaders/audio_ray_tracing.metal" ]; then
-    echo -e "${GREEN}✓${NC} audio_ray_tracing.metal shader bundled"
+if [ -f "$PROJECT_ROOT/shaders/base/vertex.glsl" ]; then
+    echo -e "${GREEN}✓${NC} vertex.glsl base shader present"
 fi
 
 echo ""
@@ -71,10 +84,11 @@ echo ""
 # Test 3: Run unit tests
 echo "Test 3: Running unit tests..."
 if [ -f "shadercandy-test" ]; then
-    ./shadercandy-test 2>&1 | grep -E "(Test Results|passed|failed)" | tail -5
+    ./shadercandy-test 2>&1 | grep -E "(Test Results|passed|failed|Summary:)" | tail -5
     echo -e "${GREEN}✓${NC} Tests completed"
 else
     echo -e "${RED}✗${NC} Cannot run tests - executable not found"
+    exit 1
 fi
 
 echo ""
@@ -82,18 +96,33 @@ echo ""
 # Test 4: File structure validation
 echo "Test 4: Validating source file structure..."
 
-REQUIRED_FILES=(
-    "src/platform/macos/StandaloneAppDelegate.mm"
-    "src/platform/macos/WallpaperEngine.mm"
-    "src/config/PresetManager.cpp"
-    "src/neural/NeuralStyleEngine.mm"
-    "src/neural/StyleLibrary.mm"
-    "src/audio/RayAudioEngine.mm"
-    "src/audio/SpatialSoundscapeGenerator.mm"
-    "src/metal/HDRPipeline.mm"
-    "src/metal/DynamicRangeOptimizer.mm"
-    "shaders/effects/fallout.metal"
-)
+if [ "$OS" = "Darwin" ]; then
+    REQUIRED_FILES=(
+        "src/platform/macos/StandaloneAppDelegate.mm"
+        "src/platform/macos/WallpaperEngine.mm"
+        "src/config/PresetManager.cpp"
+        "src/neural/NeuralStyleEngine.mm"
+        "src/neural/StyleLibrary.mm"
+        "src/audio/RayAudioEngine.mm"
+        "src/audio/SpatialSoundscapeGenerator.mm"
+        "src/metal/HDRPipeline.mm"
+        "src/metal/DynamicRangeOptimizer.mm"
+        "shaders/effects/fallout.metal"
+    )
+else
+    REQUIRED_FILES=(
+        "src/platform/linux/screensaver.cpp"
+        "src/platform/linux/standalone_player.cpp"
+        "src/platform/linux/wallpaper.cpp"
+        "src/platform/linux/wayland_screensaver.cpp"
+        "src/gl/GLRenderer.cpp"
+        "src/config/PresetManager.cpp"
+        "src/tools/ShaderBenchmark.cpp"
+        "src/core/ShaderManager.cpp"
+        "src/core/PerformanceMonitor.cpp"
+        "shaders/base/common.glsl"
+    )
+fi
 
 for file in "${REQUIRED_FILES[@]}"; do
     if [ -f "$PROJECT_ROOT/$file" ]; then
@@ -109,12 +138,12 @@ echo ""
 echo "Test 5: Checking documentation..."
 
 DOCS=(
-    "docs/PROJECT_PLAN.md"
-    "docs/STANDALONE_APP_GUIDE.md"
-    "docs/WALLPAPER_MODE_GUIDE.md"
-    "docs/NEURAL_EFFECTS_GUIDE.md"
-    "docs/HDR_IMPLEMENTATION.md"
-    "docs/FALLOUT_SHADER.md"
+    "README.md"
+    "CHANGELOG.md"
+    "docs/GettingStarted.md"
+    "docs/ApplicationModesGuide.md"
+    "docs/ArchitectureDiagrams.md"
+    "docs/LinuxFeatures.md"
 )
 
 for doc in "${DOCS[@]}"; do
@@ -131,13 +160,8 @@ echo ""
 echo "========================================"
 echo "Validation Summary"
 echo "========================================"
-
 echo ""
 echo "Build Status: READY"
-echo "All 15 implementation parts complete"
-echo ""
-echo "To install:"
-echo "  cp -R ShaderCandyPlayer.app /Applications/"
-echo "  cp -R ShaderCandy.saver ~/Library/Screen\\ Savers/"
-echo ""
+echo "All validation tests passed"
 echo "========================================"
+

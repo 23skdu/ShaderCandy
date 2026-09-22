@@ -193,26 +193,25 @@ private:
     return {__func__, true, "PerformanceMonitor expansion passed", 0.0};
   }
 
-  class MockShaderManager : public ShaderCandy::ShaderManager {
-  public:
-    virtual bool initialize() override { return true; }
-    virtual bool loadShader(const std::string &, const std::string &) override {
-      return true;
-    }
-    virtual bool reloadShaders() override { return true; }
-    virtual std::vector<std::string> getAvailableShaders() const override {
-      return {};
-    }
-    virtual bool setActiveShader(const std::string &) override { return true; }
-    virtual std::string getActiveShader() const override { return ""; }
-    virtual void render() override {}
-  };
-
   TestResult testShaderManagerBase() {
-    MockShaderManager sm;
-    sm.setHotReload(true);
-    TEST_ASSERT_TRUE(sm.isHotReloadEnabled());
-    sm.setShaderChangedCallback([](const std::string &) {});
+    auto sm = createShaderManager();
+    TEST_ASSERT_NOT_NULL(sm);
+    sm->setHotReload(true);
+    TEST_ASSERT_TRUE(sm->isHotReloadEnabled());
+    sm->setHotReload(false);
+    TEST_ASSERT_FALSE(sm->isHotReloadEnabled());
+
+    bool callbackFired = false;
+    sm->setShaderChangedCallback([&](const std::string &) {
+      callbackFired = true;
+    });
+
+    bool init = sm->initialize();
+    TEST_ASSERT_TRUE(init);
+    auto shaders = sm->getAvailableShaders();
+    TEST_ASSERT(!shaders.empty(),
+                "UnifiedShaderManager should discover available shaders");
+
     return {__func__, true, "ShaderManager base coverage passed", 0.0};
   }
 
@@ -335,22 +334,100 @@ private:
   }
 
   TestResult testSIMDAlignmentEdgeCases() {
-    const size_t count = 7;
-    std::vector<float> a(count, 1.0f), b(count, 2.0f), res(count, 0.0f);
-    Math::multiplyArray(res.data(), a.data(), b.data(), count);
-    for (size_t i = 0; i < count; i++)
-      TEST_ASSERT_EQUAL(2.0f, res[i]);
+    const std::vector<size_t> testSizes = {0, 1, 2, 3, 4, 5, 7, 8, 9, 13, 17, 31, 33, 67};
 
-    Math::multiplyArray(res.data(), a.data(), b.data(), 0);
-    Math::sumArray(a.data(), 0);
-    Math::lerpArray(res.data(), a.data(), b.data(), 0.5f, 0);
+    for (size_t count : testSizes) {
+      // Allocate extra element to test unaligned pointer offsets (+1 float, which is 4-byte offset)
+      std::vector<float> a(count + 2, 2.0f);
+      std::vector<float> b(count + 2, 3.0f);
+      std::vector<float> c(count + 2, 4.0f);
+      std::vector<float> dst(count + 2, 0.0f);
 
-    float sum = Math::sumArray(a.data(), count);
-    TEST_ASSERT_EQUAL(7.0f, sum);
+      float *pA = a.data() + 1;
+      float *pB = b.data() + 1;
+      float *pC = c.data() + 1;
+      float *pDst = dst.data() + 1;
 
-    Math::lerpArray(res.data(), a.data(), b.data(), 0.5f, count);
-    for (size_t i = 0; i < count; i++)
-      TEST_ASSERT_EQUAL(1.5f, res[i]);
+      // multiplyArray
+      Math::multiplyArray(pDst, pA, pB, count);
+      for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT_EQUAL(6.0f, pDst[i]);
+      }
+
+      // addArray
+      Math::addArray(pDst, pA, pB, count);
+      for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT_EQUAL(5.0f, pDst[i]);
+      }
+
+      // scaleArray
+      Math::scaleArray(pDst, pA, 4.0f, count);
+      for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT_EQUAL(8.0f, pDst[i]);
+      }
+
+      // lerpArray
+      Math::lerpArray(pDst, pA, pB, 0.5f, count);
+      for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT_EQUAL(2.5f, pDst[i]);
+      }
+
+      // clampArray
+      pA[0] = -10.0f;
+      if (count > 1) pA[count - 1] = 100.0f;
+      Math::clampArray(pDst, pA, 0.0f, 5.0f, count);
+      for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT(pDst[i] >= 0.0f && pDst[i] <= 5.0f, "clamp out of bounds");
+      }
+      pA[0] = 2.0f;
+      if (count > 1) pA[count - 1] = 2.0f;
+
+      // fmaArray (a * b + c = 2 * 3 + 4 = 10)
+      Math::fmaArray(pDst, pA, pB, pC, count);
+      for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT_EQUAL(10.0f, pDst[i]);
+      }
+
+      // sumArray
+      float sum = Math::sumArray(pA, count);
+      float expectedSum = 2.0f * static_cast<float>(count);
+      TEST_ASSERT(std::abs(sum - expectedSum) < 0.01f, "sumArray edge mismatch");
+
+      // sumAbsArray with alternating signs
+      for (size_t i = 0; i < count; i++) {
+        pA[i] = (i % 2 == 0) ? 2.5f : -2.5f;
+      }
+      float sumAbs = Math::sumAbsArray(pA, count);
+      float expectedSumAbs = 2.5f * static_cast<float>(count);
+      TEST_ASSERT(std::abs(sumAbs - expectedSumAbs) < 0.01f, "sumAbsArray edge mismatch");
+      for (size_t i = 0; i < count; i++) {
+        pA[i] = 2.0f;
+      }
+
+      // dotArray
+      float dotVal = Math::dotArray(pA, pB, count);
+      float expectedDot = 6.0f * static_cast<float>(count);
+      TEST_ASSERT(std::abs(dotVal - expectedDot) < 0.01f, "dotArray edge mismatch");
+
+      // minMaxArray
+      float outMin = 0.0f, outMax = 0.0f;
+      if (count > 0) {
+        pA[0] = -50.0f;
+        pA[count - 1] = 150.0f;
+        Math::minMaxArray(pA, count, outMin, outMax);
+        if (count == 1) {
+          TEST_ASSERT_EQUAL(150.0f, outMin);
+          TEST_ASSERT_EQUAL(150.0f, outMax);
+        } else {
+          TEST_ASSERT_EQUAL(-50.0f, outMin);
+          TEST_ASSERT_EQUAL(150.0f, outMax);
+        }
+      } else {
+        Math::minMaxArray(pA, 0, outMin, outMax);
+        TEST_ASSERT_EQUAL(0.0f, outMin);
+        TEST_ASSERT_EQUAL(0.0f, outMax);
+      }
+    }
 
     return {__func__, true, "SIMD alignment edge cases passed", 0.0};
   }
@@ -556,6 +633,7 @@ private:
     TEST_ASSERT_TRUE(hr.startVideoEncoding("out.mp4", 30));
     TEST_ASSERT_TRUE(hr.encodeFrame(std::vector<uint8_t>(64 * 64 * 4, 128)));
     hr.finishVideoEncoding();
+    std::filesystem::remove("out.mp4");
 
     hr.endRender();
     TEST_ASSERT_TRUE(hr.isFinished());

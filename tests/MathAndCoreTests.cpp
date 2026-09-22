@@ -21,6 +21,15 @@ public:
     results.push_back(testSIMDSum());
     results.push_back(testSIMDLerp());
     results.push_back(testColorConversion());
+    results.push_back(testSIMDScaleArray());
+    results.push_back(testSIMDAddArray());
+    results.push_back(testSIMDClampArray());
+    results.push_back(testSIMDDotArray());
+    results.push_back(testSIMDMinMaxArray());
+    results.push_back(testSIMDFmaArray());
+    results.push_back(testSIMDSumAbsArray());
+    results.push_back(testSIMDVec4());
+    results.push_back(testBatchColorConversion());
 
     return results;
   }
@@ -159,6 +168,246 @@ private:
     TEST_ASSERT(std::abs(hsv2[2] - 1.0f) < 0.01f, "RGB->HSV value incorrect");
 
     return {__func__, true, "Color conversion correct", 0.0};
+  }
+
+  TestResult testSIMDScaleArray() {
+    const size_t count = 1024;
+    std::vector<float> src(count), dst(count);
+    for (size_t i = 0; i < count; i++) {
+      src[i] = static_cast<float>(i) * 0.25f;
+    }
+    const float scale = 3.5f;
+    Math::scaleArray(dst.data(), src.data(), scale, count);
+
+    for (size_t i = 0; i < count; i++) {
+      float expected = src[i] * scale;
+      if (std::abs(dst[i] - expected) > 0.0001f) {
+        return {__func__, false,
+                "scaleArray failed at index " + std::to_string(i), 0.0};
+      }
+    }
+    return {__func__, true, "scaleArray correct", 0.0};
+  }
+
+  TestResult testSIMDAddArray() {
+    const size_t count = 1024;
+    std::vector<float> a(count), b(count), dst(count);
+    for (size_t i = 0; i < count; i++) {
+      a[i] = static_cast<float>(i);
+      b[i] = static_cast<float>(count - i) * 0.5f;
+    }
+    Math::addArray(dst.data(), a.data(), b.data(), count);
+
+    for (size_t i = 0; i < count; i++) {
+      float expected = a[i] + b[i];
+      if (std::abs(dst[i] - expected) > 0.0001f) {
+        return {__func__, false,
+                "addArray failed at index " + std::to_string(i), 0.0};
+      }
+    }
+    return {__func__, true, "addArray correct", 0.0};
+  }
+
+  TestResult testSIMDClampArray() {
+    const size_t count = 1024;
+    std::vector<float> src(count), dst(count);
+    for (size_t i = 0; i < count; i++) {
+      src[i] = static_cast<float>(i) - 500.0f; // -500 to 523
+    }
+    const float minVal = -100.0f;
+    const float maxVal = 200.0f;
+    Math::clampArray(dst.data(), src.data(), minVal, maxVal, count);
+
+    for (size_t i = 0; i < count; i++) {
+      float expected = std::max(minVal, std::min(maxVal, src[i]));
+      if (std::abs(dst[i] - expected) > 0.0001f) {
+        return {__func__, false,
+                "clampArray failed at index " + std::to_string(i), 0.0};
+      }
+    }
+    return {__func__, true, "clampArray correct", 0.0};
+  }
+
+  TestResult testSIMDDotArray() {
+    const size_t count = 512;
+    std::vector<float> a(count), b(count);
+    double expected = 0.0;
+    for (size_t i = 0; i < count; i++) {
+      a[i] = static_cast<float>(i) * 0.01f;
+      b[i] = (i % 2 == 0) ? 1.0f : -0.5f;
+      expected += static_cast<double>(a[i] * b[i]);
+    }
+    float result = Math::dotArray(a.data(), b.data(), count);
+
+    if (std::abs(result - static_cast<float>(expected)) > 0.05f) {
+      return {__func__, false,
+              "dotArray failed: expected " + std::to_string(expected) +
+                  " got " + std::to_string(result),
+              0.0};
+    }
+    return {__func__, true, "dotArray correct", 0.0};
+  }
+
+  TestResult testSIMDMinMaxArray() {
+    const size_t count = 1024;
+    std::vector<float> data(count);
+    for (size_t i = 0; i < count; i++) {
+      data[i] = static_cast<float>(i) * 1.5f - 100.0f;
+    }
+    // inject known extrema at arbitrary non-aligned indices
+    data[7] = -999.0f;
+    data[513] = 42000.0f;
+
+    float outMin = 0.0f, outMax = 0.0f;
+    Math::minMaxArray(data.data(), count, outMin, outMax);
+
+    TEST_ASSERT_EQUAL(-999.0f, outMin);
+    TEST_ASSERT_EQUAL(42000.0f, outMax);
+
+    // Empty array edge case
+    Math::minMaxArray(nullptr, 0, outMin, outMax);
+    TEST_ASSERT_EQUAL(0.0f, outMin);
+    TEST_ASSERT_EQUAL(0.0f, outMax);
+
+    return {__func__, true, "minMaxArray correct", 0.0};
+  }
+
+  TestResult testSIMDFmaArray() {
+    const size_t count = 1024;
+    std::vector<float> a(count), b(count), c(count), dst(count);
+    for (size_t i = 0; i < count; i++) {
+      a[i] = static_cast<float>(i) * 0.1f;
+      b[i] = 2.0f;
+      c[i] = 5.0f;
+    }
+    Math::fmaArray(dst.data(), a.data(), b.data(), c.data(), count);
+
+    for (size_t i = 0; i < count; i++) {
+      float expected = a[i] * b[i] + c[i];
+      if (std::abs(dst[i] - expected) > 0.001f) {
+        return {__func__, false,
+                "fmaArray failed at index " + std::to_string(i), 0.0};
+      }
+    }
+    return {__func__, true, "fmaArray correct", 0.0};
+  }
+
+  TestResult testSIMDSumAbsArray() {
+    const size_t count = 1024;
+    std::vector<float> data(count);
+    float expected = 0.0f;
+    for (size_t i = 0; i < count; i++) {
+      float val = (i % 2 == 0) ? static_cast<float>(i) : -static_cast<float>(i);
+      data[i] = val;
+      expected += std::abs(val);
+    }
+    float result = Math::sumAbsArray(data.data(), count);
+
+    if (std::abs(result - expected) > 0.1f) {
+      return {__func__, false,
+              "sumAbsArray failed: expected " + std::to_string(expected) +
+                  " got " + std::to_string(result),
+              0.0};
+    }
+    return {__func__, true, "sumAbsArray correct", 0.0};
+  }
+
+  TestResult testSIMDVec4() {
+    Math::Vec4 a(1.0f, 2.0f, 3.0f, 4.0f);
+    Math::Vec4 b(5.0f, 6.0f, 7.0f, 8.0f);
+
+    // Addition
+    Math::Vec4 c = a + b;
+    TEST_ASSERT_EQUAL(6.0f, c.x);
+    TEST_ASSERT_EQUAL(8.0f, c.y);
+    TEST_ASSERT_EQUAL(10.0f, c.z);
+    TEST_ASSERT_EQUAL(12.0f, c.w);
+
+    // Subtraction
+    Math::Vec4 sub = b - a;
+    TEST_ASSERT_EQUAL(4.0f, sub.x);
+    TEST_ASSERT_EQUAL(4.0f, sub.y);
+    TEST_ASSERT_EQUAL(4.0f, sub.z);
+    TEST_ASSERT_EQUAL(4.0f, sub.w);
+
+    // Scalar & Vector multiplication
+    Math::Vec4 mulScalar = a * 2.0f;
+    TEST_ASSERT_EQUAL(2.0f, mulScalar.x);
+    TEST_ASSERT_EQUAL(4.0f, mulScalar.y);
+    TEST_ASSERT_EQUAL(6.0f, mulScalar.z);
+    TEST_ASSERT_EQUAL(8.0f, mulScalar.w);
+
+    Math::Vec4 mulVec = a * b;
+    TEST_ASSERT_EQUAL(5.0f, mulVec.x);
+    TEST_ASSERT_EQUAL(12.0f, mulVec.y);
+    TEST_ASSERT_EQUAL(21.0f, mulVec.z);
+    TEST_ASSERT_EQUAL(32.0f, mulVec.w);
+
+    // Division
+    Math::Vec4 divScalar = b / 2.0f;
+    TEST_ASSERT_EQUAL(2.5f, divScalar.x);
+
+    // Dot product
+    // 1*5 + 2*6 + 3*7 + 4*8 = 5 + 12 + 21 + 32 = 70
+    float d = Math::dot(a, b);
+    TEST_ASSERT_EQUAL(70.0f, d);
+
+    // Length and normalization
+    Math::Vec4 v(0.0f, 3.0f, 4.0f, 0.0f);
+    TEST_ASSERT_EQUAL(25.0f, v.lengthSq());
+    TEST_ASSERT_EQUAL(5.0f, v.length());
+
+    Math::Vec4 vn = v.normalize();
+    TEST_ASSERT(std::abs(vn.length() - 1.0f) < 0.0001f, "Vec4 normalize failed");
+    TEST_ASSERT_EQUAL(0.6f, vn.y);
+    TEST_ASSERT_EQUAL(0.8f, vn.z);
+
+    // Clamping & Mix
+    Math::Vec4 clamped = Math::clamp(Math::Vec4(-1.0f, 0.5f, 2.0f, 10.0f), 0.0f, 1.0f);
+    TEST_ASSERT_EQUAL(0.0f, clamped.x);
+    TEST_ASSERT_EQUAL(0.5f, clamped.y);
+    TEST_ASSERT_EQUAL(1.0f, clamped.z);
+    TEST_ASSERT_EQUAL(1.0f, clamped.w);
+
+    Math::Vec4 mixed = Math::mix(a, b, 0.5f);
+    TEST_ASSERT_EQUAL(3.0f, mixed.x);
+    TEST_ASSERT_EQUAL(4.0f, mixed.y);
+    TEST_ASSERT_EQUAL(5.0f, mixed.z);
+    TEST_ASSERT_EQUAL(6.0f, mixed.w);
+
+    // Equality
+    Math::Vec4 aCopy = a;
+    TEST_ASSERT(a == aCopy, "Vec4 equality failed");
+    TEST_ASSERT(a != b, "Vec4 inequality failed");
+
+    return {__func__, true, "Vec4 operations correct", 0.0};
+  }
+
+  TestResult testBatchColorConversion() {
+    const size_t numPixels = 64;
+    std::vector<float> rgb(numPixels * 3);
+    std::vector<float> hsv(numPixels * 3);
+    std::vector<float> roundTrip(numPixels * 3);
+
+    // Create varied color palette
+    for (size_t i = 0; i < numPixels; i++) {
+      rgb[i * 3 + 0] = static_cast<float>(i) / static_cast<float>(numPixels);
+      rgb[i * 3 + 1] = 1.0f - (static_cast<float>(i) / static_cast<float>(numPixels));
+      rgb[i * 3 + 2] = (i % 2 == 0) ? 0.8f : 0.2f;
+    }
+
+    Math::batchRgbToHsv(rgb.data(), hsv.data(), numPixels);
+    Math::batchHsvToRgb(hsv.data(), roundTrip.data(), numPixels);
+
+    for (size_t i = 0; i < numPixels * 3; i++) {
+      if (std::abs(rgb[i] - roundTrip[i]) > 0.03f) {
+        return {__func__, false,
+                "Batch color round-trip mismatch at element " + std::to_string(i),
+                0.0};
+      }
+    }
+
+    return {__func__, true, "Batch color conversion correct", 0.0};
   }
 };
 

@@ -18,7 +18,9 @@
 #include "../src/audio/AudioInput.h"
 #include "../src/config/ConfigurationManager.h"
 #include "../src/config/PresetManager.h"
+#include "../src/core/MathUtils.h"
 #include "../src/core/ShaderManager.h"
+#include "../src/core/UniformBuffer.h"
 #include "../src/gl/GLRenderer.h"
 #include "../src/gl/GLShaderCompiler.h"
 #include "../src/platform/linux/GLLoader.h"
@@ -1082,24 +1084,35 @@ private:
   TestResult testPerformanceBaseline() {
     using namespace ShaderCandy::Platform::Linux;
 
+    UniformBuffer ub;
+    ub.initialize();
+
+    float arr1[16];
+    float arr2[16];
+    float dst[16];
+    for (int i = 0; i < 16; i++) {
+      arr1[i] = static_cast<float>(i);
+      arr2[i] = static_cast<float>(i * 2);
+    }
+
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < 1000; i++) {
-      Uniforms u;
-      u.time = static_cast<float>(i) * 0.016f;
-      u.speed = 1.0f;
-      u.intensity = 1.0f;
-      u.resolution = {1920.0f, 1080.0f};
-      u.frame = i;
-      (void)u.time;
+      ub.updateTime(static_cast<float>(i) * 0.016f);
+      ub.updateResolution(1920.0f, 1080.0f);
+      ub.updateMouse(static_cast<float>(i % 1920), static_cast<float>(i % 1080));
+      ub.advanceFrame();
+      Math::lerpArray(dst, arr1, arr2, 0.5f, 16);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     double ms = ns.count() / 1000000.0;
 
+    TEST_ASSERT_EQUAL(1000, ub.getData().frame);
+
     return {__func__, true,
-            "Performance baseline: 1000 uniform updates in " +
+            "Performance baseline: 1000 uniform & SIMD updates in " +
                 std::to_string(ms) + "ms",
             ms};
   }

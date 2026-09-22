@@ -28,13 +28,16 @@ using namespace ShaderCandy::Platform::Linux;
 struct BenchResult {
   std::string name;
   std::string path;
-  bool compiled;
-  double compileTimeMs;
-  double avgFrameMs;
-  double avgFps;
-  double minFps;
-  double maxFps;
-  int frameCount;
+  bool compiled = false;
+  double compileTimeMs = 0.0;
+  double avgFrameMs = 0.0;
+  double avgFps = 0.0;
+  double minFps = 0.0;
+  double maxFps = 0.0;
+  double p50Fps = 0.0;
+  double p95Fps = 0.0;
+  double p99Fps = 0.0;
+  int frameCount = 0;
 };
 
 struct Uniforms {
@@ -75,6 +78,9 @@ static bool compileShaderProgram(const std::string &fragSrc, GLuint &outProgram)
   GLint success = 0;
   glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
   if (!success) {
+    char infoLog[1024];
+    glGetShaderInfoLog(vs, sizeof(infoLog), nullptr, infoLog);
+    std::cerr << "Vertex shader compile error: " << infoLog << std::endl;
     glDeleteShader(vs);
     return false;
   }
@@ -86,6 +92,9 @@ static bool compileShaderProgram(const std::string &fragSrc, GLuint &outProgram)
 
   glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
   if (!success) {
+    char infoLog[1024];
+    glGetShaderInfoLog(fs, sizeof(infoLog), nullptr, infoLog);
+    std::cerr << "Fragment shader compile error:\n" << infoLog << std::endl;
     glDeleteShader(vs);
     glDeleteShader(fs);
     return false;
@@ -98,6 +107,9 @@ static bool compileShaderProgram(const std::string &fragSrc, GLuint &outProgram)
 
   glGetProgramiv(outProgram, GL_LINK_STATUS, &success);
   if (!success) {
+    char infoLog[1024];
+    glGetProgramInfoLog(outProgram, sizeof(infoLog), nullptr, infoLog);
+    std::cerr << "Program link error:\n" << infoLog << std::endl;
     glDeleteProgram(outProgram);
     outProgram = 0;
     glDeleteShader(vs);
@@ -131,7 +143,8 @@ static void setupQuad(GLuint &vao, GLuint &vbo) {
 
 static BenchResult benchmarkShader(const std::string &path, GLuint vao,
                                    GLuint vbo, int renderFrames, int width,
-                                   int height) {
+                                   int height,
+                                   const std::string &screenshotDir = "") {
   BenchResult result;
   result.path = path;
   result.name = std::filesystem::path(path).stem().string();
@@ -151,7 +164,9 @@ static BenchResult benchmarkShader(const std::string &path, GLuint vao,
     return result;
   }
 
-  std::string wrappedFrag = GLSLWrapper::getPreamble() + fragStr;
+  std::string wrappedFrag = GLSLWrapper::wrapFragmentShader(fragStr);
+
+
   GLuint program = 0;
   if (!compileShaderProgram(wrappedFrag, program)) {
     std::cerr << "  [FAIL] Compile error: " << result.name << std::endl;
@@ -166,16 +181,21 @@ static BenchResult benchmarkShader(const std::string &path, GLuint vao,
   GLuint ubo;
   glGenBuffers(1, &ubo);
   glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-  glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), nullptr, GL_DYNAMIC_DRAW);
+  glBufferData(GL_UNIFORM_BUFFER, 16384, nullptr, GL_DYNAMIC_DRAW);
 
   GLuint blockIndex = glGetUniformBlockIndex(program, "Uniforms");
   if (blockIndex != GL_INVALID_INDEX) {
     glUniformBlockBinding(program, blockIndex, 0);
   }
 
+
+
+
+
   Uniforms uniforms{};
   uniforms.speed = 1.0f;
   uniforms.intensity = 1.0f;
+  uniforms.alpha = 1.0f;
   uniforms.resolution[0] = static_cast<float>(width);
   uniforms.resolution[1] = static_cast<float>(height);
 
@@ -185,11 +205,31 @@ static BenchResult benchmarkShader(const std::string &path, GLuint vao,
   std::vector<double> frameTimes;
   frameTimes.reserve(renderFrames);
 
+  GLuint fbo = 0, colorTex = 0;
+  if (!screenshotDir.empty()) {
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glGenTextures(1, &colorTex);
+    glBindTexture(GL_TEXTURE_2D, colorTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           colorTex, 0);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+  }
+
   for (int i = 0; i < renderFrames; ++i) {
     auto frameStart = std::chrono::steady_clock::now();
 
-    glClear(GL_COLOR_BUFFER_BIT);
+    if (!screenshotDir.empty()) {
+      glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    }
+    glViewport(0, 0, width, height);
     glUseProgram(program);
+    glBindVertexArray(vao);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo);
 
     uniforms.time =
@@ -209,7 +249,33 @@ static BenchResult benchmarkShader(const std::string &path, GLuint vao,
     frameTimes.push_back(frameMs);
   }
 
-  // Calculate stats
+  // Capture screenshot if requested
+  if (!screenshotDir.empty()) {
+    std::vector<unsigned char> pixels(width * height * 4);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+    std::string ppmFile =
+
+        (std::filesystem::path(screenshotDir) / (result.name + ".ppm")).string();
+    std::ofstream ppm(ppmFile, std::ios::binary);
+    if (ppm) {
+      ppm << "P6\n" << width << " " << height << "\n255\n";
+      for (int y = height - 1; y >= 0; --y) {
+        for (int x = 0; x < width; ++x) {
+          int idx = (y * width + x) * 4;
+          ppm.put(pixels[idx]);
+          ppm.put(pixels[idx + 1]);
+          ppm.put(pixels[idx + 2]);
+        }
+      }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteTextures(1, &colorTex);
+    glDeleteFramebuffers(1, &fbo);
+  }
+
+  // Cleanup shader resources
   double totalMs = 0;
   for (double ft : frameTimes) {
     totalMs += ft;
@@ -222,6 +288,24 @@ static BenchResult benchmarkShader(const std::string &path, GLuint vao,
     result.minFps = std::min(result.minFps, fps);
     result.maxFps = std::max(result.maxFps, fps);
   }
+
+  std::vector<double> sortedTimes = frameTimes;
+  std::sort(sortedTimes.begin(), sortedTimes.end());
+  if (!sortedTimes.empty()) {
+    size_t p50Idx = static_cast<size_t>(sortedTimes.size() * 0.50);
+    size_t p95Idx = static_cast<size_t>(sortedTimes.size() * 0.95);
+    size_t p99Idx = static_cast<size_t>(sortedTimes.size() * 0.99);
+    result.p50Fps = (sortedTimes[std::min(p50Idx, sortedTimes.size() - 1)] > 0)
+                        ? 1000.0 / sortedTimes[std::min(p50Idx, sortedTimes.size() - 1)]
+                        : 0;
+    result.p95Fps = (sortedTimes[std::min(p95Idx, sortedTimes.size() - 1)] > 0)
+                        ? 1000.0 / sortedTimes[std::min(p95Idx, sortedTimes.size() - 1)]
+                        : 0;
+    result.p99Fps = (sortedTimes[std::min(p99Idx, sortedTimes.size() - 1)] > 0)
+                        ? 1000.0 / sortedTimes[std::min(p99Idx, sortedTimes.size() - 1)]
+                        : 0;
+  }
+
   result.frameCount = renderFrames;
 
   // Cleanup
@@ -294,6 +378,8 @@ int main(int argc, char **argv) {
   int width = 1920;
   int height = 1080;
   std::string outputPath;
+  std::string screenshotDir;
+  std::string shaderFilter;
   std::vector<std::string> shaderDirs;
 
   for (int i = 1; i < argc; i++) {
@@ -303,20 +389,29 @@ int main(int argc, char **argv) {
           << "Usage: " << argv[0] << " [options]\n"
           << "Options:\n"
           << "  -dir <path>       Shader directory (can be repeated)\n"
+          << "  -shader <name>    Run specific shader by name or substring\n"
+          << "  -screenshot <dir> Directory to save PPM screenshots\n"
           << "  -frames <n>       Render frames per shader (default: 120)\n"
           << "  -width <n>        Render width (default: 1920)\n"
           << "  -height <n>       Render height (default: 1080)\n"
-          << "  -output <path>    Save report to file (JSON)\n";
+          << "  -output, -json, --json <path>  Save report to file (JSON)\n";
       return 0;
     } else if (strcmp(argv[i], "-dir") == 0 && i + 1 < argc) {
       shaderDirs.push_back(argv[++i]);
+    } else if (strcmp(argv[i], "-shader") == 0 && i + 1 < argc) {
+      shaderFilter = argv[++i];
+    } else if (strcmp(argv[i], "-screenshot") == 0 && i + 1 < argc) {
+      screenshotDir = argv[++i];
     } else if (strcmp(argv[i], "-frames") == 0 && i + 1 < argc) {
       renderFrames = std::atoi(argv[++i]);
     } else if (strcmp(argv[i], "-width") == 0 && i + 1 < argc) {
       width = std::atoi(argv[++i]);
     } else if (strcmp(argv[i], "-height") == 0 && i + 1 < argc) {
       height = std::atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-output") == 0 && i + 1 < argc) {
+    } else if ((strcmp(argv[i], "-output") == 0 ||
+                strcmp(argv[i], "-json") == 0 ||
+                strcmp(argv[i], "--json") == 0) &&
+               i + 1 < argc) {
       outputPath = argv[++i];
     }
   }
@@ -325,6 +420,16 @@ int main(int argc, char **argv) {
   std::vector<std::string> shaderPaths;
   namespace fs = std::filesystem;
 
+  if (!screenshotDir.empty()) {
+    fs::create_directories(screenshotDir);
+  }
+
+  if (shaderDirs.empty()) {
+    shaderDirs.push_back("shaders");
+    shaderDirs.push_back("shaders/base");
+    shaderDirs.push_back("shaders/effects");
+  }
+
   for (const auto &dir : shaderDirs) {
     if (!fs::exists(dir) || !fs::is_directory(dir))
       continue;
@@ -332,28 +437,24 @@ int main(int argc, char **argv) {
       if (!entry.is_regular_file())
         continue;
       auto ext = entry.path().extension().string();
+      auto stem = entry.path().stem().string();
+      if (stem == "common" || stem == "vertex" || stem == "debug_overlay")
+        continue;
       if (ext == ".frag" || ext == ".glsl") {
         shaderPaths.push_back(entry.path().string());
       }
     }
   }
 
-  if (shaderPaths.empty()) {
-    shaderDirs.push_back("shaders");
-    shaderDirs.push_back("shaders/base");
-    shaderDirs.push_back("shaders/effects");
-    for (const auto &dir : shaderDirs) {
-      if (!fs::exists(dir) || !fs::is_directory(dir))
-        continue;
-      for (const auto &entry : fs::directory_iterator(dir)) {
-        if (!entry.is_regular_file())
-          continue;
-        auto ext = entry.path().extension().string();
-        if (ext == ".frag" || ext == ".glsl") {
-          shaderPaths.push_back(entry.path().string());
-        }
+  if (!shaderFilter.empty()) {
+    std::vector<std::string> filtered;
+    for (const auto &p : shaderPaths) {
+      std::string stem = fs::path(p).stem().string();
+      if (stem == shaderFilter || stem.find(shaderFilter) != std::string::npos) {
+        filtered.push_back(p);
       }
     }
+    shaderPaths = filtered;
   }
 
   std::sort(shaderPaths.begin(), shaderPaths.end());
@@ -361,7 +462,7 @@ int main(int argc, char **argv) {
                     shaderPaths.end());
 
   if (shaderPaths.empty()) {
-    std::cerr << "No shaders found. Use -dir to specify shader directories."
+    std::cerr << "No shaders found. Use -dir or -shader to specify shaders."
               << std::endl;
     return 1;
   }
@@ -416,8 +517,8 @@ int main(int argc, char **argv) {
               << fs::path(shaderPaths[i]).stem().string() << "... "
               << std::flush;
 
-    BenchResult r =
-        benchmarkShader(shaderPaths[i], vao, vbo, renderFrames, width, height);
+    BenchResult r = benchmarkShader(shaderPaths[i], vao, vbo, renderFrames,
+                                    width, height, screenshotDir);
     results.push_back(r);
 
     if (r.compiled) {
@@ -444,7 +545,10 @@ int main(int argc, char **argv) {
             << "        \"compileTimeMs\": " << r.compileTimeMs << ",\n"
             << "        \"avgFps\": " << r.avgFps << ",\n"
             << "        \"minFps\": " << r.minFps << ",\n"
-            << "        \"maxFps\": " << r.maxFps << "\n"
+            << "        \"maxFps\": " << r.maxFps << ",\n"
+            << "        \"p50Fps\": " << r.p50Fps << ",\n"
+            << "        \"p95Fps\": " << r.p95Fps << ",\n"
+            << "        \"p99Fps\": " << r.p99Fps << "\n"
             << "      }\n"
             << "    }";
         if (i + 1 < results.size())
