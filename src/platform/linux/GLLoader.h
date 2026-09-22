@@ -108,7 +108,6 @@ PFNGLGETUNIFORMFVPROC glGetUniformfv_ptr = nullptr;
 #define glActiveTexture glActiveTexture_ptr
 #define glGenerateMipmap glGenerateMipmap_ptr
 #define glUniform1fv glUniform1fv_ptr
-} // anonymous namespace
 
 inline bool InitializeGLLoader() {
   glCreateProgram_ptr = (PFNGLCREATEPROGRAMPROC)glXGetProcAddress(
@@ -215,6 +214,7 @@ inline bool InitializeGLLoader() {
   }
   return true;
 }
+} // anonymous namespace
 
 #endif // __linux__
 
