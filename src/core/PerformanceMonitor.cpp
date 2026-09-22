@@ -145,4 +145,27 @@ float PerformanceMonitor::calculateDynamicResolutionScale(
   return std::clamp(scale, 0.5f, 1.0f);
 }
 
+float PerformanceMonitor::calculateSmoothedDynamicResolutionScale(
+    float p99LatencyMs, float targetFrameTimeMs, float currentScale,
+    float smoothingFactor) {
+  float targetScale = calculateDynamicResolutionScale(p99LatencyMs, targetFrameTimeMs);
+  float alpha = std::clamp(smoothingFactor, 0.01f, 1.0f);
+  float smoothed = currentScale + alpha * (targetScale - currentScale);
+  return std::clamp(smoothed, 0.5f, 1.0f);
+}
+
+float PerformanceMonitor::getFrameTimeVarianceMs() const {
+  if (frameTimes_.size() < 2)
+    return 0.0f;
+
+  float avg = std::accumulate(frameTimes_.begin(), frameTimes_.end(), 0.0f) /
+              frameTimes_.size();
+  float variance = 0.0f;
+  for (float t : frameTimes_) {
+    float diff = t - avg;
+    variance += diff * diff;
+  }
+  return variance / frameTimes_.size();
+}
+
 } // namespace ShaderCandy

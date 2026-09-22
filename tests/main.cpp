@@ -28,57 +28,12 @@ void listTests() {
   std::cout << "Available test suites:\n";
   std::cout << "======================\n\n";
 
-  std::cout << "1. Shader Compilation Tests\n";
-  std::cout << "   - GLSL vertex shader validation\n";
-  std::cout << "   - GLSL fragment shader validation\n";
-  std::cout << "   - Uniform buffer structure tests\n";
-  std::cout << "   - Syntax validation (requires glslangValidator)\n";
-  std::cout << "   - All fragment shader discovery and validation\n";
-  std::cout << "   - Include guard verification\n";
-  std::cout << "   - pastel_unicorns.frag validation\n";
-  std::cout << "   - CPU/GPU struct consistency check\n\n";
-
-  std::cout << "2. Math & SIMD Tests\n";
-  std::cout << "   - Vector operations (add, dot, cross, length)\n";
-  std::cout << "   - SIMD multiplication\n";
-  std::cout << "   - SIMD sum reduction\n";
-  std::cout << "   - SIMD linear interpolation\n";
-  std::cout << "   - Color space conversion (RGB/HSV)\n\n";
-
-  std::cout << "3. Logic & Uniform Tests\n";
-  std::cout << "   - Uniform buffer management\n";
-  std::cout << "   - Performance monitoring\n";
-  std::cout << "   - Cross-fade calculations\n\n";
-
-  std::cout << "4. Renderer Feature Tests\n";
-  std::cout << "   - Dynamic resolution scaling\n";
-  std::cout << "   - Thermal state management\n";
-  std::cout << "   - Memory budget calculation\n";
-  std::cout << "   - Auto-scaling thresholds\n";
-  std::cout << "   - Frame pacing timing\n\n";
-
-  std::cout << "5. Coverage Expansion Tests\n";
-  std::cout << "   - Vec2/Vec3 operators\n";
-  std::cout << "   - UniformBuffer time/deltaTime\n";
-  std::cout << "   - PerformanceMonitor enable/disable\n";
-  std::cout << "   - ConfigurationManager JSON parsing\n";
-  std::cout << "   - PresetManager serialization\n";
-  std::cout << "   - ShaderManager hot reload\n";
-  std::cout << "   - Color conversion edge cases\n";
-  std::cout << "   - SIMD alignment with odd counts\n\n";
-
-  std::cout << "6. Shader Wrapper Tests\n";
-  std::cout << "   - Duplicate uniform block prevention\n";
-  std::cout << "   - Common GLSL uniform block validation\n";
-  std::cout << "   - Include system hierarchy\n\n";
-
-  std::cout << "7. Linux Platform & Audio Coverage Tests\n";
-  std::cout << "   - GLSL wrapper code generation\n";
-  std::cout << "   - Shared memory IPC\n";
-  std::cout << "   - Audio input and FFT synthesis\n";
-  std::cout << "   - GLShaderCompiler compilation and error handling\n";
-  std::cout << "   - GLRenderer rendering, post-processing, metrics\n";
-  std::cout << "   - Configuration and ShaderManager edge cases\n\n";
+  auto &framework = TestFramework::getInstance();
+  const auto &names = framework.getSuiteNames();
+  for (size_t i = 0; i < names.size(); ++i) {
+    std::cout << "  " << (i + 1) << ". " << names[i] << "\n";
+  }
+  std::cout << "\nRun a specific suite with: ./shadercandy-test --run \"<suite name>\"\n\n";
 }
 
 int main(int argc, char **argv) {

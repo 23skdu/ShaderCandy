@@ -21,7 +21,8 @@ namespace Linux {
 class GLSLWrapper {
 public:
   static std::string getPreamble(bool isGLES = false) {
-    std::string version = isGLES ? "#version 300 es\n" : "#version 330 core\n";
+    std::string version = isGLES ? "#version 300 es\n"
+                                 : "#version 330 core\n#extension GL_ARB_separate_shader_objects : enable\n";
 
     if (isGLES) {
       version += "precision highp float;\n";
@@ -208,6 +209,22 @@ vec3 Reinhard(vec4 x) {
 )GLSL");
   }
 
+  static std::string wrapFragmentShader(const std::string &fragSrc,
+                                        bool isGLES = false) {
+    std::string wrappedFrag;
+    if (fragSrc.find("uniform Uniforms") == std::string::npos) {
+      wrappedFrag = getPreamble(isGLES);
+    } else if (fragSrc.find("#version") == std::string::npos) {
+      if (isGLES) {
+        wrappedFrag = "#version 300 es\nprecision highp float;\n";
+      } else {
+        wrappedFrag = "#version 330 core\n#extension GL_ARB_separate_shader_objects : enable\n";
+      }
+    }
+    wrappedFrag += fragSrc;
+    return wrappedFrag;
+  }
+
   static std::string getVertexShader(bool isGLES = false) {
     if (isGLES) {
       return std::string(R"GLSL(#version 300 es
@@ -221,10 +238,11 @@ void main() {
 )GLSL");
     } else {
       return std::string(R"GLSL(#version 330 core
+#extension GL_ARB_separate_shader_objects : enable
 layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aTex;
-out vec2 vTexCoord;
-out vec2 vScreenPos;
+layout(location = 0) out vec2 vTexCoord;
+layout(location = 1) out vec2 vScreenPos;
 void main() {
     gl_Position = vec4(aPos, 0.0, 1.0);
     vTexCoord = aTex;
@@ -232,6 +250,7 @@ void main() {
 }
 )GLSL");
     }
+
   }
 
   static std::string loadShaderWithIncludes(const char *path, int depth = 0) {

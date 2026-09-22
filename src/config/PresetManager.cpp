@@ -9,6 +9,7 @@
 #include "ConfigurationManager.h"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -364,6 +365,23 @@ PresetValidationError PresetManager::validatePreset(const Preset &preset) {
 
   if (preset.shaderName.empty()) {
     return PresetValidationError::MissingShader;
+  }
+
+  // Validate parameter keys for validity
+  for (const auto &[key, val] : preset.floatParameters) {
+    if (key.empty()) {
+      return PresetValidationError::InvalidParameters;
+    }
+  }
+  for (const auto &[key, val] : preset.intParameters) {
+    if (key.empty()) {
+      return PresetValidationError::InvalidParameters;
+    }
+  }
+  for (const auto &[key, val] : preset.boolParameters) {
+    if (key.empty()) {
+      return PresetValidationError::InvalidParameters;
+    }
   }
 
   return PresetValidationError::None;

@@ -1,8 +1,10 @@
+#include "../src/core/MathUtils.h"
 #include "../src/core/MultiDisplayManager.h"
 #include "../src/core/PerformanceMonitor.h"
 #include "../src/core/ShaderManager.h"
 #include "../src/core/UniformBuffer.h"
 #include "../src/audio/AudioInput.h"
+#include "../src/gl/GLRendererTypes.h"
 #include "TestFramework.h"
 #include <algorithm>
 #include <cmath>
@@ -49,32 +51,51 @@ public:
 
 private:
   TestResult testDynamicResolution() {
-    float resolutionScale = 1.0f;
+    // Test actual PerformanceMonitor dynamic resolution scaling logic
+    float fullScale = PerformanceMonitor::calculateDynamicResolutionScale(16.0f, 16.67f);
+    TEST_ASSERT_EQUAL(1.0f, fullScale);
+
+    float droppedScale = PerformanceMonitor::calculateDynamicResolutionScale(33.34f, 16.67f);
+    TEST_ASSERT(droppedScale < 1.0f, "Should scale down when latency exceeds target");
+    TEST_ASSERT(std::abs(droppedScale - 0.5f) < 0.01f, "33.34ms at 16.67ms target should be ~0.5 scale");
+
+    // Clamping test: should not scale below 0.5f
+    float extremeLatencyScale = PerformanceMonitor::calculateDynamicResolutionScale(100.0f, 16.67f);
+    TEST_ASSERT_EQUAL(0.5f, extremeLatencyScale);
+
+    // Viewport scaling with dynamic resolution
     Size2D viewportSize = {3840.0f, 2160.0f};
-
     Size2D renderSize;
-    renderSize.width = viewportSize.width * resolutionScale;
-    renderSize.height = viewportSize.height * resolutionScale;
-
+    renderSize.width = viewportSize.width * fullScale;
+    renderSize.height = viewportSize.height * fullScale;
     TEST_ASSERT_EQUAL(3840, (int)renderSize.width);
     TEST_ASSERT_EQUAL(2160, (int)renderSize.height);
 
-    resolutionScale = 0.75f;
-    renderSize.width = viewportSize.width * resolutionScale;
-    renderSize.height = viewportSize.height * resolutionScale;
-
+    renderSize.width = viewportSize.width * 0.75f;
+    renderSize.height = viewportSize.height * 0.75f;
     TEST_ASSERT_EQUAL(2880, (int)renderSize.width);
     TEST_ASSERT_EQUAL(1620, (int)renderSize.height);
+
+    // Test smoothed dynamic resolution scale with damping
+    float smoothed = PerformanceMonitor::calculateSmoothedDynamicResolutionScale(33.34f, 16.67f, 1.0f, 0.5f);
+    TEST_ASSERT(smoothed < 1.0f && smoothed > 0.5f, "Smoothed scale should interpolate toward target");
+
+    // Test variance calculation on PerformanceMonitor
+    PerformanceMonitor pm(10);
+    pm.beginFrame();
+    pm.endFrame();
+    float variance = pm.getFrameTimeVarianceMs();
+    TEST_ASSERT(variance >= 0.0f, "Frame time variance must be non-negative");
 
     return {__func__, true, "Dynamic resolution calculation correct", 0.0};
   }
 
   TestResult testResolutionScaling() {
-    float scale = 1.0f;
+    // Test resolution scaling to max texture dimension and dynamic scaling clamping
     float maxTextureDimension = 8192.0f;
-
     Size2D viewportSize = {16384.0f, 8640.0f};
 
+    float scale = 1.0f;
     if (viewportSize.width > maxTextureDimension) {
       scale = maxTextureDimension / viewportSize.width;
     }
@@ -82,27 +103,44 @@ private:
     TEST_ASSERT(scale < 1.0f, "Should scale down for large viewport");
     TEST_ASSERT_EQUAL(0.5f, scale);
 
+    // Verify 120fps target scaling (8.33ms)
+    float highRefreshScale = PerformanceMonitor::calculateDynamicResolutionScale(10.0f, 8.33f);
+    TEST_ASSERT(highRefreshScale < 1.0f, "High refresh rate should throttle on slower frame");
+    TEST_ASSERT(highRefreshScale >= 0.5f, "Scaling must stay within valid range");
+
     return {__func__, true, "Resolution scaling to max texture dimension works",
             0.0};
   }
 
   TestResult testThermalStateTransitions() {
-    enum ThermalState { Nominal = 0, Fair = 1, Serious = 2, Critical = 3 };
+    // Test real PerformanceMonitor::calculateAdaptiveRayMarchLoD across all thermal levels
+    int maxSteps = 0;
+    float stepEpsilon = 0.0f;
+    float lodScale = 0.0f;
 
-    ThermalState states[] = {Nominal, Fair, Serious, Critical};
-    float expectedLevels[] = {0.0f, 0.33f, 0.66f, 1.0f};
-    bool expectedThrottling[] = {false, false, true, true};
+    // Nominal (thermal level 0.0f, nominal latency)
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.0f, 16.0f, maxSteps, stepEpsilon, lodScale);
+    TEST_ASSERT_EQUAL(128, maxSteps);
+    TEST_ASSERT_EQUAL(1.0f, lodScale);
+    TEST_ASSERT(std::abs(stepEpsilon - 0.001f) < 0.0001f, "Nominal epsilon check");
 
-    for (int i = 0; i < 4; i++) {
-      float thermalLevel = expectedLevels[i];
-      bool isThrottling = expectedThrottling[i];
+    // Fair (thermal level 0.33f)
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.35f, 16.0f, maxSteps, stepEpsilon, lodScale);
+    TEST_ASSERT_EQUAL(96, maxSteps);
+    TEST_ASSERT_EQUAL(0.85f, lodScale);
+    TEST_ASSERT(std::abs(stepEpsilon - 0.002f) < 0.0001f, "Fair epsilon check");
 
-      if (thermalLevel >= 0.66f) {
-        TEST_ASSERT_TRUE(isThrottling);
-      } else {
-        TEST_ASSERT_FALSE(isThrottling);
-      }
-    }
+    // Serious (thermal level 0.66f)
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.70f, 16.0f, maxSteps, stepEpsilon, lodScale);
+    TEST_ASSERT_EQUAL(64, maxSteps);
+    TEST_ASSERT_EQUAL(0.65f, lodScale);
+    TEST_ASSERT(std::abs(stepEpsilon - 0.0035f) < 0.0001f, "Serious epsilon check");
+
+    // Critical (thermal level 0.85f+)
+    PerformanceMonitor::calculateAdaptiveRayMarchLoD(0.90f, 16.0f, maxSteps, stepEpsilon, lodScale);
+    TEST_ASSERT_EQUAL(48, maxSteps);
+    TEST_ASSERT_EQUAL(0.5f, lodScale);
+    TEST_ASSERT(std::abs(stepEpsilon - 0.005f) < 0.0001f, "Critical epsilon check");
 
     return {__func__, true, "Thermal state transitions correct", 0.0};
   }
@@ -125,32 +163,55 @@ private:
     TEST_ASSERT(estimatedMemory < 40 * 1024 * 1024,
                 "Texture memory estimate too high");
 
+    // Test GLRenderer memory tracking integration
+    Platform::Linux::GLPerformanceMetrics glMetrics;
+    glMetrics.memoryUsageBytes = width * height * 4;
+    TEST_ASSERT_EQUAL(estimatedMemory, glMetrics.memoryUsageBytes);
+
     return {__func__, true, "Memory budget calculation correct", 0.0};
   }
 
   TestResult testAutoScalingThresholds() {
-    float preferredFPS = 60.0f;
-    float autoScaleThreshold = 55.0f;
-    float currentFPS = 50.0f;
+    using namespace Platform::Linux;
 
-    bool shouldReduce = (currentFPS < autoScaleThreshold);
+    GLAdaptiveQualityConfig config;
+    TEST_ASSERT_TRUE(config.enabled);
+    TEST_ASSERT_EQUAL(60.0f, config.targetFPS);
+    TEST_ASSERT_EQUAL(45.0f, config.lowFPS);
+    TEST_ASSERT_EQUAL(65.0f, config.highFPS);
+    TEST_ASSERT_EQUAL(0.5f, config.minResolutionScale);
+    TEST_ASSERT_EQUAL(1.0f, config.maxResolutionScale);
+    TEST_ASSERT_EQUAL(1.0f, config.currentResolutionScale);
+
+    float currentFPS = 40.0f;
+    bool shouldReduce = (currentFPS < config.lowFPS);
     TEST_ASSERT_TRUE(shouldReduce);
 
-    currentFPS = 59.0f;
-    bool shouldRecover = (currentFPS > (preferredFPS - 2.0f));
-    TEST_ASSERT_TRUE(shouldRecover);
-
-    float scale = 1.0f;
-    currentFPS = 40.0f;
-
-    if (currentFPS < autoScaleThreshold * 0.8f) {
-      scale = std::max(0.5f, scale - 0.05f);
+    if (shouldReduce) {
+      config.currentResolutionScale = std::max(config.minResolutionScale,
+                                               config.currentResolutionScale - 0.05f);
     }
+    TEST_ASSERT_EQUAL(0.95f, config.currentResolutionScale);
 
-    TEST_ASSERT(scale < 1.0f, "Should reduce resolution when FPS very low");
+    currentFPS = 68.0f;
+    bool shouldRecover = (currentFPS > config.highFPS);
+    TEST_ASSERT_TRUE(shouldRecover);
+    if (shouldRecover) {
+      config.currentResolutionScale = std::min(config.maxResolutionScale,
+                                               config.currentResolutionScale + 0.05f);
+    }
+    TEST_ASSERT_EQUAL(1.0f, config.currentResolutionScale);
+
+    // When severely dropped
+    currentFPS = 25.0f;
+    if (currentFPS < config.lowFPS) {
+      config.currentResolutionScale = config.minResolutionScale;
+    }
+    TEST_ASSERT_EQUAL(0.5f, config.currentResolutionScale);
 
     return {__func__, true, "Auto-scaling thresholds work correctly", 0.0};
   }
+
 
   TestResult testFramePacingTiming() {
     float targetFPS = 60.0f;
@@ -170,8 +231,16 @@ private:
     bool isDropped = (frameTimeMs > 33.3f);
     TEST_ASSERT_TRUE(isDropped);
 
+    // Verify real PerformanceMonitor frame tracking and pacing
+    PerformanceMonitor pm(10);
+    pm.beginFrame();
+    pm.endFrame();
+    float lastMs = pm.getLastFrameTimeMs();
+    TEST_ASSERT(lastMs >= 0.0f, "Frame time must be non-negative");
+
     return {__func__, true, "Frame pacing timing correct", 0.0};
   }
+
 
   TestResult testUnifiedShaderManager() {
     auto manager = createShaderManager();
@@ -299,14 +368,14 @@ private:
   }
 
   TestResult testDescriptorHeapSuballocation() {
-    // Validate GPU argument buffer alignment and suballocation mechanics
+    // Validate GPU argument buffer alignment and suballocation mechanics with Math::alignUp
     size_t length = 1024;
     size_t alignment = 256;
-    size_t alignedOffset = (length + alignment - 1) & ~(alignment - 1);
+    size_t alignedOffset = Math::alignUp(length, alignment);
     TEST_ASSERT_EQUAL(1024, (int)alignedOffset);
 
     size_t unalignedLength = 1000;
-    size_t alignedNext = (unalignedLength + alignment - 1) & ~(alignment - 1);
+    size_t alignedNext = Math::alignUp(unalignedLength, alignment);
     TEST_ASSERT_EQUAL(1024, (int)alignedNext);
 
     return {__func__, true, "Descriptor heap and argument buffer suballocation verified", 0.0};

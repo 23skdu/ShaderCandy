@@ -150,9 +150,7 @@ bool GLShaderProgram::loadShaderFromFile(const char *fragmentPath) {
   }
 
   std::string vertexShaderStr = GLSLWrapper::getVertexShader();
-  std::string wrappedFrag = "\
-#version 330 core\n";
-  wrappedFrag += fragStr;
+  std::string wrappedFrag = GLSLWrapper::wrapFragmentShader(fragStr);
 
   return loadShader(vertexShaderStr.c_str(), wrappedFrag.c_str());
 }

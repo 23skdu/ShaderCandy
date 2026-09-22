@@ -216,8 +216,7 @@ bool WallpaperEngine::loadShader(const char *path) {
     return false;
   }
 
-  std::string wrappedFrag = GLSLWrapper::getPreamble();
-  wrappedFrag += fragStr;
+  std::string wrappedFrag = GLSLWrapper::wrapFragmentShader(fragStr);
 
   currentShaderPath = path;
   std::cout << "Loading wallpaper shader: " << path << std::endl;
@@ -539,11 +538,15 @@ void WallpaperEngine::scanShaderDir(const std::string &dir) {
   for (const auto &entry : fs::directory_iterator(dir)) {
     if (!entry.is_regular_file())
       continue;
+    auto stem = entry.path().stem().string();
+    if (stem == "common" || stem == "vertex" || stem == "debug_overlay")
+      continue;
     auto ext = entry.path().extension().string();
     if (ext == ".frag" || ext == ".glsl") {
       shaderPaths.push_back(entry.path().string());
     }
   }
+
 
   std::sort(shaderPaths.begin(), shaderPaths.end());
   std::cout << "Found " << shaderPaths.size() << " shaders in " << dir

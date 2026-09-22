@@ -2,6 +2,7 @@
 // Supports: PipeWire (via PulseAudio) > PulseAudio > ALSA
 
 #include "AudioInput.h"
+#include "MathUtils.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -148,11 +149,10 @@ public:
     }
     fftw_execute(fftPlan_);
 
-    double volume = 0.0;
-    for (size_t i = 0; i < inputBuffer_.size(); ++i) {
-      volume += std::abs(inputBuffer_[i]);
-    }
-    audioData_.volume = volume / inputBuffer_.size();
+    audioData_.volume = inputBuffer_.empty()
+        ? 0.0f
+        : static_cast<double>(Math::sumAbsArray(inputBuffer_.data(), inputBuffer_.size()) /
+                              inputBuffer_.size());
 
     int halfSize = bufferSize_ / 2;
     double bass = 0.0, mid = 0.0, treble = 0.0;
@@ -317,11 +317,7 @@ void AudioInput::performFFT(const std::vector<float> &samples) {
   if (samples.empty()) return;
   std::lock_guard<std::mutex> lock(dataMutex_);
   currentData_.waveform = samples;
-  float sum = 0.0f;
-  for (float s : samples) {
-    sum += std::abs(s);
-  }
-  currentData_.volume = sum / samples.size();
+  currentData_.volume = Math::sumAbsArray(samples.data(), samples.size()) / samples.size();
   currentData_.volumeSmoothed =
       currentData_.volumeSmoothed * smoothing_ + currentData_.volume * (1.0f - smoothing_);
   if (callback_) {

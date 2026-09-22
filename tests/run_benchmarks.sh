@@ -12,7 +12,7 @@ echo "=================================="
 echo ""
 
 # Check if benchmark binary exists
-BENCHMARK_BIN="$PROJECT_ROOT/build/shadercandy-benchmark"
+BENCHMARK_BIN="$PROJECT_ROOT/build/shadercandy-bench"
 if [ ! -f "$BENCHMARK_BIN" ]; then
     echo "Benchmark binary not found at: $BENCHMARK_BIN"
     echo "Building benchmarks..."
@@ -25,9 +25,9 @@ if [ ! -f "$BENCHMARK_BIN" ]; then
         cmake .. -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
     fi
     
-    make -j$(nproc) shadercandy-benchmark
+    cmake --build . --target shadercandy-bench -j$(nproc)
     
-    BENCHMARK_BIN="$PROJECT_ROOT/build/shadercandy-benchmark"
+    BENCHMARK_BIN="$PROJECT_ROOT/build/shadercandy-bench"
     
     if [ ! -f "$BENCHMARK_BIN" ]; then
         echo "Error: Failed to build benchmark binary"
@@ -38,60 +38,11 @@ fi
 echo "Running benchmarks..."
 echo ""
 
-# Parse arguments
-RUN_ALL=true
-RUN_NAME=""
-VERBOSE=false
-THROUGHPUT=false
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --run)
-            RUN_NAME="$2"
-            RUN_ALL=false
-            shift 2
-            ;;
-        --verbose)
-            VERBOSE=true
-            shift
-            ;;
-        --throughput)
-            THROUGHPUT=true
-            shift
-            ;;
-        --list)
-            "$BENCHMARK_BIN" --list
-            exit 0
-            ;;
-        --help|-h)
-            echo "Usage: $0 [OPTIONS]"
-            echo "Options:"
-            echo "  --list               List all available benchmarks"
-            echo "  --run <name>         Run specific benchmark suite"
-            echo "  --verbose            Show detailed results"
-            echo "  --throughput         Show throughput metrics"
-            echo "  --help               Show this help message"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
-# Run benchmarks
-if [ "$RUN_ALL" = true ]; then
-    "$BENCHMARK_BIN" --all
+# Pass all arguments through to shadercandy-bench, or run with default shader dir
+if [ $# -eq 0 ]; then
+    "$BENCHMARK_BIN" -dir "$PROJECT_ROOT/shaders" -frames 60
 else
-    "$BENCHMARK_BIN" --run "$RUN_NAME"
-fi
-
-if [ "$THROUGHPUT" = true ]; then
-    echo ""
-    echo "Throughput Metrics:"
-    echo "-------------------"
-    "$BENCHMARK_BIN" --run "$RUN_NAME" --throughput 2>/dev/null || true
+    "$BENCHMARK_BIN" "$@"
 fi
 
 echo ""
