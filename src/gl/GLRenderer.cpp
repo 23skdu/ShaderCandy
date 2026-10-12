@@ -419,60 +419,65 @@ void GLRenderer::render(float time) {
 
   double currentTime = clock() / (double)CLOCKS_PER_SEC;
   double delta = 0.0;
-  if (lastFrameTime_ > 0) {
+  if (lastFrameTime_ > 0.0) {
     delta = currentTime - lastFrameTime_;
-    metrics_.frameTimeMs = delta * 1000.0;
-    metrics_.currentFPS = 1.0 / delta;
+    if (delta > 0.0 && std::isfinite(delta)) {
+      metrics_.frameTimeMs = delta * 1000.0;
+      metrics_.currentFPS = std::max(0.0, 1.0 / delta);
 
-    if (metrics_.currentFPS < metrics_.minFPS)
-      metrics_.minFPS = metrics_.currentFPS;
-    if (metrics_.currentFPS > metrics_.maxFPS)
-      metrics_.maxFPS = metrics_.currentFPS;
+      if (metrics_.currentFPS < metrics_.minFPS)
+        metrics_.minFPS = metrics_.currentFPS;
+      if (metrics_.currentFPS > metrics_.maxFPS)
+        metrics_.maxFPS = metrics_.currentFPS;
 
-    fpsAccumulator_ += metrics_.currentFPS;
-    frameCount_++;
+      fpsAccumulator_ += metrics_.currentFPS;
+      frameCount_++;
 
-    if (frameCount_ >= 60) {
-      metrics_.averageFPS = fpsAccumulator_ / frameCount_;
-      fpsAccumulator_ = 0.0;
-      frameCount_ = 0;
-    }
+      if (frameCount_ >= 60) {
+        metrics_.averageFPS = fpsAccumulator_ / frameCount_;
+        fpsAccumulator_ = 0.0;
+        frameCount_ = 0;
+      }
 
-    // Adaptive quality: scale resolution based on FPS
-    if (adaptiveQualityConfig_.enabled) {
-      float fps = (float)metrics_.currentFPS;
-      if (fps < adaptiveQualityConfig_.lowFPS &&
-          currentResolutionScale_ > adaptiveQualityConfig_.minResolutionScale) {
-        currentResolutionScale_ =
-            std::max(adaptiveQualityConfig_.minResolutionScale,
-                     currentResolutionScale_ - 0.01f * adaptiveQualityConfig_.adaptationSpeed);
-        int newW = (int)(1920 * currentResolutionScale_);
-        int newH = (int)(1080 * currentResolutionScale_);
-        if (newW != renderWidth_ || newH != renderHeight_) {
-          renderWidth_ = newW;
-          renderHeight_ = newH;
-          initPostProcessingFBO();
-          if (bloomConfig_.enabled) initBloom();
-        }
-      } else if (fps > adaptiveQualityConfig_.highFPS &&
-                 currentResolutionScale_ < adaptiveQualityConfig_.maxResolutionScale) {
-        currentResolutionScale_ =
-            std::min(adaptiveQualityConfig_.maxResolutionScale,
-                     currentResolutionScale_ + 0.005f * adaptiveQualityConfig_.adaptationSpeed);
-        int newW = (int)(1920 * currentResolutionScale_);
-        int newH = (int)(1080 * currentResolutionScale_);
-        if (newW != renderWidth_ || newH != renderHeight_) {
-          renderWidth_ = newW;
-          renderHeight_ = newH;
-          initPostProcessingFBO();
-          if (bloomConfig_.enabled) initBloom();
+      // Adaptive quality: scale resolution based on FPS
+      if (adaptiveQualityConfig_.enabled) {
+        float fps = (float)metrics_.currentFPS;
+        if (fps < adaptiveQualityConfig_.lowFPS &&
+            currentResolutionScale_ > adaptiveQualityConfig_.minResolutionScale) {
+          currentResolutionScale_ =
+              std::max(adaptiveQualityConfig_.minResolutionScale,
+                       currentResolutionScale_ - 0.01f * adaptiveQualityConfig_.adaptationSpeed);
+          int newW = (int)(1920 * currentResolutionScale_);
+          int newH = (int)(1080 * currentResolutionScale_);
+          if (newW != renderWidth_ || newH != renderHeight_) {
+            renderWidth_ = newW;
+            renderHeight_ = newH;
+            initPostProcessingFBO();
+            if (bloomConfig_.enabled) initBloom();
+          }
+        } else if (fps > adaptiveQualityConfig_.highFPS &&
+                   currentResolutionScale_ < adaptiveQualityConfig_.maxResolutionScale) {
+          currentResolutionScale_ =
+              std::min(adaptiveQualityConfig_.maxResolutionScale,
+                       currentResolutionScale_ + 0.005f * adaptiveQualityConfig_.adaptationSpeed);
+          int newW = (int)(1920 * currentResolutionScale_);
+          int newH = (int)(1080 * currentResolutionScale_);
+          if (newW != renderWidth_ || newH != renderHeight_) {
+            renderWidth_ = newW;
+            renderHeight_ = newH;
+            initPostProcessingFBO();
+            if (bloomConfig_.enabled) initBloom();
+          }
         }
       }
+    } else {
+      metrics_.frameTimeMs = 0.0;
+      metrics_.currentFPS = 0.0;
     }
   }
   lastFrameTime_ = currentTime;
 
-  uniforms_.time = time;
+  uniforms_.time = std::isfinite(time) ? time : 0.0f;
   uniforms_.frame++;
 
   // Update transition
@@ -1161,9 +1166,16 @@ void GLRenderer::renderBloom() {
 }
 
 void GLRenderer::setAudioDataArray(const float *audioData, int count) {
+  std::fill(std::begin(uniforms_.audioData), std::end(uniforms_.audioData), 0.0f);
+
+  if (audioData == nullptr || count <= 0) {
+    return;
+  }
+
   int maxCount = std::min(count, 256);
   for (int i = 0; i < maxCount; i++) {
-    uniforms_.audioData[i] = audioData[i];
+    float sample = audioData[i];
+    uniforms_.audioData[i] = std::isfinite(sample) ? sample : 0.0f;
   }
 }
 

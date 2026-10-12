@@ -2,6 +2,7 @@
 
 #include "../core/ShaderInterop.h"
 #include "../platform/linux/GLLoader.h"
+#include <array>
 #include <string>
 #include <unordered_map>
 
@@ -122,6 +123,19 @@ public:
           auto it = locations_.find(arrName);
           if (it != locations_.end()) {
             glUniform1f(it->second, u.audioData[i]);
+          }
+        }
+      }
+    } else {
+      static const std::array<float, 256> zeroAudio{};
+      if (audioDataLoc_ >= 0 && glUniform1fv) {
+        glUniform1fv(audioDataLoc_, 256, zeroAudio.data());
+      } else {
+        for (int i = 0; i < 256; i++) {
+          std::string arrName = "audioData[" + std::to_string(i) + "]";
+          auto it = locations_.find(arrName);
+          if (it != locations_.end()) {
+            glUniform1f(it->second, 0.0f);
           }
         }
       }
