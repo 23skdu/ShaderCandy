@@ -200,8 +200,19 @@ void GLShaderProgram::updateUniforms(int width, int height, float mouseX,
     uniforms.treble = ad->treble;
     uniforms.beat = ad->beat ? 1.0f : 0.0f;
     int samplesToCopy = std::min(256, (int)ad->spectrum.size());
+    // Clear the remainder of the UBO array before copying the available
+    // bins. The backend's spectrum is narrower than the 256-float block
+    // (64 bins on the ALSA path), so without this the tail of audioData
+    // retained whatever was uploaded in a previous frame.
+    for (int i = samplesToCopy; i < 256; ++i) {
+      uniforms.audioData[i] = 0.0f;
+    }
     for (int i = 0; i < samplesToCopy; ++i) {
       uniforms.audioData[i] = ad->spectrum[i];
+    }
+  } else {
+    for (int i = 0; i < 256; ++i) {
+      uniforms.audioData[i] = 0.0f;
     }
   }
 

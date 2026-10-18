@@ -41,11 +41,13 @@ float mandelbulbDE(vec3 pos, out vec4 trap) {
         float theta = atan(z.y, z.x);
         float phi = acos(z.z / r);
         
-        // Calculate derivative
-        dr = pow(r, power - 1.0) * power * dr + 1.0;
-        
-        // Scale and rotate the point
+        // Calculate derivative. The exponent is animated, so a squaring chain is
+        // not available - but both pow calls share the base r, and
+        // pow(r, power - 1.0) == pow(r, power) / r, so one pow suffices.
         float zr = pow(r, power);
+        dr = (zr / r) * power * dr + 1.0;
+
+        // Scale and rotate the point
         theta = theta * power;
         phi = phi * power;
         

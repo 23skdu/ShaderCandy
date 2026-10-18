@@ -69,17 +69,33 @@ flowchart TD
         W --> X[GL Pipeline Cache]
     end
 
-    subgraph "inotify File Watcher"
+    subgraph "inotify File Watcher (no GL calls)"
         Y["inotify_init1\n(IN_NONBLOCK | IN_CLOEXEC)"] --> Z["Background Thread\n(polls every 100ms)"]
         Z --> AA["Watch Loaded Shader Files\n(IN_MODIFY)"]
-        AA --> AB{File Modified?}
-        AB -->|Yes| AC["Trigger reloadCurrentShader()"]
-        AB -->|No| Z
+        AA --> AB["checkForShaderReload()\nstat + mtime compare\n(under shaderMutex_)"]
+        AB --> AC{"mtime moved?"}
+        AC -->|Yes| AD["pendingReload_ = true\n(atomic store)"]
+        AC -->|No| Z
+        AD --> Z
+    end
+
+    subgraph "Render Thread (owns the GL context)"
+        E["render(time)"] --> AP{"pendingReload_.exchange(false)"}
+        AP -->|Yes| AQ["reloadCurrentShader()\nglCreateShader / Compile / Link"]
+        AQ --> AR["currentProgram_ = program\n(uniform block re-queried)"]
+        AP -->|No| AS["Normal frame submission"]
+        AR --> AS
     end
 
     E -.-> X
-    AC -.-> E
 ```
+
+The watcher thread deliberately issues no `gl*` call. OpenGL commands submitted
+from a thread that does not own the context, concurrently with the render
+thread's draw calls, are undefined behaviour; this was a live crash source
+until ThreadSanitizer surfaced it. All GL work is therefore funnelled through
+`render()`. See [nextsteps.md](./nextsteps.md) section 3.1 and
+[LinuxFeatures.md](./LinuxFeatures.md#hot-reload-threading).
 
 ---
 
@@ -421,32 +437,51 @@ flowchart TD
 
 ## 11. Test Framework & Regression Architecture
 
-Comprehensive test suite with 111 tests across 10 suites:
+Comprehensive test suite with 140 tests across 12 suites:
 
 ```mermaid
 flowchart TD
     subgraph "Test Suite Runner (shadercandy-test)"
-        Main[tests/main.cpp] --> Reg[Test Registry]
+        Main[tests/main.cpp\n(unity build)] --> Reg["REGISTER_TEST_SUITE\n(static registry)"]
         Reg --> S1["Logic & Uniform Tests\n(Alignment, Presets, Math)"]
         Reg --> S2["Math & SIMD Tests\n(AVX2 / NEON / Scalar)"]
-        Reg --> S3["Core Functionality Tests\n(Configuration, Presets)"]
+        Reg --> S3["Core Functionality Tests\n(UniformBuffer, PerformanceMonitor)"]
         Reg --> S4["Shader Compilation Tests\n(Fragment Shaders via GLSLWrapper)"]
         Reg --> S5["Renderer Feature Tests\n(Resolution, Thermal, MultiDisplay)"]
         Reg --> S6["Coverage Expansion Tests\n(Bloom, FBO, HeadlessRenderer, Audio)"]
         Reg --> S7["Shader Wrapper Tests\n(#include resolution, metadata)"]
-        Reg --> S8["Linux Platform & Audio Tests\n(IPC, AudioInput, UniformUploader)"]
-        Reg --> S9["Memory Leak & Cleanup Tests\n(Valgrind-verified, 0 app leaks)"]
-        Reg --> S10["Shader Regression Tests\n(Compilation timing, baseline comparison)"]
+        Reg --> S8["Linux Platform & Audio Coverage Tests\n(IPC, AudioInput, UniformUploader)"]
+        Reg --> S9["Memory Leak & Cleanup Tests\n(GLRenderer lifecycle, hot reload)"]
+        Reg --> S10["Shader Regression Tests\n(Compilation timing, baseline)"]
+        Reg --> S11["Concurrency Tests\n(flag handoff, TSan-clean paths)"]
+        Reg --> S12["Coverage Closure Tests\n(one test per named gap)"]
     end
 
-    S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 & S10 --> Runner[TestSuite.run]
-    Runner --> Results["std::vector<TestResult>"]
+    S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 & S10 & S11 & S12 --> Runner[TestSuite.run]
+    Runner --> Results["std::vector&lt;TestResult&gt;"]
     Results --> Format["Console Summary & Exit Code Report"]
+
+    subgraph "Verification Gates (tests/)"
+        Gate1["validate_shaders.sh\n114/114 .frag compile"]
+        Gate2["lint.sh\nclang-tidy, clean"]
+        Gate3["coverage.sh\ngcov summary, 95.43%"]
+        Gate4["tsan.sh\n0 races in src/ and tests/"]
+        Gate5["ab_compare.sh\ninterleaved A/B timing"]
+        Gate6["compare_frames.sh\npinned-time pixel diff"]
+    end
 ```
+
+Two Linux-specific notes:
+
+- `tests/main.cpp` is a **unity build**: it `#include`s each suite's `.cpp`
+  file, so a new suite must be added there explicitly or it will not run.
+- GL-dependent tests skip cleanly when there is no X11 display, rather than
+  failing. Coverage numbers therefore vary with display availability; on a
+  headless machine the GL paths report as uncovered.
 
 ---
 
-## 11. Project Directory Layout
+## 12. Project Directory Layout
 
 ```mermaid
 graph TD
@@ -480,4 +515,6 @@ graph TD
     Docs --> D9["shaders.md (110+ Shader Catalog)"]
     Docs --> D10["release_notes_0_1_0.md (v0.1.0 Release)"]
     Docs --> D11["release_notes_0_2_0.md (v0.2.0 Release)"]
+    Docs --> D12["testing.md (Coverage, Races, Lint)"]
+    Docs --> D13["experiments.md (Raw Measurement Log)"]
 ```

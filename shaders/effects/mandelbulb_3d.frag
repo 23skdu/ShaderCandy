@@ -12,9 +12,16 @@ float map(vec3 p, inout float trap) {
         
         float theta = acos(z.z / r);
         float phi = atan(z.y, z.x);
-        dr = pow(r, Power - 1.0) * Power * dr + 1.0;
-        
-        float zr = pow(r, Power);
+
+        // Power is 8, so both exponents are integers: a squaring chain
+        // replaces two pow calls (each a log2 + exp2 pair).
+        float r2 = r * r;
+        float r4 = r2 * r2;
+        float zr = r4 * r4;              // r^8  == pow(r, Power)
+        float rp1 = zr / r;              // r^7  == pow(r, Power - 1.0)
+
+        dr = rp1 * Power * dr + 1.0;
+
         theta = theta * Power;
         phi = phi * Power;
         
@@ -28,12 +35,15 @@ float map(vec3 p, inout float trap) {
 
 vec3 getNormal(vec3 p) {
     float dummy = 0.0;
+    // 4-tap tetrahedral normal: 4 DE evaluations instead of the 6 that
+    // central differencing needs.
     vec2 e = vec2(0.001, 0.0);
-    return normalize(vec3(
-        map(p + e.xyy, dummy) - map(p - e.xyy, dummy),
-        map(p + e.yxy, dummy) - map(p - e.yxy, dummy),
-        map(p + e.yyx, dummy) - map(p - e.yyx, dummy)
-    ));
+    const vec2 k = vec2(1.0, -1.0);
+    return normalize(
+        k.xyy * map(p + k.xyy * e.x, dummy) +
+        k.yyx * map(p + k.yyx * e.x, dummy) +
+        k.yxy * map(p + k.yxy * e.x, dummy) +
+        k.xxx * map(p + k.xxx * e.x, dummy));
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {

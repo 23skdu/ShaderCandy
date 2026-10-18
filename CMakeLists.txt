@@ -142,17 +142,38 @@ target_include_directories(shadercandy_core PUBLIC src/core)
 target_link_libraries(shadercandy_core PUBLIC Threads::Threads)
 
 # SIMD optimizations
+#
+# These select the *baseline* ISA that may be emitted unconditionally; they do
+# not enable runtime dispatch. Requesting AVX2 outright produces an illegal
+# instruction on pre-Haswell x86-64, so SSE2 (always present on x86-64) is the
+# safe floor here and MathUtils.h keys its AVX2 intrinsics off USE_AVX2.
+#
+# To gain AVX2 without a SIGILL risk, either:
+#   - build only on a known-AVX2 host, or
+#   - set -DSHADERCANDY_FORCE_AVX2=ON and accept that requirement explicitly.
+option(SHADERCANDY_FORCE_AVX2 "Require AVX2+FMA at build time (no runtime check)"
+       OFF)
+
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|ARM|aarch64|AARCH64")
     target_compile_definitions(shadercandy_core PUBLIC USE_NEON)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_compile_options(shadercandy_core PUBLIC -march=armv8-a+fp+simd)
     endif()
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86|X86|amd64|AMD64")
-    target_compile_definitions(shadercandy_core PUBLIC USE_AVX2)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-        target_compile_options(shadercandy_core PUBLIC -mavx2 -mfma)
+        if(SHADERCANDY_FORCE_AVX2)
+            target_compile_definitions(shadercandy_core PUBLIC USE_AVX2)
+            target_compile_options(shadercandy_core PUBLIC -mavx2 -mfma)
+            message(STATUS "  SIMD: AVX2+FMA required at runtime (FORCE_AVX2)")
+        else()
+            target_compile_options(shadercandy_core PUBLIC -msse4.2)
+            message(STATUS "  SIMD: SSE4.2 baseline (AVX2 requires -DSHADERCANDY_FORCE_AVX2=ON)")
+        endif()
     elseif(MSVC)
-        target_compile_options(shadercandy_core PUBLIC /arch:AVX2)
+        if(SHADERCANDY_FORCE_AVX2)
+            target_compile_definitions(shadercandy_core PUBLIC USE_AVX2)
+            target_compile_options(shadercandy_core PUBLIC /arch:AVX2)
+        endif()
     endif()
 endif()
 

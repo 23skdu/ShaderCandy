@@ -34,7 +34,31 @@ private:
     };
 
     bool hasGlslangValidator() {
-        return std::system("which glslangValidator > /dev/null 2>&1") == 0;
+        return !validatorCommand().empty();
+    }
+
+    // The GLSL front end ships under two common names. glslangValidator
+    // comes from the Khronos SDK; glslc comes from shaderc (which is what
+    // tests/validate_shaders.sh uses). Hardcoding one name meant that on a
+    // machine with only the other installed, this suite silently reduced to
+    // the offline syntax check and the timing/comparison half never ran.
+    //
+    // Returns the command prefix that compiles a fragment shader, or "" when
+    // neither tool is installed.
+    static std::string validatorCommand() {
+        if (std::system("which glslangValidator > /dev/null 2>&1") == 0) {
+            return "glslangValidator -S frag";
+        }
+        if (std::system("which glslc > /dev/null 2>&1") == 0) {
+            return "glslc -fshader-stage=fragment";
+        }
+        return "";
+    }
+
+    static bool runValidator(const std::string &fragPath) {
+        const std::string cmd =
+            validatorCommand() + " " + fragPath + " > /dev/null 2>&1";
+        return std::system(cmd.c_str()) == 0;
     }
 
     std::vector<std::string> findFragShaders() {
@@ -119,8 +143,7 @@ private:
 
     double measureCompileTime(const std::string &fragPath) {
         auto start = std::chrono::high_resolution_clock::now();
-        std::string cmd = "glslangValidator -S frag " + fragPath + " > /dev/null 2>&1";
-        bool ok = (std::system(cmd.c_str()) == 0);
+        runValidator(fragPath);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> dur = end - start;
         return dur.count();
@@ -138,7 +161,7 @@ private:
             ShaderTiming t;
             t.name = name;
             t.timeMs = measureCompileTime(fragPath);
-            t.compiled = (std::system(("glslangValidator -S frag " + fragPath + " > /dev/null 2>&1").c_str()) == 0);
+            t.compiled = runValidator(fragPath);
             timings.push_back(t);
         }
 

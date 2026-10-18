@@ -5,10 +5,6 @@
 // Rain - Rain falling effect
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed * 0.5;

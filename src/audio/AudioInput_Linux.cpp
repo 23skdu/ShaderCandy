@@ -155,28 +155,37 @@ public:
                               inputBuffer_.size());
 
     int halfSize = bufferSize_ / 2;
-    double bass = 0.0, mid = 0.0, treble = 0.0;
     int bassEnd = halfSize / 4;
     int midEnd = halfSize / 2;
 
+    // Compute the magnitude of every bin exactly once. The original code
+    // evaluated sqrt(re*re + im*im) five times over the same data: three
+    // times for the bass/mid/treble bands, again for the 8 sub-bands, and
+    // again for the 64-entry spectrum. All five reductions just need sums of
+    // this one array now.
+    if (static_cast<int>(magnitudes_.size()) < halfSize) {
+      magnitudes_.resize(static_cast<size_t>(halfSize));
+    }
+    for (int i = 0; i < halfSize; ++i) {
+      double re = fftOut_[i][0];
+      double im = fftOut_[i][1];
+      magnitudes_[static_cast<size_t>(i)] =
+          std::sqrt(re * re + im * im) / halfSize;
+    }
+
+    double bass = 0.0, mid = 0.0, treble = 0.0;
     for (int i = 0; i < bassEnd; ++i) {
-      double mag = std::sqrt(fftOut_[i][0] * fftOut_[i][0] +
-                         fftOut_[i][1] * fftOut_[i][1]) / halfSize;
-      bass += mag;
+      bass += magnitudes_[static_cast<size_t>(i)];
     }
     audioData_.bass = bass / bassEnd;
 
     for (int i = bassEnd; i < midEnd; ++i) {
-      double mag = std::sqrt(fftOut_[i][0] * fftOut_[i][0] +
-                         fftOut_[i][1] * fftOut_[i][1]) / halfSize;
-      mid += mag;
+      mid += magnitudes_[static_cast<size_t>(i)];
     }
     audioData_.mid = mid / (midEnd - bassEnd);
 
     for (int i = midEnd; i < halfSize; ++i) {
-      double mag = std::sqrt(fftOut_[i][0] * fftOut_[i][0] +
-                         fftOut_[i][1] * fftOut_[i][1]) / halfSize;
-      treble += mag;
+      treble += magnitudes_[static_cast<size_t>(i)];
     }
     audioData_.treble = treble / (halfSize - midEnd);
 
@@ -187,9 +196,7 @@ public:
       int end = (i + 1) * halfSize / 8;
       double band = 0.0;
       for (int j = start; j < end; ++j) {
-        double mag = std::sqrt(fftOut_[j][0] * fftOut_[j][0] +
-                          fftOut_[j][1] * fftOut_[j][1]) / halfSize;
-        band += mag;
+        band += magnitudes_[static_cast<size_t>(j)];
       }
       audioData_.bands[i] = band / (end - start);
     }
@@ -199,9 +206,7 @@ public:
     }
 
     for (int i = 0; i < 64 && i < halfSize; ++i) {
-      double mag = std::sqrt(fftOut_[i][0] * fftOut_[i][0] +
-                         fftOut_[i][1] * fftOut_[i][1]) / halfSize;
-      audioData_.spectrum[i] = mag;
+      audioData_.spectrum[i] = static_cast<float>(magnitudes_[static_cast<size_t>(i)]);
     }
   }
 
@@ -246,6 +251,9 @@ public:
   fftw_complex *fftOut_ = nullptr;
   std::vector<float> inputBuffer_;
   std::vector<float> fftWindow_;
+  // Scratch for one magnitude per FFT bin, reused across frames so the
+  // per-frame audio path performs no allocation.
+  std::vector<double> magnitudes_;
 
   int sampleRate_ = 44100;
   int bufferSize_ = 1024;

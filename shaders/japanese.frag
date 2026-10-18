@@ -5,10 +5,6 @@
 // Japanese - Japanese-themed scene with sakura
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Cherry blossom petal shape
 float petal(vec2 p) {

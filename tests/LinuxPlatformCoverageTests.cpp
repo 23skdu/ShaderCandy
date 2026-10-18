@@ -570,10 +570,15 @@ private:
 
   TestResult testCoreEdgeCasesCoverage() {
     // 1. ConfigurationManager HOME unset fallback
-    const char *origHome = getenv("HOME");
+    //
+    // getenv/unsetenv/setenv mutate process-global state, so the check is
+    // correct: they are not thread safe. This suite runs single-threaded and
+    // restores HOME immediately after, so the scoped suppression is safe
+    // here. The check stays enabled everywhere else.
+    const char *origHome = getenv("HOME"); // NOLINT(concurrency-mt-unsafe)
     std::string homeStr = origHome ? origHome : "";
 
-    unsetenv("HOME");
+    unsetenv("HOME"); // NOLINT(concurrency-mt-unsafe)
     std::string fallbackDir =
         Config::ConfigurationManager::getConfigDirectory();
     TEST_ASSERT_TRUE(fallbackDir == "/tmp/ShaderCandy");

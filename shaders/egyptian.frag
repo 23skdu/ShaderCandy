@@ -5,10 +5,6 @@
 // Egyptian - Egyptian-themed patterns and symbols
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Pyramid SDF
 float sdPyramid(vec2 p, float width, float height) {

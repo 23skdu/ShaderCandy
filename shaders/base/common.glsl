@@ -177,6 +177,37 @@ vec3 rgb2hsv(vec3 c) {
     return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
 }
 
+// 2D SDF primitives
+float sdCircle(vec2 p, float r) {
+    return length(p) - r;
+}
+
+float sdBox2D(vec2 p, vec2 b) {
+    vec2 d = abs(p) - b;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+float sdSegment(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+}
+
+float sdUnevenCapsule(vec2 p, float r1, float r2, float h) {
+    p.x = abs(p.x);
+    float b = (r1 - r2) / h;
+    float a = sqrt(max(0.0, 1.0 - b * b));
+    float k = dot(p, vec2(-b, a));
+    if (k < 0.0) return length(p) - r1;
+    if (k > a * h) return length(p - vec2(0.0, h)) - r2;
+    return dot(p, vec2(a, b)) - r1;
+}
+
+// Antialiased fill mask for an SDF. 1 inside, 0 outside, soft over +-blur.
+float fillSDF(float d, float blur) {
+    return 1.0 - smoothstep(-blur, blur, d);
+}
+
 // SDF primitives
 float sdSphere(vec3 p, float r) {
     return length(p) - r;
@@ -192,6 +223,22 @@ float sdTorus(vec3 p, vec2 t) {
     return length(q) - t.y;
 }
 
+// Conservative bounding volume for ray-marched fractals and SDF scenes.
+//
+// Ray/sphere intersection about the origin. Returns the near hit distance, or
+// -1.0 when the ray misses the sphere entirely. A ray that misses cannot
+// reach the surface, so the caller may skip the march and report "no hit".
+//
+// Note this is only valid when `radius` is a true conservative bound of the
+// geometry. Every use below documents the radius it was verified against.
+float boundHit(vec3 ro, vec3 rd, float radius) {
+    float b = dot(ro, rd);
+    float c = dot(ro, ro) - radius * radius;
+    float h = b * b - c;
+    if (h < 0.0) return -1.0;
+    return -b - sqrt(h);
+}
+
 // SDF operations
 float opUnion(float d1, float d2) { return min(d1, d2); }
 float opSubtraction(float d1, float d2) { return max(-d1, d2); }
@@ -203,6 +250,16 @@ float opSmoothUnion(float d1, float d2, float k) {
 }
 
 // Rotation matrices
+mat2 rot(float a) {
+    float c = cos(a), s = sin(a);
+    return mat2(c, -s, s, c);
+}
+
+mat2 rot2D(float a) {
+    float c = cos(a), s = sin(a);
+    return mat2(c, -s, s, c);
+}
+
 vec3 rotateX(vec3 p, float a) {
     float s = sin(a), c = cos(a);
     return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z);

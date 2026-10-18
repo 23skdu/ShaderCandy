@@ -144,7 +144,8 @@ static void setupQuad(GLuint &vao, GLuint &vbo) {
 static BenchResult benchmarkShader(const std::string &path, GLuint vao,
                                    GLuint vbo, int renderFrames, int width,
                                    int height,
-                                   const std::string &screenshotDir = "") {
+                                   const std::string &screenshotDir = "",
+                                    float fixedTime = -1.0f) {
   BenchResult result;
   result.path = path;
   result.name = std::filesystem::path(path).stem().string();
@@ -234,6 +235,11 @@ static BenchResult benchmarkShader(const std::string &path, GLuint vao,
 
     uniforms.time =
         std::chrono::duration<float>(frameStart - startTime).count();
+    // Deterministic capture mode: pin time so two shader trees can be
+    // pixel-compared. Only used with -screenshot.
+    if (fixedTime >= 0.0f) {
+      uniforms.time = fixedTime;
+    }
     uniforms.frame = i;
     uniforms.deltaTime = 1.0f / 60.0f;
 
@@ -381,6 +387,7 @@ int main(int argc, char **argv) {
   std::string screenshotDir;
   std::string shaderFilter;
   std::vector<std::string> shaderDirs;
+  float fixedTime = -1.0f;
 
   for (int i = 1; i < argc; i++) {
     if ((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0)) {
@@ -391,6 +398,8 @@ int main(int argc, char **argv) {
           << "  -dir <path>       Shader directory (can be repeated)\n"
           << "  -shader <name>    Run specific shader by name or substring\n"
           << "  -screenshot <dir> Directory to save PPM screenshots\n"
+          << "  -time <seconds>   Pin the shader time uniform (for pixel-exact\n"
+          << "                    A/B comparison of two shader trees)\n"
           << "  -frames <n>       Render frames per shader (default: 120)\n"
           << "  -width <n>        Render width (default: 1920)\n"
           << "  -height <n>       Render height (default: 1080)\n"
@@ -402,6 +411,8 @@ int main(int argc, char **argv) {
       shaderFilter = argv[++i];
     } else if (strcmp(argv[i], "-screenshot") == 0 && i + 1 < argc) {
       screenshotDir = argv[++i];
+    } else if (strcmp(argv[i], "-time") == 0 && i + 1 < argc) {
+      fixedTime = static_cast<float>(std::atof(argv[++i]));
     } else if (strcmp(argv[i], "-frames") == 0 && i + 1 < argc) {
       renderFrames = std::atoi(argv[++i]);
     } else if (strcmp(argv[i], "-width") == 0 && i + 1 < argc) {
@@ -518,7 +529,7 @@ int main(int argc, char **argv) {
               << std::flush;
 
     BenchResult r = benchmarkShader(shaderPaths[i], vao, vbo, renderFrames,
-                                    width, height, screenshotDir);
+                                    width, height, screenshotDir, fixedTime);
     results.push_back(r);
 
     if (r.compiled) {

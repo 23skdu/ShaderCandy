@@ -148,7 +148,10 @@ public:
   // Hot reload
   void setHotReloadEnabled(bool enabled) { hotReloadEnabled_ = enabled; }
   bool isHotReloadEnabled() const { return hotReloadEnabled_; }
-  void checkForShaderReload();
+  // Stats the active shader and reports whether its mtime moved. Safe to
+  // call from the file-watcher thread: no GL calls, no unlocked container
+  // access. Returns false when hot reload is off or nothing changed.
+  bool checkForShaderReload();
 
   // Error handling
   const GLRendererError &getLastError() const { return lastError_; }
@@ -262,6 +265,8 @@ private:
     float maxLife;
   };
   std::vector<Particle> particles_;
+  // xorshift32 state for particle respawn; seeded lazily from the clock.
+  uint32_t particleRng_ = 0x9E3779B9u;
   unsigned int particleVBO_ = 0;
   unsigned int particleVAO_ = 0;
   GLParticleConfig particleConfig_;
@@ -315,6 +320,10 @@ private:
   void stopFileWatcher();
   std::thread fileWatcherThread_;
   std::atomic<bool> fileWatcherRunning_{false};
+  // Set by the file-watcher thread when a watched shader changes. The
+  // watcher never touches GL; render() drains this flag and performs the
+  // reload on the thread that owns the context.
+  std::atomic<bool> pendingReload_{false};
   std::unordered_map<std::string, int> watchDescriptors_;
 
   // Thread safety: guards shaderPrograms_, shaderPaths_, shaderModTimes_

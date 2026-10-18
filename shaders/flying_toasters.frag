@@ -58,11 +58,14 @@ float mapToaster(vec3 p, float t, float id) {
 
 vec3 getNormal(vec3 p, float t, float id) {
     vec2 e = vec2(0.001, 0.0);
-    return normalize(vec3(
-        mapToaster(p + e.xyy, t, id) - mapToaster(p - e.xyy, t, id),
-        mapToaster(p + e.yxy, t, id) - mapToaster(p - e.yxy, t, id),
-        mapToaster(p + e.yyx, t, id) - mapToaster(p - e.yyx, t, id)
-    ));
+    // 4-tap tetrahedral normal: 4 field evaluations instead of the
+    // 6 that central differencing needs.
+    const vec2 k = vec2(1.0, -1.0);
+    return normalize(
+        k.xyy * mapToaster(p + k.xyy * e.x, t, id) +
+        k.yyx * mapToaster(p + k.yyx * e.x, t, id) +
+        k.yxy * mapToaster(p + k.yxy * e.x, t, id) +
+        k.xxx * mapToaster(p + k.xxx * e.x, t, id));
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {

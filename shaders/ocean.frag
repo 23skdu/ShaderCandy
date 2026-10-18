@@ -5,10 +5,6 @@
 // Ocean - Ocean waves and caustics
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Wave function
 float wave(vec2 p, float t) {

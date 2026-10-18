@@ -5,10 +5,6 @@
 // Forest - Forest scene with trees
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Tree shape
 float tree(vec2 p, float height, float width) {

@@ -433,20 +433,25 @@ private:
     UniformBuffer buffer;
     buffer.initialize();
 
-    // Test resolution update
+    // Each stage is read back from a fresh snapshot. getData() returns a
+    // snapshot by value; an earlier version bound it to a const&, which
+    // dangled, and this test then read stack memory that happened to match
+    // - passing by luck rather than by correctness.
     buffer.updateResolution(1920.0f, 1080.0f);
-    const auto &data = buffer.getData();
-    TEST_ASSERT_EQUAL(1920.0f, data.resolution[0]);
-    TEST_ASSERT_EQUAL(1080.0f, data.resolution[1]);
+    const auto afterRes = buffer.getData();
+    TEST_ASSERT_EQUAL(1920.0f, afterRes.resolution[0]);
+    TEST_ASSERT_EQUAL(1080.0f, afterRes.resolution[1]);
 
-    // Test mouse update
     buffer.updateMouse(0.5f, 0.5f);
-    TEST_ASSERT_EQUAL(0.5f, data.mouse[0]);
-    TEST_ASSERT_EQUAL(0.5f, data.mouse[1]);
+    const auto afterMouse = buffer.getData();
+    TEST_ASSERT_EQUAL(0.5f, afterMouse.mouse[0]);
+    TEST_ASSERT_EQUAL(0.5f, afterMouse.mouse[1]);
+    // Earlier updates are still visible in the newer snapshot.
+    TEST_ASSERT_EQUAL(1920.0f, afterMouse.resolution[0]);
 
-    // Test frame advancement
     buffer.updateFrame(42);
-    TEST_ASSERT_EQUAL(42, data.frame);
+    const auto afterFrame = buffer.getData();
+    TEST_ASSERT_EQUAL(42, afterFrame.frame);
 
     return {__func__, true, "UniformBuffer works correctly", 0.0};
   }

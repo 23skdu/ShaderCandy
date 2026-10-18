@@ -5,10 +5,6 @@
 // Mandala - Geometric mandala patterns
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Mandala pattern
 float mandala(vec2 p, float t) {

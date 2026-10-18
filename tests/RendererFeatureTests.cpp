@@ -360,7 +360,9 @@ private:
     // UniformBuffer integration
     UniformBuffer ub;
     ub.updateRayMarchLoD(maxSteps, stepEpsilon, lodScale);
-    const auto &data = ub.getData();
+    // getData() returns a snapshot by value; binding it to a const& would
+    // dangle once the temporary died.
+    const auto data = ub.getData();
     TEST_ASSERT_EQUAL(96, ub.getMaxSteps());
     TEST_ASSERT_EQUAL(96, data.maxSteps);
 

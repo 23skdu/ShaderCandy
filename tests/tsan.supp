@@ -1,0 +1,28 @@
+# ThreadSanitizer suppressions for third-party libraries.
+#
+# These are races/lock-order issues inside ALSA and Mesa's Gallium driver, not
+# in ShaderCandy. They are not actionable here: ALSA's PCM helpers are called
+# from a single capture thread, and Gallium maintains its own internal
+# threading model that TSan cannot see the synchronisation for.
+#
+# Suppressing them keeps the signal clean - anything that DOES point at
+# src/ or tests/ is a real finding and must be fixed.
+#
+# Usage:
+#   TSAN_OPTIONS="suppressions=tests/tsan.supp" ./shadercandy-test
+#
+# Verify with:
+#   grep -E 'ShaderCandy/(src|tests)' tsan.log     # expect no output
+#   grep -c 'reported .* warnings' tsan.log          # expect 0
+
+# Only `race:` is emitted by this TSan build; the ALSA/Mesa lock-order
+# inversions it also reports are ignored here (and are third-party anyway).
+
+race:^snd_pcm_
+race:libasound
+race:snd_pcm_sw_params_current
+
+race:libgallium
+race:swsrast
+race:libglapi
+race:libgl

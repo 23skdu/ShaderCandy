@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <mutex>
 
 namespace ShaderCandy {
 
@@ -25,7 +26,10 @@ struct UniformData {
 class UniformBuffer {
 public:
   UniformBuffer();
-  ~UniformBuffer();
+
+  // Declared here so it can be defaulted; std::mutex is not trivially
+  // destructible, which is exactly why an implicit destructor would not work.
+  ~UniformBuffer() = default;
 
   // Update uniform values
   void updateTime(float time);
@@ -35,13 +39,17 @@ public:
   void updateDeltaTime(float dt);
   void updateRayMarchLoD(int32_t maxSteps, float stepEpsilon, float lodScale = 1.0f);
 
-  int32_t getMaxSteps() const { return data_.maxSteps; }
-  float getStepEpsilon() const { return data_.stepEpsilon; }
-  float getLodScale() const { return data_.lodScale; }
+  int32_t getMaxSteps() const;
+  float getStepEpsilon() const;
+  float getLodScale() const;
 
-  // Get current uniform data
-  const UniformData &getData() const { return data_; }
-  UniformData &getData() { return data_; }
+  // Snapshot of the current uniform data.
+  //
+  // Thread-safe: the struct is copied under the lock. Returning a reference to
+  // the live member (as this class used to) cannot be made safe, because a
+  // caller holding that reference could be reading it while updateX() writes.
+  UniformData getData() const;
+  void setData(const UniformData &d);
 
   // Size of uniform buffer
   static constexpr size_t size() { return sizeof(UniformData); }
@@ -53,6 +61,9 @@ public:
   void advanceFrame();
 
 private:
+  // Guards data_, startTime_ and lastFrameTime_. The render thread writes
+  // uniforms while background threads (input, IPC, audio) may read them.
+  mutable std::mutex mutex_;
   UniformData data_;
   std::chrono::high_resolution_clock::time_point startTime_;
   std::chrono::high_resolution_clock::time_point lastFrameTime_;

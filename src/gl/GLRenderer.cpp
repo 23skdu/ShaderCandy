@@ -323,24 +323,34 @@ bool GLRenderer::loadShader(const std::string &name, const std::string &path) {
 }
 
 bool GLRenderer::reloadCurrentShader() {
-  if (currentShader_.empty()) {
-    return false;
+  // Snapshot everything needed under the lock. Holding an iterator into
+  // shaderPrograms_ across the compile below would be unsafe: another thread
+  // can loadShader() and rehash the map, invalidating it.
+  std::string name;
+  std::string path;
+  GLuint oldProgram = 0;
+  {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    name = currentShader_;
+    if (name.empty()) {
+      return false;
+    }
+    auto progIt = shaderPrograms_.find(name);
+    if (progIt == shaderPrograms_.end()) {
+      return false;
+    }
+    auto pathIt = shaderPaths_.find(name);
+    if (pathIt == shaderPaths_.end()) {
+      return false;
+    }
+    oldProgram = progIt->second;
+    path = pathIt->second;
   }
 
-  auto it = shaderPrograms_.find(currentShader_);
-  if (it == shaderPrograms_.end()) {
-    return false;
-  }
-
-  auto pathIt = shaderPaths_.find(currentShader_);
-  if (pathIt == shaderPaths_.end()) {
-    return false;
-  }
-
-  std::string source = loadShaderSource(pathIt->second);
+  std::string source = loadShaderSource(path);
   if (source.empty()) {
     setError(GLRendererErrorCode::ShaderCompilationFailed,
-             "Failed to reload shader file: " + pathIt->second, currentShader_);
+             "Failed to reload shader file: " + path, name);
     return false;
   }
 
@@ -367,14 +377,22 @@ bool GLRenderer::reloadCurrentShader() {
     return false;
   }
 
-  glDeleteProgram(it->second);
-  it->second = program;
+  // Retire the old program only once the new one linked, so a failed
+  // reload leaves the previous program intact (Part 1 item 6).
+  if (oldProgram) {
+    glDeleteProgram(oldProgram);
+  }
+  {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    shaderPrograms_[name] = program;
+  }
   currentProgram_ = program;
   uniformUploader_.invalidate();
 
   struct stat st;
-  if (stat(pathIt->second.c_str(), &st) == 0) {
-    shaderModTimes_[currentShader_] = st.st_mtime;
+  if (stat(path.c_str(), &st) == 0) {
+    std::lock_guard<std::mutex> lock(shaderMutex_);
+    shaderModTimes_[name] = st.st_mtime;
   }
 
   uniformsLocation_ = glGetUniformBlockIndex(currentProgram_, "Uniforms");
@@ -415,6 +433,15 @@ bool GLRenderer::setActiveShader(const std::string &name) {
 void GLRenderer::render(float time) {
   if (!initialized_ || currentProgram_ == 0) {
     return;
+  }
+
+  // The file-watcher thread only sets this flag; the actual GL work happens
+  // here so every gl* call stays on the thread that owns the context.
+  if (pendingReload_.exchange(false)) {
+    reloadCurrentShader();
+    if (currentProgram_ == 0) {
+      return;
+    }
   }
 
   double currentTime = clock() / (double)CLOCKS_PER_SEC;
@@ -682,10 +709,19 @@ void GLRenderer::updateParticles(float deltaTime) {
     p.life -= deltaTime;
 
     if (p.y < -1.0f || p.life <= 0.0f) {
-      p.x = (rand() % 2000 / 1000.0f) - 1.0f;
+      // xorshift32 rather than rand(): rand() takes the libc lock on every
+      // call, and `rand() % n` is a biased modulo. This is inline, so the
+      // respawn path costs a few ALU ops instead of a call.
+      particleRng_ ^= particleRng_ << 13;
+      particleRng_ ^= particleRng_ >> 17;
+      particleRng_ ^= particleRng_ << 5;
+      const float u1 = (particleRng_ & 0xFFFFu) / 65536.0f;      // [0,1)
+      const float u2 = ((particleRng_ >> 16) & 0xFFFFu) / 65536.0f;
+
+      p.x = u1 * 2.0f - 1.0f;
       p.y = 1.0f;
-      p.vx = (rand() % 100 / 1000.0f) - 0.05f;
-      p.vy = -(rand() % 100 / 1000.0f) - 0.02f;
+      p.vx = u2 * 0.1f - 0.05f;
+      p.vy = -u1 * 0.1f - 0.02f;
       p.life = p.maxLife;
     }
   }
@@ -875,36 +911,41 @@ void GLRenderer::resetMetrics() {
   lastFrameTime_ = 0.0;
 }
 
-void GLRenderer::checkForShaderReload() {
+bool GLRenderer::checkForShaderReload() {
   if (!hotReloadEnabled_ || currentShader_.empty()) {
-    return;
+    return false;
   }
 
   std::string path;
+  std::string name;
   {
     std::lock_guard<std::mutex> lock(shaderMutex_);
-    auto pathIt = shaderPaths_.find(currentShader_);
+    name = currentShader_;
+    if (name.empty()) {
+      return false;
+    }
+    auto pathIt = shaderPaths_.find(name);
     if (pathIt == shaderPaths_.end()) {
-      return;
+      return false;
     }
     path = pathIt->second;
   }
 
   struct stat st;
   if (stat(path.c_str(), &st) != 0) {
-    return;
+    return false;
   }
 
   {
     std::lock_guard<std::mutex> lock(shaderMutex_);
-    auto timeIt = shaderModTimes_.find(currentShader_);
+    auto timeIt = shaderModTimes_.find(name);
     if (timeIt != shaderModTimes_.end() && st.st_mtime <= timeIt->second) {
-      return;
+      return false;
     }
-    shaderModTimes_[currentShader_] = st.st_mtime;
+    shaderModTimes_[name] = st.st_mtime;
   }
 
-  reloadCurrentShader();
+  return true;
 }
 
 void GLRenderer::setError(GLRendererErrorCode code, const std::string &msg,
@@ -938,7 +979,15 @@ void GLRenderer::startFileWatcher() {
     while (fileWatcherRunning_) {
       int len = read(fd, buf, sizeof(buf));
       if (len > 0) {
-        checkForShaderReload();
+        // Only flag the change here. Reloading on this thread would issue
+        // glCreateShader/glCompileShader/glLinkProgram from a thread that
+        // does not own the GL context, concurrently with render() submitting
+        // draw calls - undefined behaviour, and a long-standing source of
+        // crashes during hot reload. checkForShaderReload() only stats the
+        // file and compares mtimes; it touches no GL object.
+        if (checkForShaderReload()) {
+          pendingReload_ = true;
+        }
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }

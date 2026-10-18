@@ -5,10 +5,6 @@
 // Cellular - Cellular automata patterns
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Cellular pattern generator
 float cellular(vec2 p, float t) {

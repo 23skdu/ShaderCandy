@@ -4,12 +4,6 @@
 
 // Mushroom - 3D rotating neon mushrooms on fractal background
 
-// Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
-
 // Mushroom SDF
 float sdMushroom(vec3 p, float t) {
     // Cap (sphere-like)
@@ -23,35 +17,51 @@ float sdMushroom(vec3 p, float t) {
     return min(cap, stalk);
 }
 
-// Scene SDF
-float map(vec3 p, float t) {
-    float d = 100.0;
-    
-    // Multiple mushrooms as particles
-    for(int i = 0; i < 8; i++) {
+// Per-mushroom state that depends only on the uniform time value.
+//
+// map() is called ~70 times per pixel (64 march steps + 6 for the normal), and
+// the original code recomputed three sin/cos plus a rotation matrix per
+// mushroom inside every one of those calls. All of it is loop-invariant with
+// respect to the sample point and cannot change within a frame, so it is
+// computed once per fragment here instead. Measured +17% (see
+// docs/experiments.md E2).
+vec3 mPos[8];
+mat2 mRot[8];
+float mScale[8];
+
+void setupMushrooms(float t) {
+    for (int i = 0; i < 8; i++) {
         float fi = float(i);
-        
-        // Position
-        vec3 pos = vec3(
+        mPos[i] = vec3(
             sin(fi * 1.3 + t * 0.5) * 1.5,
             sin(fi * 0.7 + t * 0.3) * 0.3,
             cos(fi * 1.1 + t * 0.4) * 1.5
         );
-        
+        mRot[i] = rot(t * (0.5 + fi * 0.1) + fi);
+        mScale[i] = 0.3 + fi * 0.05;
+    }
+}
+
+// Scene SDF
+float map(vec3 p, float t) {
+    float d = 100.0;
+
+    // Multiple mushrooms as particles
+    for (int i = 0; i < 8; i++) {
         // Individual mushroom
-        vec3 q = p - pos;
-        
+        vec3 q = p - mPos[i];
+
         // Rotate on X axis
-        q.yz *= rot(t * (0.5 + fi * 0.1) + fi);
-        
+        q.yz *= mRot[i];
+
         // Scale varies
-        float s = 0.3 + fi * 0.05;
+        float s = mScale[i];
         q /= s;
-        
+
         float mushroom = sdMushroom(q, t) * s;
         d = min(d, mushroom);
     }
-    
+
     return d;
 }
 
@@ -73,16 +83,21 @@ float rayMarch(vec3 ro, vec3 rd, float t) {
 // Normal calculation
 vec3 calcNormal(vec3 p, float t) {
     vec2 e = vec2(0.001, 0.0);
-    return normalize(vec3(
-        map(p + e.xyy, t) - map(p - e.xyy, t),
-        map(p + e.yxy, t) - map(p - e.yxy, t),
-        map(p + e.yyx, t) - map(p - e.yyx, t)
-    ));
+    // 4-tap tetrahedral normal: 4 field evaluations instead of the
+    // 6 that central differencing needs.
+    const vec2 k = vec2(1.0, -1.0);
+    return normalize(
+        k.xyy * map(p + k.xyy * e.x, t) +
+        k.yyx * map(p + k.yyx * e.x, t) +
+        k.yxy * map(p + k.yxy * e.x, t) +
+        k.xxx * map(p + k.xxx * e.x, t));
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed * 0.2;
-    
+
+    setupMushrooms(t);
+
     // Camera
     vec3 ro = vec3(cos(t * 0.3) * 3.0, 0.5 + sin(t * 0.2) * 0.3, sin(t * 0.3) * 3.0);
     vec3 ta = vec3(0.0, 0.0, 0.0);
@@ -106,13 +121,26 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         vec3 p = ro + rd * d;
         vec3 n = calcNormal(p, t);
         
-        // Lighting
-        vec3 lightDir = normalize(vec3(1.0, 2.0, 1.0));
+        // Lighting. lightDir is a compile-time constant, so the normalize is
+        // folded to precomputed components.
+        const vec3 lightDir = vec3(0.408248290463863, 0.816496580927726, 0.408248290463863);
         float diff = max(dot(n, lightDir), 0.0);
-        float spec = pow(max(dot(reflect(-lightDir, n), -rd), 0.0), 32.0);
-        
-        // Rainbow color shifting
-        vec3 mushroomCol = 0.5 + 0.5 * cos(vec3(0.0, 0.5, 1.0) + t + p.y * 2.0);
+
+        // pow(x, 32.0) as a squaring chain: 5 multiplies instead of a
+        // log2 + exp2 pair.
+        float spec = max(dot(reflect(-lightDir, n), -rd), 0.0);
+        spec *= spec; spec *= spec; spec *= spec; spec *= spec; spec *= spec;
+
+        // Rainbow colour. The three channels are cos of one angle plus the
+        // constant offsets 0.0, 0.5 and 1.0 rad, so one sin/cos pair covers
+        // all three.
+        float ra = t + p.y * 2.0;
+        float raS = sin(ra), raC = cos(ra);
+        vec3 mushroomCol = 0.5 + 0.5 * vec3(
+            raC,
+            raC * 0.877582561890373 - raS * 0.479425538604203,
+            raC * 0.540302305868140 - raS * 0.841470984807897
+        );
         
         col = mushroomCol * (0.2 + 0.8 * diff) + vec3(0.5) * spec;
         

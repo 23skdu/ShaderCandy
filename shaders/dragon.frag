@@ -2,25 +2,6 @@
 
 // dragon - The Ancient Wyrm: Hyper-detailed dragon's eye with organic cellular scales, predatory slit pupil, and internal furnace glow
 
-mat2 rot2D(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
-
-float sdCircle(vec2 p, float r) {
-    return length(p) - r;
-}
-
-float sdSegment(vec2 p, vec2 a, vec2 b) {
-    vec2 pa = p - a, ba = b - a;
-    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-    return length(pa - ba * h);
-}
-
-float fillSDF(float d, float blur) {
-    return 1.0 - smoothstep(-blur, blur, d);
-}
-
 // 2D Hash function for Voronoi
 vec2 hash22(vec2 p) {
     p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));

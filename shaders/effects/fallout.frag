@@ -5,9 +5,7 @@
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     
-    vec2 p = uv * 2.0 - 1.0;
-    float aspect = resolution.x / resolution.y;
-    p.x *= aspect;
+    vec2 p = centered;
     
     // Background - dark green/black
     vec3 color = vec3(0.02, 0.04, 0.02);
