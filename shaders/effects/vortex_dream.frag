@@ -7,9 +7,7 @@
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     
-    vec2 p = uv * 2.0 - 1.0;
-    float aspect = resolution.x / resolution.y;
-    p.x *= aspect;
+    vec2 p = centered;
     
     float r = length(p);
     float a = atan(p.y, p.x);

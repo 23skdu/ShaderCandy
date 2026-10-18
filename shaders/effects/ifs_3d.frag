@@ -5,10 +5,6 @@
 // IFS 3D - Iterated Function System in 3D
 
 // Rotation matrix
-mat2 rot2D(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // IFS transformation
 vec3 ifsTransform(vec3 p, float t) {

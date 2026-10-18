@@ -5,10 +5,6 @@
 // Alien Landscape - Procedural alien terrain
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Terrain height function
 float terrain(vec2 p) {

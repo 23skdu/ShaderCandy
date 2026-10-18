@@ -5,10 +5,6 @@
 // Blackhole - Black hole with accretion disk
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Gravitational lensing approximation
 vec2 blackholeLensing(vec2 uv, vec2 bhPos, float bhRadius) {

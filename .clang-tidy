@@ -1,0 +1,110 @@
+# clang-tidy configuration for ShaderCandy.
+#
+# Run with:
+#   clang-tidy -p build src/... tests/...
+#
+# The goal is to catch real defects, not to restyle code. Checks that would
+# flag the existing codebase wholesale, or that are opinionated about style
+# the project has not adopted, are disabled below, each with a reason.
+# clang-format is not enforced (this repo has no .clang-format).
+#
+# Expected result on a clean tree: no warnings. See docs/lint.md.
+
+Checks: >
+  bugprone-*,
+  performance-*,
+  concurrency-*,
+  cert-*,
+  -bugprone-empty-catch,
+  -bugprone-branch-clone,
+  -bugprone-throwing-static-initialization,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-switch-missing-default-case,
+  -bugprone-suspicious-include,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -bugprone-signed-bitwise,
+  -performance-no-int-to-ptr,
+  -performance-enum-size,
+  -performance-avoid-endl,
+  -cert-dcl58-cpp,
+  -cert-dcl59-cpp,
+  -cert-err58-cpp
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '(/src/|/tests/).*'
+
+# ---------------------------------------------------------------------------
+# Why each check is off
+# ---------------------------------------------------------------------------
+#
+#  bugprone-empty-catch
+#    This project uses `catch (...) { /* timestamp read failures */ }` for
+#    filesystem probes where the failure genuinely has no useful recovery, and
+#    in tests where the catch converts an exception into a failed TestResult.
+#    Both are intentional and readable; rethrowing would be worse.
+#
+#  bugprone-branch-clone
+#    Date/format selection in UniformBuffer and GLSLWrapper genuinely has
+#    identical branches for the success path (four zeros vs four parsed
+#    fields). Collapsing them would obscure intent.
+#
+#  bugprone-throwing-static-initialization / cert-err58-cpp
+#    Both fire on the REGISTER_TEST_SUITE static initialiser used by every
+#    test suite in the repo. That is the framework's design, and a
+#    std::bad_alloc during static init would terminate anyway.
+#
+#  bugprone-easily-swappable-parameters
+#    Uniform setters are (width, height) and (x, y). Both parameters are the
+#    same type and adjacent in meaning; the names carry the distinction.
+#
+#  bugprone-narrowing-conversions
+#    Float math on uniforms and shader data truncates deliberately; flagging it
+#    is noise at this density.
+#
+#  bugprone-implicit-widening-of-multiplication-result
+#    Triggers on every vec/color multiply in the math library.
+#
+#  bugprone-switch-missing-default-case
+#    MathUtils.h switches on a plain int selector, not an enum, so clang-tidy
+#    cannot prove exhaustiveness.
+#
+#  bugprone-suspicious-include
+#    tests/main.cpp is a unity build: it #includes the other test .cpp files
+#    so every suite shares one translation unit. Intentional.
+#
+#  bugprone-multi-level-implicit-pointer-conversion
+#    glXChooseFBConfig returns GLXFBConfig*, which is passed straight into
+#    glXGetFBConfigAttrib(..., void *). The implicit double-pointer-to-void*
+#    conversion is the documented GLX usage.
+#
+#  bugprone-signed-bitwise
+#    LinuxIPC writes `0600 | IPC_CREAT`, the POSIX shmget idiom copied from
+#    the man page. Both operands are small non-negative literals.
+#
+#  concurrency-mt-unsafe
+#    STAYS ON. Its one hit is getenv/unsetenv in a single-threaded test;
+#    that call site carries a scoped NOLINT instead of the check being
+#    disabled globally.
+#
+#  performance-no-int-to-ptr
+#    GL object names are `unsigned int` by the GL API and must be cast to
+#    void* for glDelete*/glUniform* calls. Unavoidable at the API boundary.
+#
+#  performance-enum-size
+#    Enums mirror GL/Metal enumerant values and are used as map keys and in
+#    switch statements; shrinking the base type buys nothing measurable and
+#    risks changing overload resolution.
+#
+#  performance-avoid-endl
+#    Not on a hot path.
+#
+#  cert-dcl58-cpp
+#    Project headers are not installed as a library API surface.
+#
+#  cert-dcl59-cpp
+#    Anonymous namespaces in GLLoader.h/GLSLWrapper.h keep symbols internal.
+#
+#  cert-err58-cpp
+#    See bugprone-throwing-static-initialization above.

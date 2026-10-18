@@ -5,9 +5,7 @@
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     
-    vec2 p = uv * 2.0 - 1.0;
-    float aspect = resolution.x / resolution.y;
-    p.x *= aspect;
+    vec2 p = centered;
     
     // Background: Desert Night with gradient
     vec3 color = mix(vec3(0.0, 0.0, 0.05), vec3(0.08, 0.03, 0.15), uv.y);

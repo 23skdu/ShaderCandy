@@ -5,10 +5,6 @@
 // Nebula Cloud - Particle-like volumetric effect using noise
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Volume rendering of nebula
 float nebula(vec3 p) {

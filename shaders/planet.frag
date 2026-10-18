@@ -5,10 +5,6 @@
 // Planet - Planet with atmosphere
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Planet SDF
 float sdSphere(vec2 p, float r) {

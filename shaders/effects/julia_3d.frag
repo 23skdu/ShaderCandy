@@ -28,11 +28,14 @@ float map(vec3 p, vec4 c, inout float trap) {
 vec3 getNormal(vec3 p, vec4 c) {
     float dummy = 0.0;
     vec2 e = vec2(0.001, 0.0);
-    return normalize(vec3(
-        map(p + e.xyy, c, dummy) - map(p - e.xyy, c, dummy),
-        map(p + e.yxy, c, dummy) - map(p - e.yxy, c, dummy),
-        map(p + e.yyx, c, dummy) - map(p - e.yyx, c, dummy)
-    ));
+    // 4-tap tetrahedral normal: 4 field evaluations instead of the
+    // 6 that central differencing needs.
+    const vec2 k = vec2(1.0, -1.0);
+    return normalize(
+        k.xyy * map(p + k.xyy * e.x, c, dummy) +
+        k.yyx * map(p + k.yyx * e.x, c, dummy) +
+        k.yxy * map(p + k.yxy * e.x, c, dummy) +
+        k.xxx * map(p + k.xxx * e.x, c, dummy));
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {

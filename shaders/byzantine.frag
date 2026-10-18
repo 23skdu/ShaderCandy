@@ -5,10 +5,6 @@
 // Byzantine - Byzantine mosaic patterns
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Byzantine tile pattern
 float byzantineTile(vec2 p, float t) {

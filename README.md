@@ -43,7 +43,7 @@ graph TD
     Src --> Audio["audio/ (AudioInput, AudioUtils, AcousticSimulator)"]
     Src --> Config["config/ (ConfigurationManager, Presets)"]
 
-    Tests --> T1["10 suites / 109 tests"]
+    Tests --> T1["12 suites / 140 tests"]
 ```
 
 ## Building and Installation
@@ -92,14 +92,15 @@ make -j$(nproc)
 
 ```bash
 # Build with tests enabled
-cmake .. -DBUILD_TESTS=ON -DCMAKE_CXX_STANDARD=17
-make
+cmake -S . -B build -DBUILD_TESTS=ON -DCMAKE_CXX_STANDARD=17
+cmake --build build --target shadercandy-test
 
-# Run all tests (109 tests across 10 suites)
-./shadercandy-test
+# Run all tests (140 tests across 12 suites)
+./build/shadercandy-test
 
-# Run specific test suite
-./shadercandy-test --run "Math & SIMD Tests"
+# Run a specific suite, or list them
+./build/shadercandy-test --run "Math & SIMD Tests"
+./build/shadercandy-test --list
 ```
 
 **Test Suites:**
@@ -111,8 +112,22 @@ make
 - Coverage Expansion Tests
 - Shader Regression Tests
 - Shader Wrapper Tests
-- Linux Platform & Audio Tests
+- Linux Platform & Audio Coverage Tests
 - Memory Leak & Cleanup Tests
+- Concurrency Tests
+- Coverage Closure Tests
+
+### Verification gates
+
+```bash
+tests/validate_shaders.sh   # all 114 .frag shaders compile (must stay 114/114)
+tests/lint.sh               # clang-tidy, clean against .clang-tidy
+tests/coverage.sh           # line coverage report (currently 95.43%)
+tests/tsan.sh               # ThreadSanitizer; fails on any race in src/ or tests/
+```
+
+See [`docs/testing.md`](docs/testing.md) for how each gate works, what it
+deliberately does not cover, and the six data races it found.
 
 ## Keyboard Controls (Screensaver)
 

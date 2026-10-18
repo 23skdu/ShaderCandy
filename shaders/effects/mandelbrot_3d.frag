@@ -5,10 +5,16 @@
 // Mandelbrot 3D - 3D Mandelbrot set visualization
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
+
+// Conservative bounding radius of the set.
+//
+// 3.0 is the largest value that stays pixel-identical to the ungated march
+// (tests/bound_probe.sh). Smaller radii clip the surface and reject less;
+// larger ones let rays that previously exhausted the 80-step budget now
+// converge onto something, which changes the image. Note this DE
+// under-estimates distance far from the set, so many rays that visually miss
+// still report a small d and get shaded - only a generous sphere catches them.
+const float BOUND_RADIUS = 3.0;
 
 // 3D Mandelbrot DE (based on "Mandelbulb" concept but with standard z^2+c)
 float mandelbrot3D(vec3 p) {
@@ -23,7 +29,6 @@ float mandelbrot3D(vec3 p) {
         // Convert to spherical
         float theta = acos(clamp(z.z / r, -1.0, 1.0));
         float phi = atan(z.y, z.x);
-        
         dr = pow(r, 2.0) * 2.0 * dr + 1.0;
         
         // z = z^2 + c
@@ -44,8 +49,13 @@ float mandelbrot3D(vec3 p) {
 
 // Ray marching
 float rayMarch(vec3 ro, vec3 rd) {
+    // Reject rays that miss the bounding sphere before marching: a background
+    // pixel otherwise pays 80 steps x 10 DE iterations for nothing. The march
+    // still starts at the origin so the fixed step budget is unchanged.
+    if (boundHit(ro, rd, BOUND_RADIUS) < 0.0) return 1e9;
+
     float dO = 0.0;
-    
+
     for(int i = 0; i < 80; i++) {
         vec3 p = ro + rd * dO;
         float dS = mandelbrot3D(p);

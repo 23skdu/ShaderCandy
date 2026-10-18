@@ -15,35 +15,45 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec2 sourcePos = vec2(0.0, 0.0);
     
     // Generate audio rays (visual representation)
+    //
+    // 32 rays x 100 steps = 3200 iterations per pixel. The visible ray term
+    // is smoothstep(thickness, thickness*0.5, d), which with reversed edges
+    // is exactly 0 once d >= thickness. thickness stays positive over
+    // dist in [0, 2), and both operands are non-negative, so the whole
+    // iteration can be skipped by testing the squared distance. That skips
+    // the sqrt and the smoothstep for the overwhelming majority of steps.
     for (float i = 0.0; i < 32.0; i++) {
         float fi = i;
         float rayAngle = fi / 32.0 * 6.28318;
-        
+
         // Ray direction from source
         vec2 rayDir = vec2(cos(rayAngle), sin(rayAngle));
-        
+
+        // Frequency-based color (different rays = different frequencies)
+        float freq = fi / 32.0;
+        vec3 rayColor = hsv2rgb(vec3(freq + t * 0.1, 0.8, 1.0));
+
         // Ray path with audio energy
         for (float dist = 0.0; dist < 2.0; dist += 0.02) {
             vec2 rayPos = sourcePos + rayDir * dist;
-            
-            // Distance from current pixel
-            float d = length(p - rayPos);
-            
+
             // Ray thickness varies with distance
             float thickness = 0.02 * (1.0 - dist * 0.3);
-            
-            // Energy falloff
-            float energy = (1.0 - dist * 0.4) * (0.5 + 0.5 * sin(t * 2.0 + fi));
-            
-            // Visualize ray
-            float ray = smoothstep(thickness, thickness * 0.5, d);
-            ray *= energy;
-            
-            // Frequency-based color (different rays = different frequencies)
-            float freq = fi / 32.0;
-            vec3 rayColor = hsv2rgb(vec3(freq + t * 0.1, 0.8, 1.0));
-            
-            color += rayColor * ray * 0.1;
+
+            vec2 q = p - rayPos;
+            float q2 = dot(q, q);
+            if (q2 < thickness * thickness) {
+                float d = sqrt(q2);
+
+                // Energy falloff
+                float energy = (1.0 - dist * 0.4) * (0.5 + 0.5 * sin(t * 2.0 + fi));
+
+                // Visualize ray
+                float ray = smoothstep(thickness, thickness * 0.5, d);
+                ray *= energy;
+
+                color += rayColor * ray * 0.1;
+            }
         }
     }
     

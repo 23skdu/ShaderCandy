@@ -2,30 +2,6 @@
 
 // orcs - Menacing volcanic fortress with iron-clad orc warlord and marching horde
 
-mat2 rot2D(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
-
-float sdCircle(vec2 p, float r) {
-    return length(p) - r;
-}
-
-float sdSegment(vec2 p, vec2 a, vec2 b) {
-    vec2 pa = p - a, ba = b - a;
-    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-    return length(pa - ba * h);
-}
-
-float sdBox2D(vec2 p, vec2 b) {
-    vec2 d = abs(p) - b;
-    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
-}
-
-float fillSDF(float d, float blur) {
-    return 1.0 - smoothstep(-blur, blur, d);
-}
-
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     vec2 p = centered;
@@ -144,7 +120,6 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // -------------------------------------------------------------
     vec2 oPos = vec2(0.20, -0.42);
     vec2 op = p - oPos;
-
 
     // Muscular Torso & Spiked Iron Armor
     float dTorso = sdBox2D(op - vec2(0.0, 0.05), vec2(0.24, 0.28)) - 0.04;

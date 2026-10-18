@@ -17,17 +17,16 @@ UniformBuffer::UniformBuffer()
     : data_{}, startTime_(std::chrono::high_resolution_clock::now()),
       lastFrameTime_(startTime_) {}
 
-UniformBuffer::~UniformBuffer() = default;
-
 void UniformBuffer::initialize() {
+  std::time_t now = std::time(nullptr);
+  std::tm tm_buf{};
+  std::tm *timeInfo = localtime_r(&now, &tm_buf);
+
+  std::lock_guard<std::mutex> lock(mutex_);
   startTime_ = std::chrono::high_resolution_clock::now();
   lastFrameTime_ = startTime_;
   data_.frame = 0;
 
-  // Set date
-  std::time_t now = std::time(nullptr);
-  std::tm tm_buf{};
-  std::tm *timeInfo = localtime_r(&now, &tm_buf);
   if (timeInfo != nullptr) {
     data_.date[0] = static_cast<float>(tm_buf.tm_year + 1900);
     data_.date[1] = static_cast<float>(tm_buf.tm_mon + 1);
@@ -42,29 +41,64 @@ void UniformBuffer::initialize() {
   }
 }
 
-void UniformBuffer::updateTime(float time) { data_.time = sanitizeFinite(time); }
+void UniformBuffer::updateTime(float time) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  data_.time = sanitizeFinite(time);
+}
 
 void UniformBuffer::updateResolution(float width, float height) {
+  std::lock_guard<std::mutex> lock(mutex_);
   data_.resolution[0] = sanitizeFinite(width, 0.0f);
   data_.resolution[1] = sanitizeFinite(height, 0.0f);
 }
 
 void UniformBuffer::updateMouse(float x, float y) {
+  std::lock_guard<std::mutex> lock(mutex_);
   data_.mouse[0] = sanitizeFinite(x, 0.0f);
   data_.mouse[1] = sanitizeFinite(y, 0.0f);
 }
 
-void UniformBuffer::updateFrame(int32_t frame) { data_.frame = frame; }
+void UniformBuffer::updateFrame(int32_t frame) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  data_.frame = frame;
+}
 
 void UniformBuffer::updateDeltaTime(float dt) {
+  std::lock_guard<std::mutex> lock(mutex_);
   data_.deltaTime = sanitizeFinite(dt, 0.0f);
 }
 
 void UniformBuffer::updateRayMarchLoD(int32_t maxSteps, float stepEpsilon,
                                       float lodScale) {
+  std::lock_guard<std::mutex> lock(mutex_);
   data_.maxSteps = maxSteps;
   data_.stepEpsilon = sanitizeFinite(stepEpsilon, 0.0f);
   data_.lodScale = sanitizeFinite(lodScale, 1.0f);
+}
+
+int32_t UniformBuffer::getMaxSteps() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return data_.maxSteps;
+}
+
+float UniformBuffer::getStepEpsilon() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return data_.stepEpsilon;
+}
+
+float UniformBuffer::getLodScale() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return data_.lodScale;
+}
+
+UniformData UniformBuffer::getData() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return data_;
+}
+
+void UniformBuffer::setData(const UniformData &d) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  data_ = d;
 }
 
 void UniformBuffer::advanceFrame() {
@@ -72,16 +106,14 @@ void UniformBuffer::advanceFrame() {
 
   // Calculate delta time
   auto delta = std::chrono::duration<float>(now - lastFrameTime_).count();
-  data_.deltaTime = sanitizeFinite(delta, 0.0f);
 
   // Calculate total time
   auto total = std::chrono::duration<float>(now - startTime_).count();
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  data_.deltaTime = sanitizeFinite(delta, 0.0f);
   data_.time = sanitizeFinite(total, 0.0f);
-
-  // Advance frame counter
   data_.frame++;
-
-  // Update last frame time
   lastFrameTime_ = now;
 }
 

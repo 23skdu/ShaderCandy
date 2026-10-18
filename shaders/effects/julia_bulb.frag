@@ -5,10 +5,6 @@
 // Julia Bulb - 3D Julia set with power-8 bulb
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // Julia bulb SDF
 float juliaBulb(vec3 p, vec3 c) {

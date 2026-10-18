@@ -5,10 +5,6 @@
 // KIFS - Kaleidoscopic Iterated Function System
 
 // Rotation matrix
-mat2 rot(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
 
 // KIFS transformation
 vec3 kifs(vec3 p, float t) {
@@ -37,9 +33,22 @@ float de(vec3 p, float t) {
 }
 
 // Ray marching
+// Conservative bounding radius of the IFS attractor.
+//
+// 2.5 and 3.0 are pixel-identical to the ungated march, 2.0 clips slightly
+// and 4.0 lets rays converge onto the fold structure. See
+// tests/bound_probe.sh and docs/experiments.md.
+const float BOUND_RADIUS = 2.5;
+
 float rayMarch(vec3 ro, vec3 rd, float t) {
+    // Reject rays that provably miss before marching; the march still starts
+    // at the origin so the fixed step budget is unchanged. The 1e9 sentinel
+    // reproduces the caller's "no hit" path: d < 15.0 fails, and nothing
+    // downstream reads d.
+    if (boundHit(ro, rd, BOUND_RADIUS) < 0.0) return 1e9;
+
     float dO = 0.0;
-    
+
     for(int i = 0; i < 80; i++) {
         vec3 p = ro + rd * dO;
         float dS = de(p, t);
@@ -54,11 +63,14 @@ float rayMarch(vec3 ro, vec3 rd, float t) {
 // Normal calculation
 vec3 calcNormal(vec3 p, float t) {
     vec2 e = vec2(0.001, 0.0);
-    return normalize(vec3(
-        de(p + e.xyy, t) - de(p - e.xyy, t),
-        de(p + e.yxy, t) - de(p - e.yxy, t),
-        de(p + e.yyx, t) - de(p - e.yyx, t)
-    ));
+    // 4-tap tetrahedral normal: 4 field evaluations instead of the
+    // 6 that central differencing needs.
+    const vec2 k = vec2(1.0, -1.0);
+    return normalize(
+        k.xyy * de(p + k.xyy * e.x, t) +
+        k.yyx * de(p + k.yyx * e.x, t) +
+        k.yxy * de(p + k.yxy * e.x, t) +
+        k.xxx * de(p + k.xxx * e.x, t));
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {

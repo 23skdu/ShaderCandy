@@ -2,40 +2,6 @@
 
 // elves - Lothlorien starlight sanctuary with silver Mallorn trees, celestial moonlit waterfall, and noble elven ranger
 
-mat2 rot2D(float a) {
-    float c = cos(a), s = sin(a);
-    return mat2(c, -s, s, c);
-}
-
-float sdCircle(vec2 p, float r) {
-    return length(p) - r;
-}
-
-float sdSegment(vec2 p, vec2 a, vec2 b) {
-    vec2 pa = p - a, ba = b - a;
-    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-    return length(pa - ba * h);
-}
-
-float sdUnevenCapsule(vec2 p, float r1, float r2, float h) {
-    p.x = abs(p.x);
-    float b = (r1 - r2) / h;
-    float a = sqrt(max(0.0, 1.0 - b * b));
-    float k = dot(p, vec2(-b, a));
-    if (k < 0.0) return length(p) - r1;
-    if (k > a * h) return length(p - vec2(0.0, h)) - r2;
-    return dot(p, vec2(a, b)) - r1;
-}
-
-float sdBox2D(vec2 p, vec2 b) {
-    vec2 d = abs(p) - b;
-    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
-}
-
-float fillSDF(float d, float blur) {
-    return 1.0 - smoothstep(-blur, blur, d);
-}
-
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     vec2 p = centered;
@@ -367,8 +333,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
             sin(lf * 8.5 + t * 0.3) * 1.2 + sin(lfCycle * 6.28) * 0.16,
             0.65 - lfCycle * 1.3
         );
-        float dLeaf = length((p - leafP) * vec2(1.0, 1.8)) - 0.013;
-        if (dLeaf < 0.01) {
+        // dLeaf < 0.01 with dLeaf = len - 0.013 is len < 0.023; both sides
+        // are non-negative so the test can run on the squared length and the
+        // sqrt is only paid for the few leaves that actually land.
+        vec2 qLeaf = (p - leafP) * vec2(1.0, 1.8);
+        float qLeaf2 = dot(qLeaf, qLeaf);
+        if (qLeaf2 < 0.023 * 0.023) {
+            float dLeaf = sqrt(qLeaf2) - 0.013;
             float leafGlow = exp(-max(0.0, dLeaf) * 45.0);
             vec3 lfCol = mix(vec3(0.85, 0.75, 0.25), vec3(1.0, 0.92, 0.55), sin(lf + t) * 0.5 + 0.5);
             col = mix(col, lfCol, fillSDF(dLeaf, 0.003));

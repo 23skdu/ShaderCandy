@@ -62,7 +62,7 @@ flowchart TD
 2. **X11 Screensaver & Root Window Integration**: Seamless attachment to XScreenSaver or direct root window rendering via XComposite extension.
 3. **Low-Latency Audio Reactivity**: Direct ALSA sample capture processed through FFTW3 with 256 spectrum bins and beat detection.
 4. **Standalone Player & Wallpaper Modes**: Full windowed browser and dynamic live desktop background. *(For user controls and configuration, see [ApplicationModesGuide.md](./ApplicationModesGuide.md)).*
-5. **inotify-Based Shader Hot Reloading**: Uses Linux `inotify` (not timestamp polling) to detect file modifications on loaded shaders, with automatic `#include` cache invalidation via mtime checks.
+5. **inotify-Based Shader Hot Reloading**: Uses Linux `inotify` (not timestamp polling) to detect file modifications on loaded shaders, with automatic `#include` cache invalidation via mtime checks. The watcher thread performs **no GL work**: it only sets an atomic `pendingReload_` flag, and `render()` drains that flag on the thread that owns the GL context. See [Hot Reload Threading](#hot-reload-threading) below.
 6. **Bloom Post-Processing**: FBO-based bloom pipeline with configurable quality levels (Low=2 passes, Medium=4, High=6, Ultra=8 Gaussian blur passes).
 7. **Headless Rendering & Video Encoding**: `HeadlessRenderer` pipes RGBA frames to ffmpeg via `popen()` for PNG/JPG/PPM video output.
 8. **GLRendererTypes.h**: Extracted GL-only structs and enums (GLBloomConfig, GLParticleConfig, GLPerformanceMetrics, GLRendererError, GLTransitionType, GLEasingFunction, GLTransitionConfig, GLPostProcessConfig, GLAdaptiveQualityConfig) for testability without GL dependencies.
@@ -262,16 +262,48 @@ sudo make install
    ```
 
 ### GLSL Compilation Errors
-1. Validate fragment shader syntax directly with `glslangValidator`:
+1. Validate fragment shader syntax directly with `glslangValidator` (or `glslc`):
    ```bash
    glslangValidator -S frag shaders/effects/your_shader.frag
+   # or, via shaderc:
+   glslc -fshader-stage=fragment shaders/effects/your_shader.frag
    ```
+   Prefer `tests/validate_shaders.sh`, which compiles **all** shaders through
+   the same `#include` resolution the renderer uses.
 2. Verify OpenGL driver version: `glxinfo | grep "OpenGL version"` (must be $\ge 3.3$).
 
 ### Hot Reload Not Working
 1. Ensure inotify is available in your kernel: `lsmod | grep inotify`
 2. Check that the shader file is actually being watched (file must be loaded first).
 3. The include cache is invalidated by file mtime -- modifying included files (e.g. `common.glsl`) will trigger recompilation.
+4. Confirm hot reload is enabled: `renderer.setHotReloadEnabled(true)`. The watcher
+   exits immediately when it is off.
+
+### Hot Reload Threading
+
+Hot reload spans two threads, and the split matters.
+
+```
+  file-watcher thread                    render thread (owns GL context)
+  -------------------                    ---------------------------------
+  read(inotify fd)
+  checkForShaderReload()   stat() only, no GL
+    compares mtime under shaderMutex_
+  pendingReload_ = true    atomic store
+  ...sleep 100ms...        render():
+                             if (pendingReload_.exchange(false))
+                               reloadCurrentShader()   <-- all GL work here
+```
+
+The watcher never issues a `gl*` call. This is not a stylistic preference:
+submitting GL commands from a thread that does not own the context, while the
+render thread is submitting draw calls, is undefined behaviour and was a
+long-standing source of crashes. It was found by ThreadSanitizer and is
+recorded in [nextsteps.md](./nextsteps.md) section 3.1.
+
+`checkForShaderReload()` is deliberately a pure stat-and-compare so that it is
+safe off-thread and testable without a GL context. Its four outcomes are
+covered by `testGLRendererHotReloadDetection`.
 
 ---
 
