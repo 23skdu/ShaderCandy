@@ -104,7 +104,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float sunGlow = exp(-sunDist * 3.0) * 0.3;
     
     // Add sun to background
-    if(dTotal > 15.0 || dTotal == 0.0) {
+    if(dTotal >= 20.0 || dTotal <= 0.0) {
         color = mix(color, sunColor, sun);
         color += sunColor * sunGlow;
     }

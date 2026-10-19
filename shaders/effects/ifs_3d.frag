@@ -6,33 +6,38 @@
 
 // Rotation matrix
 
+mat2 g_rotXZ[5];
+mat2 g_rotYZ[5];
+
+void setupIFS(float t) {
+    for (int i = 0; i < 5; i++) {
+        g_rotXZ[i] = rot2D(t * 0.3 + float(i) * 0.5);
+        g_rotYZ[i] = rot2D(t * 0.2 + float(i) * 0.3);
+    }
+}
+
 // IFS transformation
-vec3 ifsTransform(vec3 p, float t) {
+vec3 ifsTransform(vec3 p) {
     float scale = 2.0;
     vec3 offset = vec3(0.8, 0.5, 0.3);
     
-    float d = 100.0;
-    
     for (int i = 0; i < 5; i++) {
         p = abs(p) - offset;
-        p.xz *= rot2D(t * 0.3 + float(i) * 0.5);
-        p.yz *= rot2D(t * 0.2 + float(i) * 0.3);
+        p.xz *= g_rotXZ[i];
+        p.yz *= g_rotYZ[i];
         p *= scale;
-        
-        float dist = length(p) / scale;
-        d = min(d, dist);
     }
     
     return p;
 }
 
 // Ray marching
-float rayMarch(vec3 ro, vec3 rd, float t) {
+float rayMarch(vec3 ro, vec3 rd) {
     float dO = 0.0;
     
     for(int i = 0; i < 64; i++) {
         vec3 p = ro + rd * dO;
-        vec3 q = ifsTransform(p, t);
+        vec3 q = ifsTransform(p);
         float dS = length(q) * 0.1;
         
         dO += dS;
@@ -44,6 +49,7 @@ float rayMarch(vec3 ro, vec3 rd, float t) {
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed * 0.2;
+    setupIFS(t);
     
     // Camera
     vec3 ro = vec3(cos(t * 0.5) * 3.0, sin(t * 0.3) * 2.0, sin(t * 0.5) * 3.0);
@@ -56,13 +62,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 rd = normalize(centered.x * uu + centered.y * vv + 1.5 * ww);
     
     // Ray march
-    float d = rayMarch(ro, rd, t);
+    float d = rayMarch(ro, rd);
     
     vec3 col = vec3(0.0);
     
     if(d < 20.0) {
         vec3 p = ro + rd * d;
-        vec3 q = ifsTransform(p, t);
+        vec3 q = ifsTransform(p);
         
         // Color based on position and iteration
         col = 0.5 + 0.5 * cos(vec3(0.0, 0.5, 1.0) + length(q) * 0.5 + t);

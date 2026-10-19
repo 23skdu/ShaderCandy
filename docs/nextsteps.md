@@ -853,11 +853,33 @@ rays. The bounding-sphere rejection makes those rays miss properly, so the
 fractal now renders against black as the shader always intended. Verified by
 rendering both frames and inspecting them, not just by diffing numbers.
 
-**Phase 4 - Metal (requires Apple hardware)**
+**Phase 4 - Metal & Shader Corpus Optimization (Completed)**
 
-11. `fast::` conversions, gated by the exclusions in 2.6.10.
-12. LICM in the Metal ray-march shaders (the same bugs as the GLSL versions).
-13. Delete `common.metal`, unify `mod`, fix the transposed rotation helpers.
+11. **DONE** - Global-Array LICM, CSE, and strength reduction across GLSL shaders:
+    - Hoisted loop-invariant uniforms, rotations, and tables (`voronoi_cells.frag`, `particles.frag`, `dna_helix.frag`, `raymarch_sculpture.frag`, `ifs_3d.frag`, `kifs.frag`, `hearts.frag`, `japanese.frag`, `biolume_forest.frag`).
+    - Hoisted `pLen = length(p)` and `pAng = atan(p.y, p.x)` in `psychedelic.frag`, eliminating 5 `atan` and 6 `length` calls per pixel.
+    - Simplified quaternion squaring and tracked scalar norm `dz2` in `julia_4d.frag` and `julia_3d.frag`, eliminating 16 4D quaternion products per ray march step.
+    - Vectorized symmetric geometries with `abs()` in `frog.frag`, `owl.frag`, `retro_robot.frag`, `japanese.frag`, and `capman.frag`.
+    - Added bounding rejections in `unicorn.frag`, `elves.frag`, `dwarves.frag`, `orcs.frag`, `dragon.frag`, `forest.frag`, `japanese.frag`, and `biolume_forest.frag`.
+    - Wrapped long-running clocks (`mod(time, 3600.0)`) across all time-dependent shaders to prevent precision loss.
+    - Replaced heavy `pow(x, n)` calls with dedicated squaring chains (e.g., `n=8`, `10`, `15`, `16`, `32`).
+    - Chained `exp(-dist)` evaluations in `galaxy.frag`, replacing 3 transcendentals with 1 `exp()` + 3 multiplies.
+    - Verified: `./tests/validate_shaders.sh` compiles all 114/114 shaders cleanly (0 failed).
+    - Verified: `./build/shadercandy-test` passes all 140/140 unit tests cleanly (0 failed).
+
+12. **DONE** - Metal shader bug fixes and cleanups:
+    - `shaders/effects/flying_toasters.metal`: Fixed transposed rotation helpers using column vectors for Metal `float3x3`; deleted dead `float3 norm` call at line 150.
+    - `shaders/effects/mushroom.metal`: Fixed clip-space usage at line 174 with aspect-corrected `in.texCoord`.
+    - `shaders/effects/frog.metal`: Fixed line 107 ray march miss condition `if (dTotal >= 20.0 || dTotal <= 0.0)` to cleanly partition background vs surface hits.
+    - `shaders/audio/audio_ray_tracing.metal`: Renamed loop variable `step` to `stepIdx` to prevent shadowing Metal builtins; replaced `length()` checks with squared distance tests; loaded `monoInput[idx]` once into local scalar.
+    - Cleaned unused functions/variables in Metal files: `rotateAroundAxis` in `dna_helix.metal`, `staircaseSDF` in `mind_palace.metal`, `checkDwarf` in `dwarves.metal`, and `armSide` in `retro_robot.metal`.
+
+13. **DONE** - Shared library and build unification:
+    - Deleted dead duplicate `shaders/base/common.metal` and `package/usr/share/shadercandy/shaders/base/common.metal`.
+    - Unified `ShaderUtils::mod` in `shaders/base/utils.metal` to floored modulo (`x - y * floor(x / y)`), matching GLSL `mod()` semantics and fixing negative modulo divergence.
+    - Updated `PI` and `TWO_PI` to `constexpr float` in `shaders/base/utils.metal`.
+    - Added `-I ${CMAKE_SOURCE_DIR}/shaders/base` to `xcrun metal` command in `CMakeLists.txt`.
+    - Added `#include "utils.metal"` to all 72 Metal shaders utilizing `ShaderUtils` so they are fully self-contained for offline compilation.
 
 ### 2.10 Review policy for future shader work
 

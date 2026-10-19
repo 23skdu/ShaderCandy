@@ -1,4 +1,5 @@
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 // Compute-based bloom — tile-optimized for Apple Silicon shared memory
 // Replaces the fragment-based approach with a more efficient compute implementation

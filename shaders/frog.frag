@@ -6,6 +6,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     
     vec2 p = centered;
+    float rp = length(p);
     
     // Sun orbit
     float sunAngle = t * 0.1;
@@ -37,13 +38,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         color = mix(waterColor, sunColor, reflect);
         
         // Water ripples
-        float ripple = sin(length(p) * 10.0 - t * 2.0) * 0.5 + 0.5;
+        float ripple = sin(rp * 10.0 - t * 2.0) * 0.5 + 0.5;
         color += vec3(0.1, 0.15, 0.2) * ripple * 0.1;
     }
     
     // Lily pad (center)
     vec2 padP = p;
-    float pad = length(padP) - 0.5;
+    float pad = rp - 0.5;
     pad = max(pad, abs(p.y + 0.35) - 0.03);
     
     // Notch in lily pad
@@ -53,7 +54,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Lily pad color (green with veins)
     vec3 padColor = vec3(0.1, 0.5, 0.1);
-    float vein = sin(length(p) * 12.0 + atan(p.y, p.x) * 4.0);
+    float vein = sin(rp * 12.0 + atan(p.y, p.x) * 4.0);
     padColor *= 0.9 + 0.1 * vein;
     color = mix(color, padColor, pad);
     
@@ -65,18 +66,14 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     body = smoothstep(0.02, 0.0, -body);
     
     // Eyes (bulging)
-    vec2 eyeLP = frogP - vec2(-0.15, 0.18);
-    vec2 eyeRP = frogP - vec2(0.15, 0.18);
-    float eyeL = length(eyeLP) - 0.1;
-    float eyeR = length(eyeRP) - 0.1;
-    float eyes = max(smoothstep(0.02, 0.0, -eyeL), smoothstep(0.02, 0.0, -eyeR));
+    vec2 eyeP = vec2(abs(frogP.x) - 0.15, frogP.y - 0.18);
+    float eye = length(eyeP) - 0.1;
+    float eyes = smoothstep(0.02, 0.0, -eye);
     
     // Pupils
-    vec2 pupilLP = eyeLP + vec2(0.02, 0.02);
-    vec2 pupilRP = eyeRP + vec2(-0.02, 0.02);
-    float pupilL = length(pupilLP) - 0.04;
-    float pupilR = length(pupilRP) - 0.04;
-    float pupils = max(smoothstep(0.01, 0.0, -pupilL), smoothstep(0.01, 0.0, -pupilR));
+    vec2 pupilP = vec2(abs(frogP.x) - 0.17, frogP.y - 0.16);
+    float pupil = length(pupilP) - 0.04;
+    float pupils = smoothstep(0.01, 0.0, -pupil);
     
     // Frog color (bright green)
     vec3 frogColor = vec3(0.4, 0.8, 0.2);
@@ -87,15 +84,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     color = mix(color, vec3(0.0), pupils);
     
     // Legs (folded)
-    vec2 legLP = frogP - vec2(-0.25, -0.1);
-    vec2 legRP = frogP - vec2(0.25, -0.1);
-    float legL = length(legLP * vec2(1.5, 1.0)) - 0.12;
-    float legR = length(legRP * vec2(1.5, 1.0)) - 0.12;
-    float legs = max(smoothstep(0.02, 0.0, -legL), smoothstep(0.02, 0.0, -legR));
+    vec2 legP = vec2(abs(frogP.x) - 0.25, frogP.y - (-0.1));
+    float leg = length(legP * vec2(1.5, 1.0)) - 0.12;
+    float legs = smoothstep(0.02, 0.0, -leg);
     color = mix(color, frogColor * 0.9, legs);
     
     // Fog
-    float fog = smoothstep(2.0, 0.5, length(p));
+    float fog = smoothstep(2.0, 0.5, rp);
     vec3 fogColor = mix(vec3(0.4, 0.6, 0.7), vec3(0.9, 0.6, 0.4), smoothstep(-0.5, 0.5, sunHeight));
     color = mix(color, fogColor, fog * 0.3);
     

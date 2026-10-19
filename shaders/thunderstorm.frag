@@ -25,7 +25,7 @@ float lightning(vec2 p, vec2 start, vec2 end, float seed) {
     vec2 prev = start;
     
     for(float i = 1.0; i <= steps; i++) {
-        float t = i / steps;
+        float t = i * 0.05;
         vec2 pos = mix(start, end, t);
         
         // Add jitter
@@ -43,7 +43,7 @@ float lightning(vec2 p, vec2 start, vec2 end, float seed) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     vec2 p = centered;
     
     // Stormy sky
@@ -83,7 +83,11 @@ vec4 effect_main(vec2 centered, vec2 uv) {
             mod(fi * 0.4 + t * 0.5, 3.0) - 1.5,
             mod(fi * 0.3 - t * 1.5, 2.0) - 1.0
         );
-        rain += smoothstep(0.02, 0.0, length(p - rainPos));
+        vec2 rd = p - rainPos;
+        float rd2 = dot(rd, rd);
+        if (rd2 < 0.0004) {
+            rain += smoothstep(0.02, 0.0, sqrt(rd2));
+        }
     }
     col += vec3(0.4, 0.5, 0.6) * rain * 0.2;
     

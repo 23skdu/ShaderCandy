@@ -18,11 +18,8 @@ float petal(vec2 p) {
 
 // Torii gate
 float torii(vec2 p) {
-    float d = 100.0;
-    
-    // Vertical posts
-    float leftPost = max(abs(p.x + 0.3) - 0.04, abs(p.y) - 0.4);
-    float rightPost = max(abs(p.x - 0.3) - 0.04, abs(p.y) - 0.4);
+    // Vertical posts (mirrored)
+    float posts = max(abs(abs(p.x) - 0.3) - 0.04, abs(p.y) - 0.4);
     
     // Top lintel
     float topLintel = max(abs(p.y - 0.35) - 0.05, abs(p.x) - 0.45);
@@ -30,13 +27,26 @@ float torii(vec2 p) {
     // Lower lintel
     float lowerLintel = max(abs(p.y - 0.15) - 0.04, abs(p.x) - 0.38);
     
-    d = min(min(leftPost, rightPost), min(topLintel, lowerLintel));
-    
-    return d;
+    return min(posts, min(topLintel, lowerLintel));
+}
+
+vec2 g_petalPos[30];
+mat2 g_petalRot[30];
+
+void setupSakura(float t) {
+    for(int i = 0; i < 30; i++) {
+        float fi = float(i);
+        g_petalPos[i] = vec2(
+            mod(fi * 0.3 + t * (0.2 + fi * 0.01) + sin(t + fi) * 0.1, 2.0) - 1.0,
+            mod(fi * 0.2 - t * 0.1 + fi * 0.05, 1.5) - 0.5
+        );
+        g_petalRot[i] = rot(t + fi);
+    }
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed * 0.1;
+    setupSakura(t);
     vec2 p = centered;
     
     // Sky gradient - sunset
@@ -75,18 +85,10 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Falling sakura petals
     for(int i = 0; i < 30; i++) {
-        float fi = float(i);
+        vec2 diff = p - g_petalPos[i];
+        if (abs(diff.x) > 0.15 || abs(diff.y) > 0.15) continue;
         
-        // Petal position
-        vec2 petalPos = vec2(
-            mod(fi * 0.3 + t * (0.2 + fi * 0.01) + sin(t + fi) * 0.1, 2.0) - 1.0,
-            mod(fi * 0.2 - t * 0.1 + fi * 0.05, 1.5) - 0.5
-        );
-        
-        // Petal rotation
-        float petalRot = t + fi;
-        vec2 petalUV = (p - petalPos) * rot(petalRot);
-        
+        vec2 petalUV = diff * g_petalRot[i];
         float petalDist = petal(petalUV * 3.0);
         float petalGlow = smoothstep(0.05, 0.0, petalDist);
         

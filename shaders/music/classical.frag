@@ -40,15 +40,14 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         float noteX = sin(t * 0.4 + fi * 0.8) * (1.2 + fi * 0.1);
         float noteY = cos(t * 0.3 + fi * 1.2) * 0.6 + fi * 0.08 - 0.4;
         float noteScale = 0.5 + fi * 0.04;
+        float invNoteScale = 1.0 / noteScale;
         
         // Note head (ellipse)
-        vec2 noteP = p - vec2(noteX, noteY);
-        noteP /= noteScale;
+        vec2 noteP = (p - vec2(noteX, noteY)) * invNoteScale;
         float noteHead = length(noteP * vec2(1.5, 1.0)) - 0.12;
         
         // Stem
-        vec2 stemP = p - vec2(noteX + 0.12 * noteScale, noteY + 0.1 * noteScale);
-        stemP /= noteScale;
+        vec2 stemP = noteP - vec2(0.12, 0.1);
         float stem = max(abs(stemP.x) - 0.02, abs(stemP.y) - 0.25);
         
         float note = max(smoothstep(0.02, 0.0, noteHead), smoothstep(0.02, 0.0, stem));
@@ -56,8 +55,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         // Flag for eighth notes
         float noteType = fract(fi * 0.618);
         if (noteType > 0.5) {
-            vec2 flagP = p - vec2(noteX + 0.08 * noteScale, noteY + 0.25 * noteScale);
-            flagP /= noteScale;
+            vec2 flagP = noteP - vec2(0.08, 0.25);
             float flag = smoothstep(0.02, 0.0, length(flagP) - 0.08);
             note = max(note, flag);
         }

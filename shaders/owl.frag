@@ -52,17 +52,16 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         
         // Head (circle)
         vec2 headP = owlP - vec2(0.0, 0.22);
-        float head = length(headP) - 0.15;
+        float headLen = length(headP);
+        float head = headLen - 0.15;
         
-        // Ear tufts
-        float tuftL = length(owlP - vec2(-0.1, 0.35)) - 0.06;
-        float tuftR = length(owlP - vec2(0.1, 0.35)) - 0.06;
+        // Ear tufts (vectorized)
+        float tuft = length(vec2(abs(owlP.x) - 0.1, owlP.y - 0.35)) - 0.06;
         
-        // Eyes (glowing)
-        vec2 eyeLP = headP - vec2(-0.07, 0.02);
-        vec2 eyeRP = headP - vec2(0.07, 0.02);
-        float eyeL = length(eyeLP) - 0.06;
-        float eyeR = length(eyeRP) - 0.06;
+        // Eyes (glowing, vectorized)
+        vec2 eyeP = vec2(abs(headP.x) - 0.07, headP.y - 0.02);
+        float eyeDist = length(eyeP);
+        float eye = eyeDist - 0.06;
         
         // Beak
         float beak = length(headP - vec2(0.0, -0.08)) - 0.04;
@@ -70,12 +69,10 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         // Combine owl parts
         float owl = smoothstep(0.01, 0.0, -body);
         owl = max(owl, smoothstep(0.01, 0.0, -head));
-        owl = max(owl, smoothstep(0.01, 0.0, -tuftL));
-        owl = max(owl, smoothstep(0.01, 0.0, -tuftR));
+        owl = max(owl, smoothstep(0.01, 0.0, -tuft));
         
         // Eye color (glowing golden)
-        float eyes = smoothstep(0.01, 0.0, -eyeL);
-        eyes = max(eyes, smoothstep(0.01, 0.0, -eyeR));
+        float eyes = smoothstep(0.01, 0.0, -eye);
         
         // Beak color
         float beakCol = smoothstep(0.01, 0.0, -beak);
@@ -89,7 +86,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         }
         
         // Facial disc (lighter face)
-        if (headP.y > 0.0 && length(headP.xy) < 0.12) {
+        if (headP.y > 0.0 && headLen < 0.12) {
             owlColor = vec3(0.35, 0.3, 0.22);
         }
         
@@ -99,10 +96,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         color = mix(color, vec3(1.0, 0.85, 0.1), eyes * 0.8);
         
         // Pupils
-        float pupilL = length(eyeLP) - 0.025;
-        float pupilR = length(eyeRP) - 0.025;
-        float pupil = smoothstep(0.005, 0.0, -pupilL);
-        pupil = max(pupil, smoothstep(0.005, 0.0, -pupilR));
+        float pupil = smoothstep(0.005, 0.0, -(eyeDist - 0.025));
         color = mix(color, vec3(0.0), pupil);
         
         // Beak

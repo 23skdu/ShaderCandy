@@ -3,7 +3,7 @@
 // dwarves - Underground Great Forge of Khazad-dum with Master Dwarf Smith at the Anvil
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     vec2 p = centered;
 
     // Heat shimmer from the forge
@@ -66,12 +66,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // 3. The Great Smelting Furnace & Molten Crucible
     // -------------------------------------------------------------
     vec2 fPos = p - furnacePos;
-    float dFurnaceArch = length(fPos) - 0.38;
+    float fPosLen = length(fPos);
+    float dFurnaceArch = fPosLen - 0.38;
     dFurnaceArch = max(dFurnaceArch, -fPos.y - 0.05);
     
     // Glowing hearth interior
     if (dFurnaceArch < 0.0) {
-        float fCore = exp(-length(fPos) * 6.5);
+        float fCore = exp(-fPosLen * 6.5);
         vec3 hearthFire = mix(vec3(1.0, 0.25, 0.02), vec3(1.0, 0.95, 0.45), fCore);
         hearthFire += vec3(0.3) * sin(fPos.x * 25.0 + t * 8.0) * sin(fPos.y * 25.0);
         col = mix(col, hearthFire, fillSDF(dFurnaceArch, 0.01));
@@ -128,8 +129,9 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec2 dPos = vec2(0.28, -0.38);
     vec2 dp = p - dPos;
 
-    // Stout, broad muscular body
-    float dBody = sdBox2D(dp - vec2(0.0, 0.04), vec2(0.22, 0.26)) - 0.04;
+    if (dp.x > -0.60 && dp.x < 0.45 && dp.y > -0.40 && dp.y < 0.80) {
+        // Stout, broad muscular body
+        float dBody = sdBox2D(dp - vec2(0.0, 0.04), vec2(0.22, 0.26)) - 0.04;
 
     // Heavy Pauldrons (riveted iron shoulder armor)
     vec2 pauldLP = dp - vec2(-0.24, 0.20);
@@ -216,7 +218,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         // Warm directional lighting from the blazing forge (left side of dwarf)
         float forgeLight = clamp((-dp.x * 1.1 + 0.4), 0.0, 1.0);
         vec3 rimForge = vec3(1.0, 0.50, 0.12) * forgeFlicker * 1.2;
-        dPixel += rimForge * pow(forgeLight, 1.5) * 0.75;
+        dPixel += rimForge * (forgeLight * sqrt(forgeLight)) * 0.75;
 
         // Glowing eyes behind helm slit
         vec2 eyeLP = helmP - vec2(-0.045, -0.02);
@@ -227,6 +229,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         }
 
         col = mix(col, dPixel, fillSDF(dwarfTotal, 0.004));
+    }
     }
 
     // -------------------------------------------------------------

@@ -24,13 +24,11 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         q *= k;
         scale *= k;
         
-        // Rotation
-        float c1 = cos(0.2 * t + fi * 0.3);
-        float s1 = sin(0.2 * t + fi * 0.3);
-        float c2 = cos(0.3 * t + fi * 0.2);
-        float s2 = sin(0.3 * t + fi * 0.2);
-        q = vec2(q.x * c1 - q.y * s1, q.x * s1 + q.y * c1);
-        q = vec2(q.x * c2 - q.y * s2, q.x * s2 + q.y * c2);
+        // Composed rotation: (0.2*t + fi*0.3) + (0.3*t + fi*0.2) = 0.5 * (t + fi)
+        float ang = 0.5 * (t + fi);
+        float c = cos(ang);
+        float s = sin(ang);
+        q = vec2(q.x * c - q.y * s, q.x * s + q.y * c);
     }
     
     dist = (length(q) - 0.5) / scale;
@@ -41,12 +39,17 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Crystal surface
     if (dist < 0.1) {
-        float fre = pow(1.0 - length(p) * 0.3, 3.0);
+        float pLen = length(p);
+        float freBase = 1.0 - pLen * 0.3;
+        float fre = freBase * freBase * freBase;
         color += fre * hsv2rgb(vec3(fract(dist * 2.0 + t * 0.2), 0.8, 1.0)) * 0.5;
     }
     
-    // Add sparkle
-    float sparkle = pow(noise(p * 20.0 + t), 10.0);
+    // Add sparkle (pow 10)
+    float n = noise(p * 20.0 + t);
+    float n2 = n * n;
+    float n4 = n2 * n2;
+    float sparkle = n4 * n4 * n2;
     color += sparkle * vec3(1.0);
     
     // Vignette

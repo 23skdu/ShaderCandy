@@ -3,7 +3,7 @@
 // orcs - Menacing volcanic fortress with iron-clad orc warlord and marching horde
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     vec2 p = centered;
 
     // Heat haze shimmer over scene
@@ -16,11 +16,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 col = mix(vec3(0.08, 0.02, 0.01), vec3(0.24, 0.05, 0.01), clamp(0.5 - p.y * 0.5, 0.0, 1.0));
     
     // Churning ash clouds
-    vec2 smokeUV = vec2(p.x * 0.7 + t * 0.04, p.y * 0.8 - t * 0.06);
-    float smoke = fbm(vec3(smokeUV * 2.5, t * 0.08), 3);
-    float smoke2 = fbm(vec3(smokeUV * 4.5 + 4.0, t * 0.12), 3);
-    col += vec3(0.40, 0.10, 0.02) * smoothstep(0.2, 0.8, smoke) * clamp((p.y + 0.3) * 1.2, 0.0, 1.0);
-    col += vec3(0.18, 0.04, 0.01) * smoothstep(0.3, 0.9, smoke2);
+    if (p.y > -0.3) {
+        vec2 smokeUV = vec2(p.x * 0.7 + t * 0.04, p.y * 0.8 - t * 0.06);
+        float smoke = fbm(vec3(smokeUV * 2.5, t * 0.08), 3);
+        float smoke2 = fbm(vec3(smokeUV * 4.5 + 4.0, t * 0.12), 3);
+        col += vec3(0.40, 0.10, 0.02) * smoothstep(0.2, 0.8, smoke) * clamp((p.y + 0.3) * 1.2, 0.0, 1.0);
+        col += vec3(0.18, 0.04, 0.01) * smoothstep(0.3, 0.9, smoke2);
+    }
 
     // Volcanic flare pulses
     float fpBase = max(0.0, sin(t * 1.7) * sin(t * 3.1) * sin(t * 0.8));
@@ -59,6 +61,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     float ridgeMid = -0.32 + sin(p.x * 4.0) * 0.04;
     for (float k = 0.0; k < 18.0; k += 1.0) {
         float hx = -1.6 + k * 0.19 + sin(k * 2.3) * 0.03;
+        if (abs(p.x - hx) > 0.30) continue;
         float bob = sin(t * 3.5 + k * 1.5) * 0.015;
         float hy = ridgeMid + bob;
         
@@ -121,8 +124,9 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec2 oPos = vec2(0.20, -0.42);
     vec2 op = p - oPos;
 
-    // Muscular Torso & Spiked Iron Armor
-    float dTorso = sdBox2D(op - vec2(0.0, 0.05), vec2(0.24, 0.28)) - 0.04;
+    if (op.x > -0.85 && op.x < 0.60 && op.y > -0.45 && op.y < 0.85) {
+        // Muscular Torso & Spiked Iron Armor
+        float dTorso = sdBox2D(op - vec2(0.0, 0.05), vec2(0.24, 0.28)) - 0.04;
     dTorso = max(dTorso, -(op.y - 0.18 + abs(op.x) * 0.5));
     
     // Spiked Pauldrons (Shoulder Guards)
@@ -216,6 +220,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         orcPixel += vec3(1.0, 0.3, 0.04) * eyeGlow * 1.5;
 
         col = mix(col, orcPixel, fillSDF(orcTotal, 0.005));
+    }
     }
 
     // -------------------------------------------------------------

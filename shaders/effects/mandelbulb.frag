@@ -4,23 +4,6 @@
 
 // Mandelbulb 3D Fractal
 
-// Power function for mandelbulb
-vec3 powBulb(vec3 v, float p) {
-    float r = length(v);
-    float theta = atan(v.y, v.x);
-    float phi = acos(v.z / r);
-    
-    float rp = pow(r, p);
-    float newTheta = theta * p;
-    float newPhi = phi * p;
-    
-    return rp * vec3(
-        sin(newPhi) * cos(newTheta),
-        sin(newPhi) * sin(newTheta),
-        cos(newPhi)
-    );
-}
-
 // Distance estimator for Mandelbulb
 float mandelbulbDE(vec3 pos, out vec4 trap) {
     vec3 z = pos;
@@ -112,7 +95,7 @@ float softShadow(vec3 ro, vec3 rd, float mint, float maxt, float k) {
         float h = map(ro + rd * t, trap);
         if (h < 0.001) return 0.0;
         res = min(res, k * h / t);
-        t += h;
+        t += max(h, 0.01);
     }
     
     return res;

@@ -16,17 +16,17 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec2 wuv = vec2(cos(a), sin(a)) * r;
     
     vec3 color = vec3(0.0);
+    float decay = exp(-r * 2.0);
     
     // Grid layers
     for (float i = 0.0; i < 3.0; i++) {
         float fi = i;
         float scale = 4.0 + fi * 2.0;
         vec2 gv = fract(wuv * scale + t * 0.2 * (fi + 1.0)) - 0.5;
-        float dist = length(gv);
         float line = smoothstep(0.48, 0.45, abs(gv.x)) + smoothstep(0.48, 0.45, abs(gv.y));
         
         vec3 layerColor = hsv2rgb(vec3(fract(t * 0.1 + fi * 0.3), 0.7, 1.0));
-        color += layerColor * line * exp(-r * 2.0) * (0.5 / (fi + 1.0));
+        color += layerColor * line * decay * (0.5 / (fi + 1.0));
     }
     
     // Core pulse

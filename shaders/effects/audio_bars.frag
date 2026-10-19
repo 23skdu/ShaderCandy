@@ -28,7 +28,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     for (int i = 0; i < 16; i++) {
         float fi = float(i);
         
-        float x = (fi / 8.0 - 1.0);
+        float x = (fi * 0.125 - 1.0);
         float barHeight = 0.0;
         
         if (i < 8) {
@@ -44,7 +44,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         float distY = centered.y - (-0.3 + barHeight * 0.5);
         
         if (distX < barWidth && centered.y > -0.3 && centered.y < -0.3 + barHeight) {
-            float hue = fi / 16.0 + t * 0.1;
+            float hue = fi * 0.0625 + t * 0.1;
             vec3 barColor = vec3(
                 0.5 + 0.5 * sin(hue * 6.28),
                 0.5 + 0.5 * sin(hue * 6.28 + 2.09),
@@ -53,9 +53,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
             color += barColor * (0.5 + volume * 0.5);
         }
         
-        float glowX = abs(centered.x - x);
-        float glowY = abs(centered.y - (-0.3 + barHeight * 0.5));
-        float glow = exp(-(glowX * 20.0 + glowY * 5.0)) * barHeight;
+        float glow = exp(-(distX * 20.0 + abs(distY) * 5.0)) * barHeight;
         color += vec3(0.2, 0.5, 1.0) * glow * 0.3;
     }
     

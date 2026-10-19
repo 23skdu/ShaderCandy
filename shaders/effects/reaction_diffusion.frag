@@ -22,10 +22,13 @@ vec2 evaluateChemicals(vec2 p, float t, float feed, float kill) {
     float vSum = 0.0;
     float weightSum = 0.0;
 
+    const float cScales[5] = float[5](1.5, 2.775, 5.13375, 9.4974375, 17.570259);
+    const float cWeights[5] = float[5](1.0, 0.7142857, 0.5102041, 0.3644315, 0.2603082);
+
     for (int i = 0; i < 5; i++) {
         float fi = float(i);
-        float scale = pow(1.85, fi) * 1.5;
-        float weight = 1.0 / pow(1.4, fi);
+        float scale = cScales[i];
+        float weight = cWeights[i];
 
         // Directional diffusion wave rotation
         float angle = fi * 1.2566 + t * 0.02 * (mod(fi, 2.0) == 0.0 ? 1.0 : -1.0);
@@ -87,11 +90,15 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 normal = normalize(vec3((hC - hR) * 15.0, (hC - hU) * 15.0, 1.0));
 
     // Directional lighting
-    vec3 lightDir = normalize(vec3(0.5, 0.8, 1.2));
+    const vec3 lightDir = vec3(0.3275609, 0.52409745, 0.78614618);
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 viewDir = vec3(0.0, 0.0, 1.0);
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
+    const vec3 halfDir = vec3(0.173308, 0.2772927, 0.9450254);
+    float nh = max(dot(normal, halfDir), 0.0);
+    float nh2 = nh * nh;
+    float nh4 = nh2 * nh2;
+    float nh8 = nh4 * nh4;
+    float nh16 = nh8 * nh8;
+    float spec = nh16 * nh16;
 
     // Vibrant Pearson morphogenetic color mapping
     vec3 cBg = vec3(0.02, 0.04, 0.12);         // Deep oceanic midnight

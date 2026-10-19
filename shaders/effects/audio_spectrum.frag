@@ -16,12 +16,6 @@ layout(std140) uniform AudioUniforms {
     float audioSpectrum[64];  // Reduced spectrum for performance
 };
 
-// Smooth step function
-float smoothStep(float edge0, float edge1, float x) {
-    float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
-}
-
 // Circular bar visualization
 float circularBars(vec2 uv, float t) {
     float angle = atan(uv.y, uv.x);
@@ -42,9 +36,9 @@ float circularBars(vec2 uv, float t) {
     
     // Check if we're in the bar region
     float angleDist = abs(fract(normalizedAngle * 8.0) - 0.5) * 2.0;
-    float inBar = smoothStep(1.0 - barWidth * 8.0, 1.0, 1.0 - angleDist);
-    float inRadius = smoothStep(innerR, innerR + 0.01, radius) * 
-                     smoothStep(outerR + 0.01, outerR, radius);
+    float inBar = smoothstep(1.0 - barWidth * 8.0, 1.0, 1.0 - angleDist);
+    float inRadius = smoothstep(innerR, innerR + 0.01, radius) * 
+                     smoothstep(outerR + 0.01, outerR, radius);
     
     return inBar * inRadius;
 }
@@ -120,7 +114,7 @@ vec3 reactiveGrid(vec2 uv, float t) {
     
     // Grid lines
     vec2 grid = abs(fract(uv * 10.0) - 0.5);
-    float line = smoothStep(0.02, 0.0, min(grid.x, grid.y));
+    float line = smoothstep(0.02, 0.0, min(grid.x, grid.y));
     
     // Audio-reactive intensity
     float intensity = 0.1 + audioVolume * 0.3;

@@ -48,11 +48,7 @@ float sdDNA(vec3 p, float t) {
     );
     
     // Strand 2 positions (opposite)
-    vec3 basePos2 = vec3(
-        cos(twist + PI) * radius,
-        p.y,
-        sin(twist + PI) * radius
-    );
+    vec3 basePos2 = vec3(-basePos1.x, p.y, -basePos1.z);
     
     // Distance to strands
     strand1 = length(p - basePos1) - 0.04;
@@ -102,9 +98,25 @@ float rayMarch(vec3 ro, vec3 rd, float t) {
     return d;
 }
 
+vec3 g_dnaPartPos[30];
+vec3 g_dnaPartCol[30];
+
+void setupDNAParticles(float t) {
+    for (int i = 0; i < 30; i++) {
+        float fi = float(i);
+        g_dnaPartPos[i] = vec3(
+            sin(fi * 0.7 + t) * (0.8 + fi * 0.02),
+            cos(fi * 0.5 + t * 0.8) * 0.4,
+            sin(fi * 0.3 + t * 0.6) * (0.8 + fi * 0.02)
+        );
+        g_dnaPartCol[i] = hsv2rgb(vec3(fi * 0.03333333 + t * 0.1, 0.9, 1.0));
+    }
+}
+
 vec4 effect_main(vec2 centered, vec2 uv) {
     // Camera setup
     float t = time * 0.3;
+    setupDNAParticles(t);
     
     vec3 ro = vec3(
         sin(t) * 1.5,
@@ -149,7 +161,8 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         }
         
         // Fresnel
-        float fre = pow(1.0 - max(dot(nor, -rd), 0.0), 3.0);
+        float fTerm = 1.0 - max(dot(nor, -rd), 0.0);
+        float fre = fTerm * fTerm * fTerm;
         
         // Combine
         col = strandColor * dif * 0.8;
@@ -162,15 +175,8 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Add glowing particles (energy/molecules)
     for (int i = 0; i < 30; i++) {
-        float fi = float(i);
-        vec3 particlePos = vec3(
-            sin(fi * 0.7 + t) * (0.8 + fi * 0.02),
-            cos(fi * 0.5 + t * 0.8) * 0.4,
-            sin(fi * 0.3 + t * 0.6) * (0.8 + fi * 0.02)
-        );
-        
         // Ray-sphere intersection
-        vec3 oc = ro - particlePos;
+        vec3 oc = ro - g_dnaPartPos[i];
         float b = dot(oc, rd);
         float c = dot(oc, oc) - 0.01;
         float h = b * b - c;
@@ -178,8 +184,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         if (h > 0.0) {
             float d = -b - sqrt(h);
             if (d > 0.0 && d < dist) {
-                vec3 glowColor = hsv2rgb(vec3(fi / 30.0 + t * 0.1, 0.9, 1.0));
-                col += glowColor * 0.1 * (1.0 - d / dist);
+                col += g_dnaPartCol[i] * (0.1 * (1.0 - d / dist));
             }
         }
     }

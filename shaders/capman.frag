@@ -116,7 +116,7 @@ float drawChar(vec2 p, int ch) {
 // 4. Main CapMan Arcade Shader
 // -----------------------------------------------------------------------------
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 29480.0);
     vec3 color = vec3(0.0);
 
     // Screen geometry: 28x36 arcade aspect (~0.777)
@@ -331,17 +331,19 @@ vec4 effect_main(vec2 centered, vec2 uv) {
             if (!isScared) {
                 vec2 eyeL = dg - (vec2(-0.16, -0.08) + ghostDir[i] * 0.05);
                 vec2 eyeR = dg - (vec2(0.16, -0.08) + ghostDir[i] * 0.05);
+                vec2 eyeLens = sqrt(vec2(dot(eyeL, eyeL), dot(eyeR, eyeR)));
 
-                float eyeLMask = 1.0 - smoothstep(0.11, 0.13, length(eyeL));
-                float eyeRMask = 1.0 - smoothstep(0.11, 0.13, length(eyeR));
+                float eyeLMask = 1.0 - smoothstep(0.11, 0.13, eyeLens.x);
+                float eyeRMask = 1.0 - smoothstep(0.11, 0.13, eyeLens.y);
                 float eyesWhite = clamp(eyeLMask + eyeRMask, 0.0, 1.0);
                 color = mix(color, vec3(1.0), eyesWhite);
 
                 // Blue pupils looking in direction of travel
                 vec2 pupilL = eyeL - ghostDir[i] * 0.045;
                 vec2 pupilR = eyeR - ghostDir[i] * 0.045;
-                float pupilMask = clamp((1.0 - smoothstep(0.05, 0.065, length(pupilL))) +
-                                        (1.0 - smoothstep(0.05, 0.065, length(pupilR))), 0.0, 1.0);
+                vec2 pupilLens = sqrt(vec2(dot(pupilL, pupilL), dot(pupilR, pupilR)));
+                float pupilMask = clamp((1.0 - smoothstep(0.05, 0.065, pupilLens.x)) +
+                                        (1.0 - smoothstep(0.05, 0.065, pupilLens.y)), 0.0, 1.0);
                 color = mix(color, vec3(0.08, 0.15, 0.92), pupilMask);
             } else {
                 // Scared ghost white dot eyes
@@ -451,8 +453,8 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         color = mix(color, vec3(1.0), clamp(spec1 + spec2, 0.0, 1.0));
 
         // Brown stems
-        float stem1 = 1.0 - smoothstep(0.03, 0.06, abs(length(dCherry - vec2(0.1, -0.15)) - 0.45));
         if (dCherry.y < 0.2 && dCherry.x > -0.25 && dCherry.x < 0.25) {
+            float stem1 = 1.0 - smoothstep(0.03, 0.06, abs(length(dCherry - vec2(0.1, -0.15)) - 0.45));
             color = mix(color, vec3(0.55, 0.35, 0.15), stem1);
         }
 

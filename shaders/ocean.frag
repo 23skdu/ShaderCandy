@@ -33,13 +33,13 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 waterDeep = vec3(0.0, 0.2, 0.4);
     vec3 waterShallow = vec3(0.1, 0.4, 0.6);
     
-    // Calculate waves
-    float waveHeight = wave(p * 2.0, t) * 0.1;
-    float waves = p.y + waveHeight;
-    
     vec3 col;
     
     if(p.y < horizon) {
+        // Calculate waves
+        float waveHeight = wave(p * 2.0, t) * 0.1;
+        float waves = p.y + waveHeight;
+        
         // Under water
         col = mix(waterDeep, waterShallow, smoothstep(-1.0, 0.0, p.y));
         

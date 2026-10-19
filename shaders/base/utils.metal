@@ -5,16 +5,16 @@
 using namespace metal;
 
 // Common constants
-constant float PI = 3.14159265359f;
-constant float TWO_PI = 6.28318530718f;
+constexpr float PI = 3.14159265358979323846f;
+constexpr float TWO_PI = 6.28318530717958647692f;
 
 // Utility functions for Metal Shaders
 namespace ShaderUtils {
-    // Scalar and Vector operations
-    inline float mod(float x, float y) { return fmod(x, y); }
-    inline float2 mod(float2 x, float2 y) { return fmod(x, y); }
-    inline float3 mod(float3 x, float3 y) { return fmod(x, y); }
-    inline float4 mod(float4 x, float4 y) { return fmod(x, y); }
+    // Scalar and Vector operations (floored modulo matching GLSL mod)
+    inline float mod(float x, float y) { return x - y * floor(x / y); }
+    inline float2 mod(float2 x, float2 y) { return x - y * floor(x / y); }
+    inline float3 mod(float3 x, float3 y) { return x - y * floor(x / y); }
+    inline float4 mod(float4 x, float4 y) { return x - y * floor(x / y); }
     
     // Using Metal built-in fract
     

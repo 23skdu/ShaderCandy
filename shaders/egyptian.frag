@@ -22,9 +22,6 @@ float eyeOfHorus(vec2 p) {
     float eye = length(p * vec2(2.0, 1.0) - vec2(0.0, 0.0)) - 0.3;
     eye = abs(eye) - 0.02;
     
-    // Pupil
-    float pupil = length(p - vec2(-0.05, 0.0)) - 0.08;
-    
     // Eyebrow
     float brow = abs(p.y - 0.35) - 0.02;
     brow = max(brow, abs(p.x) - 0.4);

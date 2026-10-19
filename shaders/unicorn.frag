@@ -7,7 +7,7 @@ vec3 rainbowColor(float t) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     vec2 p = centered;
 
     // -------------------------------------------------------------
@@ -18,12 +18,16 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 skyBot = vec3(0.18, 0.08, 0.28);
     vec3 col = mix(skyBot, skyTop, clamp((p.y + 0.8) * 0.6, 0.0, 1.0));
 
-    // Cosmic nebula clouds
-    vec2 nebUV = p * 0.8 + vec2(t * 0.03, t * 0.015);
-    float neb1 = fbm(vec3(nebUV * 2.0, t * 0.05), 3);
-    float neb2 = fbm(vec3(nebUV * 3.5 + 2.0, t * 0.08), 3);
-    col += vec3(0.22, 0.08, 0.35) * smoothstep(0.15, 0.75, neb1);
-    col += vec3(0.08, 0.18, 0.32) * smoothstep(0.25, 0.85, neb2);
+    float hillY = -0.68 + sin(p.x * 2.0) * 0.06 + cos(p.x * 4.5) * 0.02;
+
+    // Cosmic nebula clouds (gated above meadow hill)
+    if (p.y >= hillY - 0.005) {
+        vec2 nebUV = p * 0.8 + vec2(t * 0.03, t * 0.015);
+        float neb1 = fbm(vec3(nebUV * 2.0, t * 0.05), 3);
+        float neb2 = fbm(vec3(nebUV * 3.5 + 2.0, t * 0.08), 3);
+        col += vec3(0.22, 0.08, 0.35) * smoothstep(0.15, 0.75, neb1);
+        col += vec3(0.08, 0.18, 0.32) * smoothstep(0.25, 0.85, neb2);
+    }
 
     // Crescent Moon in top left
     vec2 moonPos = vec2(-1.15, 0.58);
@@ -50,7 +54,6 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // -------------------------------------------------------------
     // 2. Enchanted Meadow Foreground
     // -------------------------------------------------------------
-    float hillY = -0.68 + sin(p.x * 2.0) * 0.06 + cos(p.x * 4.5) * 0.02;
     if (p.y < hillY) {
         float hillDepth = clamp((hillY - p.y) / 0.15, 0.0, 1.0);
         vec3 grassCol = mix(vec3(0.06, 0.04, 0.12), vec3(0.03, 0.02, 0.07), hillDepth);
@@ -62,138 +65,143 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // -------------------------------------------------------------
     vec2 uPos = vec2(0.12, -0.22);
     vec2 up = p - uPos;
-
-    // Muscular Arched Neck extending down past bottom
-    vec2 neckP = up - vec2(-0.25, -0.48);
-    neckP = rot2D(-0.42) * neckP;
-    float dNeck = sdUnevenCapsule(neckP, 0.44, 0.22, 1.10);
-
-    // Equine Jaw & Cheek
-    vec2 cheekP = up - vec2(-0.06, 0.12);
-    float dCheek = sdCircle(cheekP, 0.22);
-
-    // Tapered Muzzle / Snout
-    vec2 muzzleP = up - vec2(0.24, 0.08);
-    muzzleP = rot2D(0.35) * muzzleP;
-    float dMuzzle = sdUnevenCapsule(muzzleP, 0.16, 0.09, 0.28);
-
-    // Nostril
-    vec2 nostrilP = up - vec2(0.42, 0.02);
-    float dNostril = sdCircle(nostrilP, 0.022);
-
-    // Graceful Upright Ear
-    vec2 earP = up - vec2(-0.16, 0.44);
-    earP = rot2D(0.26) * earP;
-    float dEar = sdUnevenCapsule(earP, 0.065, 0.012, 0.26);
-
-    // Forelock mane wisps over forehead
-    vec2 foreP = up - vec2(-0.02, 0.36);
-    float dForelock = sdSegment(foreP, vec2(0.0, 0.0), vec2(0.14, -0.14)) - 0.035;
-
-    // Combine Head & Body
-    float uniBody = min(dNeck, min(dCheek, min(dMuzzle, min(dEar, dForelock))));
-
-    // -------------------------------------------------------------
-    // 4. Radiant Crystalline Alicorn (Spiral Horn)
-    // -------------------------------------------------------------
-    vec2 hornBase = up - vec2(0.04, 0.32);
-    hornBase = rot2D(-0.62) * hornBase;
     float hornLen = 0.78;
-    float dHorn = sdUnevenCapsule(hornBase, 0.042, 0.006, hornLen);
-
-    // Tip of horn in world space
     vec2 hornTipWorld = uPos + vec2(0.04, 0.32) + rot2D(0.62) * vec2(0.0, hornLen);
 
-    // -------------------------------------------------------------
-    // 5. Silky Flowing Prismatic Rainbow Mane
-    // -------------------------------------------------------------
+    float uniBody = 1e5;
+    float dHorn = 1e5;
+    vec2 hornBase = vec2(0.0);
     float maneDist = 1e5;
-    vec3 maneColorSum = vec3(0.0);
-    float maneWeightSum = 0.0;
+    vec3 finalManeCol = vec3(1.0);
 
-    for (float m = 0.0; m < 7.0; m += 1.0) {
-        float mf = m / 6.0;
-        float strandPhase = t * 2.8 + m * 0.7;
-        float yStart = 0.45 - m * 0.11;
-        float xStart = -0.15 - m * 0.08;
-        
-        // Sinuous bezier-like wave for mane strands
-        vec2 mPos = up - vec2(xStart, yStart);
-        float wave = sin(mPos.y * 7.0 - strandPhase) * (0.05 + m * 0.012);
-        wave += cos(mPos.y * 14.0 + strandPhase * 0.7) * 0.02;
-        
-        vec2 strandVec = vec2(mPos.x + wave + mPos.y * 0.5, mPos.y);
-        float strandD = sdSegment(strandVec, vec2(0.0, 0.0), vec2(-0.45 - m * 0.06, -0.35)) - (0.028 + m * 0.004);
-        
-        if (strandD < maneDist) {
-            maneDist = strandD;
+    if (up.x > -0.9 && up.x < 0.7 && up.y > -0.9 && up.y < 1.25) {
+        // Muscular Arched Neck extending down past bottom
+        vec2 neckP = up - vec2(-0.25, -0.48);
+        neckP = rot2D(-0.42) * neckP;
+        float dNeck = sdUnevenCapsule(neckP, 0.44, 0.22, 1.10);
+
+        // Equine Jaw & Cheek
+        vec2 cheekP = up - vec2(-0.06, 0.12);
+        float dCheek = sdCircle(cheekP, 0.22);
+
+        // Tapered Muzzle / Snout
+        vec2 muzzleP = up - vec2(0.24, 0.08);
+        muzzleP = rot2D(0.35) * muzzleP;
+        float dMuzzle = sdUnevenCapsule(muzzleP, 0.16, 0.09, 0.28);
+
+        // Nostril
+        vec2 nostrilP = up - vec2(0.42, 0.02);
+        float dNostril = sdCircle(nostrilP, 0.022);
+
+        // Graceful Upright Ear
+        vec2 earP = up - vec2(-0.16, 0.44);
+        earP = rot2D(0.26) * earP;
+        float dEar = sdUnevenCapsule(earP, 0.065, 0.012, 0.26);
+
+        // Forelock mane wisps over forehead
+        vec2 foreP = up - vec2(-0.02, 0.36);
+        float dForelock = sdSegment(foreP, vec2(0.0, 0.0), vec2(0.14, -0.14)) - 0.035;
+
+        // Combine Head & Body
+        uniBody = min(dNeck, min(dCheek, min(dMuzzle, min(dEar, dForelock))));
+
+        // -------------------------------------------------------------
+        // 4. Radiant Crystalline Alicorn (Spiral Horn)
+        // -------------------------------------------------------------
+        hornBase = up - vec2(0.04, 0.32);
+        hornBase = rot2D(-0.62) * hornBase;
+        dHorn = sdUnevenCapsule(hornBase, 0.042, 0.006, hornLen);
+
+        // -------------------------------------------------------------
+        // 5. Silky Flowing Prismatic Rainbow Mane
+        // -------------------------------------------------------------
+        vec3 maneColorSum = vec3(0.0);
+        float maneWeightSum = 0.0;
+
+        for (float m = 0.0; m < 7.0; m += 1.0) {
+            float mf = m / 6.0;
+            float strandPhase = t * 2.8 + m * 0.7;
+            float yStart = 0.45 - m * 0.11;
+            float xStart = -0.15 - m * 0.08;
+            
+            // Sinuous bezier-like wave for mane strands
+            vec2 mPos = up - vec2(xStart, yStart);
+            float wave = sin(mPos.y * 7.0 - strandPhase) * (0.05 + m * 0.012);
+            wave += cos(mPos.y * 14.0 + strandPhase * 0.7) * 0.02;
+            
+            vec2 strandVec = vec2(mPos.x + wave + mPos.y * 0.5, mPos.y);
+            float strandD = sdSegment(strandVec, vec2(0.0, 0.0), vec2(-0.45 - m * 0.06, -0.35)) - (0.028 + m * 0.004);
+            
+            if (strandD < maneDist) {
+                maneDist = strandD;
+            }
+            
+            float w = smoothstep(0.04, -0.01, strandD);
+            if (w > 0.001) {
+                vec3 strandCol = rainbowColor(mf + t * 0.12);
+                maneColorSum += strandCol * w;
+                maneWeightSum += w;
+            }
         }
-        
-        float w = smoothstep(0.04, -0.01, strandD);
-        if (w > 0.001) {
-            vec3 strandCol = rainbowColor(mf + t * 0.12);
-            maneColorSum += strandCol * w;
-            maneWeightSum += w;
-        }
-    }
 
-    vec3 finalManeCol = (maneWeightSum > 0.0) ? (maneColorSum / maneWeightSum) : vec3(1.0);
+        finalManeCol = (maneWeightSum > 0.0) ? (maneColorSum / maneWeightSum) : vec3(1.0);
 
-    // -------------------------------------------------------------
-    // Shading Unicorn Silhouette & Surface
-    // -------------------------------------------------------------
-    if (uniBody < 0.04) {
-        // Alabaster white coat with gentle lavender/cyan iridescence
-        vec3 coatCol = vec3(0.95, 0.95, 1.0);
-        float coatShade = clamp((up.y + 0.4) * 0.9, 0.0, 1.0);
-        coatCol = mix(vec3(0.80, 0.78, 0.92), coatCol, coatShade);
+        // -------------------------------------------------------------
+        // Shading Unicorn Silhouette & Surface
+        // -------------------------------------------------------------
+        if (uniBody < 0.04) {
+            // Alabaster white coat with gentle lavender/cyan iridescence
+            vec3 coatCol = vec3(0.95, 0.95, 1.0);
+            float coatShade = clamp((up.y + 0.4) * 0.9, 0.0, 1.0);
+            coatCol = mix(vec3(0.80, 0.78, 0.92), coatCol, coatShade);
 
-        // Soft lunar rim light from top-left
-        float rimLight = clamp((-up.x * 0.7 + up.y * 0.8 + 0.3), 0.0, 1.0);
-        coatCol += vec3(0.20, 0.28, 0.45) * pow(rimLight, 2.0);
+            // Soft lunar rim light from top-left
+            float rimLight = clamp((-up.x * 0.7 + up.y * 0.8 + 0.3), 0.0, 1.0);
+            coatCol += vec3(0.20, 0.28, 0.45) * pow(rimLight, 2.0);
 
-        // Soft pink blush on muzzle and ear inner
-        float blushMuzzle = exp(-sdCircle(up - vec2(0.35, 0.02), 0.12) * 15.0);
-        coatCol = mix(coatCol, vec3(0.98, 0.84, 0.88), clamp(blushMuzzle * 0.45, 0.0, 1.0));
+            // Soft pink blush on muzzle and ear inner
+            float blushMuzzle = exp(-sdCircle(up - vec2(0.35, 0.02), 0.12) * 15.0);
+            coatCol = mix(coatCol, vec3(0.98, 0.84, 0.88), clamp(blushMuzzle * 0.45, 0.0, 1.0));
 
-        // Nostril indent
-        coatCol = mix(coatCol, vec3(0.45, 0.35, 0.45), fillSDF(dNostril, 0.008));
+            // Nostril indent
+            coatCol = mix(coatCol, vec3(0.45, 0.35, 0.45), fillSDF(dNostril, 0.008));
 
-        // Intelligent Dark Equine Eye with Starlight Glint
-        vec2 eyeP = up - vec2(0.10, 0.20);
-        float dEye = sdCircle(eyeP, 0.038);
-        float dIris = sdCircle(eyeP, 0.026);
-        float dPupil = sdCircle(eyeP, 0.016);
-        float dGlint = sdCircle(eyeP - vec2(-0.009, 0.010), 0.007);
-        float dGlint2 = sdCircle(eyeP - vec2(0.008, -0.007), 0.004);
+            // Intelligent Dark Equine Eye with Starlight Glint
+            vec2 eyeP = up - vec2(0.10, 0.20);
+            float dEye = sdCircle(eyeP, 0.038);
+            float dIris = sdCircle(eyeP, 0.026);
+            float dPupil = sdCircle(eyeP, 0.016);
+            float dGlint = sdCircle(eyeP - vec2(-0.009, 0.010), 0.007);
+            float dGlint2 = sdCircle(eyeP - vec2(0.008, -0.007), 0.004);
 
-        if (dEye < 0.02) {
-            coatCol = mix(coatCol, vec3(0.12, 0.08, 0.18), fillSDF(dEye, 0.004));
-            coatCol = mix(coatCol, vec3(0.48, 0.32, 0.72), fillSDF(dIris, 0.003));
-            coatCol = mix(coatCol, vec3(0.05, 0.02, 0.08), fillSDF(dPupil, 0.003));
-            coatCol = mix(coatCol, vec3(1.0, 1.0, 1.0), fillSDF(dGlint, 0.002));
-            coatCol = mix(coatCol, vec3(1.0, 1.0, 1.0), fillSDF(dGlint2, 0.002));
+            if (dEye < 0.02) {
+                coatCol = mix(coatCol, vec3(0.12, 0.08, 0.18), fillSDF(dEye, 0.004));
+                coatCol = mix(coatCol, vec3(0.48, 0.32, 0.72), fillSDF(dIris, 0.003));
+                coatCol = mix(coatCol, vec3(0.05, 0.02, 0.08), fillSDF(dPupil, 0.003));
+                coatCol = mix(coatCol, vec3(1.0, 1.0, 1.0), fillSDF(dGlint, 0.002));
+                coatCol = mix(coatCol, vec3(1.0, 1.0, 1.0), fillSDF(dGlint2, 0.002));
+            }
+
+            col = mix(col, coatCol, fillSDF(uniBody, 0.004));
         }
 
-        col = mix(col, coatCol, fillSDF(uniBody, 0.004));
-    }
+        // Shading Mane
+        if (maneDist < 0.02) {
+            vec3 mCol = finalManeCol * 1.15;
+            // Silk shine highlight
+            float shine = sin(up.y * 35.0 - t * 4.0) * 0.5 + 0.5;
+            mCol += vec3(0.25) * pow(shine, 3.0);
+            col = mix(col, mCol, fillSDF(maneDist, 0.005));
+        }
 
-    // Shading Mane
-    if (maneDist < 0.02) {
-        vec3 mCol = finalManeCol * 1.15;
-        // Silk shine highlight
-        float shine = sin(up.y * 35.0 - t * 4.0) * 0.5 + 0.5;
-        mCol += vec3(0.25) * pow(shine, 3.0);
-        col = mix(col, mCol, fillSDF(maneDist, 0.005));
-    }
-
-    // Shading Crystalline Alicorn
-    if (dHorn < 0.03) {
-        // Helical spiral facets
-        float spiral = sin(hornBase.y * 45.0 - t * 4.0) * 0.5 + 0.5;
-        vec3 hornCol = mix(vec3(0.85, 0.92, 1.0), vec3(1.0, 0.85, 0.98), spiral);
-        hornCol += vec3(0.35) * pow(spiral, 4.0); // Specular diamond sheen
-        col = mix(col, hornCol, fillSDF(dHorn, 0.003));
+        // Shading Crystalline Alicorn
+        if (dHorn < 0.03) {
+            // Helical spiral facets
+            float spiral = sin(hornBase.y * 45.0 - t * 4.0) * 0.5 + 0.5;
+            vec3 hornCol = mix(vec3(0.85, 0.92, 1.0), vec3(1.0, 0.85, 0.98), spiral);
+            hornCol += vec3(0.35) * pow(spiral, 4.0); // Specular diamond sheen
+            col = mix(col, hornCol, fillSDF(dHorn, 0.003));
+        }
     }
 
     // -------------------------------------------------------------

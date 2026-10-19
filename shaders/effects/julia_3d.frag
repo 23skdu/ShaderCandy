@@ -9,6 +9,10 @@ vec4 qMul(vec4 q1, vec4 q2) {
     );
 }
 
+vec4 qSq(vec4 a) {
+    return vec4(a.x * a.x - dot(a.yzw, a.yzw), 2.0 * a.x * a.yzw);
+}
+
 float map(vec3 p, vec4 c, inout float trap) {
     vec4 z = vec4(p, 0.0);
     float m2 = dot(z, z);
@@ -16,7 +20,7 @@ float map(vec3 p, vec4 c, inout float trap) {
     
     for (int i = 0; i < 10; i++) {
         dz2 *= 4.0 * m2;
-        z = qMul(z, z) + c;
+        z = qSq(z) + c;
         m2 = dot(z, z);
         if (m2 > 10.0) break;
         trap = min(trap, m2);
@@ -65,14 +69,18 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 color = vec3(0.05, 0.05, 0.1);
     if (t_dist < 8.0) {
         vec3 norm = getNormal(p, c);
-        vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-        float diff = max(0.1, dot(norm, lightDir));
+        const vec3 lightDir = vec3(0.577350269);
+        float diff = max(dot(norm, lightDir), 0.1);
         
         vec3 baseCol = 0.5 + 0.5 * sin(vec3(0.0, 2.0, 4.0) + trap * 2.0);
         color = baseCol * diff;
         
         vec3 ref = reflect(lightDir, norm);
-        float spec = pow(max(0.0, dot(ref, rd)), 16.0);
+        float specBase = max(0.0, dot(ref, rd));
+        float sp2 = specBase * specBase;
+        float sp4 = sp2 * sp2;
+        float sp8 = sp4 * sp4;
+        float spec = sp8 * sp8;
         color += vec3(spec);
     }
     

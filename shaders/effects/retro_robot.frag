@@ -25,23 +25,16 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     }
     
     // Eyes (glowing)
-    vec2 eyeL = p - vec2(-0.15, 0.15);
-    vec2 eyeR = p - vec2(0.15, 0.15);
-    float eyeDistL = length(eyeL) - 0.08;
-    float eyeDistR = length(eyeR) - 0.08;
+    vec2 eyeP = vec2(abs(p.x) - 0.15, p.y - 0.15);
+    float eyeDist = length(eyeP) - 0.08;
     
-    if (eyeDistL < 0.0) {
-        float pulse = 0.8 + 0.2 * sin(t * 10.0);
-        color = vec3(1.0, 0.3, 0.1) * pulse * 2.0;
-    }
-    if (eyeDistR < 0.0) {
+    if (eyeDist < 0.0) {
         float pulse = 0.8 + 0.2 * sin(t * 10.0);
         color = vec3(1.0, 0.3, 0.1) * pulse * 2.0;
     }
     
     // Antenna
     vec2 antP = p - vec2(0.0, 0.5);
-    float antDist = length(antP) - 0.02;
     if (antP.y > 0.0 && antP.y < 0.15 && abs(antP.x) < 0.015) {
         color = vec3(0.4, 0.4, 0.45);
     }
@@ -66,8 +59,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     }
     
     // Ears/antenna on sides
-    if ((p.x > 0.5 && p.x < 0.6 && p.y > 0.0 && p.y < 0.3) ||
-        (p.x < -0.5 && p.x > -0.6 && p.y > 0.0 && p.y < 0.3)) {
+    if (abs(p.x) > 0.5 && abs(p.x) < 0.6 && p.y > 0.0 && p.y < 0.3) {
         color = vec3(0.4, 0.4, 0.45);
     }
     

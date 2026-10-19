@@ -28,22 +28,18 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         
         // Sphere fold
         float r2 = dot(z, z);
-        if (r2 < 0.5) {
-            z *= 2.0;
-            dr *= 2.0;
-        } else if (r2 < 1.0) {
-            z *= 1.0 / r2;
-            dr *= 1.0 / r2;
-        }
+        float factor = (r2 < 0.5) ? 2.0 : ((r2 < 1.0) ? (1.0 / r2) : 1.0);
+        z *= factor;
+        dr *= factor;
         
         z = scale * z + zp;
-        dr = dr * abs(scale) + 1.0;
+        dr = dr * scale + 1.0;
         
         // Accumulate glow
         glow += 0.01 / (1.0 + length(z) * 5.0);
     }
     
-    float d = length(z) / abs(dr);
+    float d = length(z) / dr;
     
     // Color based on iterations and position
     if (d < 0.5) {

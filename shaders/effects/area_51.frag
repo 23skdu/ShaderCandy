@@ -17,7 +17,11 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         float n = fract(sin(dot(floor(starUV) + vec2(fi * 456.7, fi * 123.4), vec2(12.9898, 78.233))) * 43758.5453);
         float twinkle = 0.5 + 0.5 * sin(t * (2.0 + fi) + n * 10.0);
         if (n > 0.98 - fi * 0.01) {
-            color += pow(fract(sin(n + t) * 43758.5453), 10.0) * twinkle * (1.0 - fi * 0.2);
+            float sVal = fract(sin(n + t) * 43758.5453);
+            float s2 = sVal * sVal;
+            float s4 = s2 * s2;
+            float s10 = s4 * s4 * s2;
+            color += s10 * twinkle * (1.0 - fi * 0.2);
         }
     }
     

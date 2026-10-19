@@ -3,7 +3,9 @@
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed;
     
-    vec2 p = vec2(atan(centered.y, centered.x) / PI, 0.5 / length(centered)) + t * 0.1;
+    float lc = length(centered);
+    float rcpLc = 1.0 / max(lc, 0.0001);
+    vec2 p = vec2(atan(centered.y, centered.x) / PI, 0.5 * rcpLc) + t * 0.1;
     p.y += p.x * 2.0;
     
     // Grid pattern
@@ -20,7 +22,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     col = mix(c1, c2, mask * sin(centered.x * 10.0 + t));
     
     // Add glow
-    col += vec3(0.1, 0.2, 1.0) / length(centered) * 0.2;
+    col += vec3(0.1, 0.2, 1.0) * (rcpLc * 0.2);
     
     col *= intensity;
     return vec4(col, alpha);

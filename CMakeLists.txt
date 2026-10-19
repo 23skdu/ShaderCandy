@@ -286,7 +286,7 @@ if(MACOS AND BUILD_METAL)
             # which is defined in utils.metal - runtime compilation handles this automatically
             add_custom_command(
                 OUTPUT ${metallib_file}
-                COMMAND xcrun -sdk macosx metal -c ${shader_source} -o ${metallib_file} -isysroot ${MACOS_SDK_PATH} -I ${SHADER_INCLUDE_PATH}
+                COMMAND xcrun -sdk macosx metal -c ${shader_source} -o ${metallib_file} -isysroot ${MACOS_SDK_PATH} -I ${SHADER_INCLUDE_PATH} -I ${CMAKE_SOURCE_DIR}/shaders/base
                 DEPENDS ${shader_source}
                 COMMENT "Compiling Metal shader: ${shader_name}"
                 VERBATIM

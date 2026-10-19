@@ -1,4 +1,5 @@
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 using namespace metal;
 using namespace ShaderUtils;
@@ -76,25 +77,6 @@ float palaceSDF(float3 p, float t) {
     }
     
     return min(min(box, pillars), min(beams, shapes));
-}
-
-// Staircase SDF
-float staircaseSDF(float3 p, float t) {
-    float stairs = 1e10;
-    
-    for(int i = 0; i < 8; i++) {
-        float fi = float(i);
-        float3 stepPos = float3(
-            sin(t * 0.1 + fi * 0.2) * 2.0,
-            -1.5 + fi * 0.4,
-            cos(t * 0.1 + fi * 0.2) * 2.0
-        );
-        
-        float step = sdBox(p - stepPos, float3(0.8, 0.1, 0.8));
-        stairs = min(stairs, step);
-    }
-    
-    return stairs;
 }
 
 fragment float4 fragment_main(VertexOut in [[stage_in]],
