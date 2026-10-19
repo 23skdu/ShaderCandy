@@ -14,20 +14,25 @@ vec4 qMult(vec4 a, vec4 b) {
     );
 }
 
+vec4 qSq(vec4 a) {
+    return vec4(a.x * a.x - dot(a.yzw, a.yzw), 2.0 * a.x * a.yzw);
+}
+
 // 4D Julia set SDF
 float julia4D(vec4 z, vec4 c) {
-    vec4 dz = vec4(1.0, 0.0, 0.0, 0.0);
+    float dz2 = 1.0;
     float m2 = 0.0;
     
     for(int i = 0; i < 16; i++) {
-        dz = 2.0 * qMult(z, dz);
-        z = qMult(z, z) + c;
+        m2 = dot(z, z);
+        dz2 *= 4.0 * m2;
+        z = qSq(z) + c;
         
         m2 = dot(z, z);
         if(m2 > 256.0) break;
     }
     
-    float d = 0.5 * sqrt(m2 / dot(dz, dz)) * log(m2);
+    float d = 0.5 * sqrt(m2 / max(dz2, 1e-8)) * log(m2);
     return d;
 }
 

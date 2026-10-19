@@ -28,8 +28,6 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Apply gravitational lensing
     vec2 lensedUV = blackholeLensing(uv, vec2(0.5, 0.5), bhRadius);
-    vec2 lensedP = lensedUV * 2.0 - 1.0;
-    lensedP.x *= resolution.x / resolution.y;
     
     // Starfield background
     vec3 col = vec3(0.0);

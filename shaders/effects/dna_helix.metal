@@ -1,26 +1,10 @@
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 using namespace metal;
 using namespace ShaderUtils;
 
 // DNA Double Helix - Molecular visualization
-
-// Rotate point around axis
-float3 rotateAroundAxis(float3 p, float3 axis, float angle) {
-    float c = cos(angle);
-    float s = sin(angle);
-    float t = 1.0 - c;
-    
-    float3 a = normalize(axis);
-    
-    float3x3 rot = float3x3(
-        t * a.x * a.x + c,        t * a.x * a.y - s * a.z,  t * a.x * a.z + s * a.y,
-        t * a.x * a.y + s * a.z,  t * a.y * a.y + c,        t * a.y * a.z - s * a.x,
-        t * a.x * a.z - s * a.y,  t * a.y * a.z + s * a.x,  t * a.z * a.z + c
-    );
-    
-    return rot * p;
-}
 
 // Cylinder SDF
 float sdCylinder(float3 p, float r, float h) {
@@ -44,11 +28,7 @@ float sdDNA(float3 p, float t) {
         sin(twist) * radius
     );
     
-    float3 basePos2 = float3(
-        cos(twist + PI) * radius,
-        p.y,
-        sin(twist + PI) * radius
-    );
+    float3 basePos2 = float3(-basePos1.x, p.y, -basePos1.z);
     
     strand1 = length(p - basePos1) - 0.04;
     strand2 = length(p - basePos2) - 0.04;

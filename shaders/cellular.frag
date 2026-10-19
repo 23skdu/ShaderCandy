@@ -40,30 +40,6 @@ float cellular(vec2 p, float t) {
     return cellShape + edge * 0.3;
 }
 
-// Game of Life-like pattern
-float gameOfLife(vec2 p, float t) {
-    vec2 grid = p * 20.0;
-    vec2 cell = fract(grid);
-    vec2 cellId = floor(grid);
-    
-    // Simulate cell states
-    float state = 0.0;
-    for(int y = -1; y <= 1; y++) {
-        for(int x = -1; x <= 1; x++) {
-            vec2 neighbor = cellId + vec2(float(x), float(y));
-            float neighborState = hash(neighbor.x * 17.0 + neighbor.y * 43.0 + floor(t));
-            state += neighborState;
-        }
-    }
-    
-    state /= 9.0;
-    
-    // Cell alive if threshold met
-    float alive = step(0.4, state) * (1.0 - step(0.6, state));
-    
-    return alive;
-}
-
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed * 0.2;
     vec2 p = centered;

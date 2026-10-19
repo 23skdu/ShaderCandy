@@ -1,4 +1,5 @@
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 // Pastel Unicorns - Dreamy pastel color shifts, flying rainbows, and unicorns
 

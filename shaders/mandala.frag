@@ -17,10 +17,6 @@ float mandala(vec2 p, float t) {
     // Number of segments
     float segments = 8.0;
     
-    // Radial symmetry
-    float angle = mod(a, TWO_PI / segments) - PI / segments;
-    vec2 symP = vec2(cos(angle), sin(angle)) * r;
-    
     // Concentric rings
     for(float i = 1.0; i <= 5.0; i++) {
         float ringR = i * 0.15;

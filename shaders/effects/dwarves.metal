@@ -189,7 +189,6 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
         float3 baseColor = float3(0.15, 0.12, 0.08); // Stone default
         
         // Dwarf skin
-        float3 checkDwarf = p - float3(0.0, -0.8, 0.0);
         for(int i = 0; i < 3; i++) {
             float fi = float(i);
             float3 dwarfPos = float3(

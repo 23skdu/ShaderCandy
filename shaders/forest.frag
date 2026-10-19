@@ -19,9 +19,10 @@ float tree(vec2 p, float height, float width) {
         float layerY = height * (0.2 + fi * 0.25);
         float layerWidth = width * (1.0 - fi * 0.2);
         float layerHeight = height * 0.3;
+        float rcpLayerHeight = 1.0 / layerHeight;
         
         vec2 layerP = p - vec2(0.0, layerY);
-        float layer = max(abs(layerP.x) - (1.0 - layerP.y / layerHeight) * layerWidth * 0.5,
+        float layer = max(abs(layerP.x) - (1.0 - layerP.y * rcpLayerHeight) * layerWidth * 0.5,
                          layerP.y - layerHeight);
         layer = max(layer, -layerP.y);
         
@@ -68,6 +69,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     for(int i = 0; i < 8; i++) {
         float fi = float(i);
         float treeX = -0.7 + fi * 0.2 + sin(fi * 3.0) * 0.1;
+        if (abs(p.x - treeX) > 0.25) continue;
         float treeY = ground;
         float treeHeight = 0.4 + sin(fi * 5.0) * 0.1;
         

@@ -4,6 +4,24 @@
 
 // Ray marching with SDF - Abstract geometric sculpture
 
+vec3 uHolePos[6];
+vec3 uParticlePos[4];
+
+void setupSculpture(float t, float tm) {
+    for (int i = 0; i < 6; i++) {
+        float angle = float(i) * TWO_PI / 6.0 + t;
+        uHolePos[i] = vec3(cos(angle), sin(angle * 0.5), sin(angle)) * 0.8;
+    }
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        uParticlePos[i] = vec3(
+            sin(tm * 0.5 + fi) * (2.5 + fi * 0.3),
+            cos(tm * 0.3 + fi * 1.3) * (2.0 + fi * 0.2),
+            sin(tm * 0.4 + fi * 0.7) * (2.5 + fi * 0.3)
+        );
+    }
+}
+
 // Distance to scene
 float map(vec3 p) {
     // Time-based rotation
@@ -17,9 +35,7 @@ float map(vec3 p) {
     
     // Create holes using boolean operations
     for (int i = 0; i < 6; i++) {
-        float angle = float(i) * TWO_PI / 6.0 + t;
-        vec3 holePos = vec3(cos(angle), sin(angle * 0.5), sin(angle)) * 0.8;
-        d1 = opSubtraction(sdSphere(q - holePos, 0.4), d1);
+        d1 = opSubtraction(sdSphere(q - uHolePos[i], 0.4), d1);
     }
     
     // Outer torus rings
@@ -35,26 +51,22 @@ float map(vec3 p) {
     
     // Add floating particles
     for (int i = 0; i < 4; i++) {
-        float fi = float(i);
-        vec3 particlePos = vec3(
-            sin(time * 0.5 + fi) * (2.5 + fi * 0.3),
-            cos(time * 0.3 + fi * 1.3) * (2.0 + fi * 0.2),
-            sin(time * 0.4 + fi * 0.7) * (2.5 + fi * 0.3)
-        );
-        d = opSmoothUnion(d, sdSphere(p - particlePos, 0.1 + fi * 0.05), 0.1);
+        d = opSmoothUnion(d, sdSphere(p - uParticlePos[i], 0.1 + float(i) * 0.05), 0.1);
     }
     
     return d;
 }
 
-// Calculate normal using gradient
+// Calculate normal using tetrahedral gradient
 vec3 calcNormal(vec3 p) {
-    float eps = 0.001;
-    return normalize(vec3(
-        map(p + vec3(eps, 0, 0)) - map(p - vec3(eps, 0, 0)),
-        map(p + vec3(0, eps, 0)) - map(p - vec3(0, eps, 0)),
-        map(p + vec3(0, 0, eps)) - map(p - vec3(0, 0, eps))
-    ));
+    const vec2 k = vec2(1.0, -1.0);
+    const float eps = 0.001;
+    return normalize(
+        k.xyy * map(p + k.xyy * eps) +
+        k.yyx * map(p + k.yyx * eps) +
+        k.yxy * map(p + k.yxy * eps) +
+        k.xxx * map(p + k.xxx * eps)
+    );
 }
 
 // Ray march
@@ -96,6 +108,7 @@ float calcAO(vec3 p, vec3 n) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
+    setupSculpture(time * 0.3, time);
     // Camera setup
     float t = time * 0.2;
     vec3 ro = vec3(

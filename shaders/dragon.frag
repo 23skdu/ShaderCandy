@@ -42,7 +42,7 @@ vec4 dragonVoronoi(vec2 p) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     vec2 p = centered;
 
     // -------------------------------------------------------------
@@ -93,13 +93,14 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         // A. Sclera (Outer eye with dark amber/charcoal tone and fiery capillaries)
         float scleraDist = clamp((r - 0.42) / 0.32, 0.0, 1.0);
         vec3 scleraCol = mix(vec3(0.24, 0.16, 0.07), vec3(0.06, 0.03, 0.02), scleraDist);
-        float capNoise = fbm(vec3(ip * 16.0, 2.0), 3);
-        float capillary = smoothstep(0.48, 0.65, capNoise) * scleraDist;
-        scleraCol = mix(scleraCol, vec3(0.85, 0.15, 0.02), capillary * 0.75);
 
         // B. The Dragon's Iris (Molten Solar Furnace Core)
         float irisRadius = 0.48;
-        if (r < irisRadius) {
+        if (r >= irisRadius) {
+            float capNoise = fbm(vec3(ip * 16.0, 2.0), 3);
+            float capillary = smoothstep(0.48, 0.65, capNoise) * scleraDist;
+            scleraCol = mix(scleraCol, vec3(0.85, 0.15, 0.02), capillary * 0.75);
+        } else {
             float f1 = sin(a * 40.0 + sin(a * 8.0) * 2.5);
             float f2 = sin(a * 80.0 - cos(a * 16.0) * 2.0);
             float f3 = fbm(vec3(ip * 15.0, t * 0.15), 3);
@@ -196,7 +197,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
             vec3 scalePlate = mix(vec3(0.02, 0.03, 0.03), scaleBase, scaleHeight);
 
             // Specular highlight on scale crests
-            float specPlate = pow(scaleHeight, 3.0);
+            float specPlate = scaleHeight * scaleHeight * scaleHeight;
             scalePlate += vec3(0.45, 0.38, 0.25) * specPlate * 0.85;
 
             // Magma Veins glowing in the crevices between scales
@@ -215,20 +216,22 @@ vec4 effect_main(vec2 centered, vec2 uv) {
                 scalePlate *= (0.65 + 0.35 * (1.0 - browShadow));
             }
 
-            // Bony Horn Spikes along Upper Brow (p.y > 0.52)
-            for (float sp = -2.0; sp <= 2.0; sp += 1.0) {
-                vec2 spikeBase = vec2(sp * 0.44 + 0.08, 0.56 + abs(sp) * 0.06);
-                vec2 spikeTip  = spikeBase + vec2(sp * 0.26 + 0.06, 0.34 - abs(sp) * 0.04);
-                float dSpike = sdSegment(p, spikeBase, spikeTip) - mix(0.060, 0.012, clamp((p.y - spikeBase.y) / 0.34, 0.0, 1.0));
-                if (dSpike < 0.0) {
+            // Bony Horn Spikes along Upper Brow (p.y > 0.50)
+            if (p.y > 0.50) {
+                for (float sp = -2.0; sp <= 2.0; sp += 1.0) {
+                    vec2 spikeBase = vec2(sp * 0.44 + 0.08, 0.56 + abs(sp) * 0.06);
+                    vec2 spikeTip  = spikeBase + vec2(sp * 0.26 + 0.06, 0.34 - abs(sp) * 0.04);
                     float sProgress = clamp((p.y - spikeBase.y) / 0.34, 0.0, 1.0);
-                    vec3 hornCol = mix(vec3(0.12, 0.09, 0.07), vec3(0.38, 0.32, 0.22), sProgress);
-                    float hornGrooves = sin(p.x * 45.0 + p.y * 30.0) * 0.5 + 0.5;
-                    hornCol += vec3(0.06) * hornGrooves;
-                    // Fiery magma underglow on horn underside
-                    float underLight = clamp((0.6 - p.x * sp * 0.2) * (1.0 - sProgress * 0.8), 0.0, 1.0);
-                    hornCol += vec3(0.7, 0.22, 0.04) * underLight * 0.7;
-                    scalePlate = mix(scalePlate, hornCol, fillSDF(dSpike, 0.005));
+                    float dSpike = sdSegment(p, spikeBase, spikeTip) - mix(0.060, 0.012, sProgress);
+                    if (dSpike < 0.0) {
+                        vec3 hornCol = mix(vec3(0.12, 0.09, 0.07), vec3(0.38, 0.32, 0.22), sProgress);
+                        float hornGrooves = sin(p.x * 45.0 + p.y * 30.0) * 0.5 + 0.5;
+                        hornCol += vec3(0.06) * hornGrooves;
+                        // Fiery magma underglow on horn underside
+                        float underLight = clamp((0.6 - p.x * sp * 0.2) * (1.0 - sProgress * 0.8), 0.0, 1.0);
+                        hornCol += vec3(0.7, 0.22, 0.04) * underLight * 0.7;
+                        scalePlate = mix(scalePlate, hornCol, fillSDF(dSpike, 0.005));
+                    }
                 }
             }
 

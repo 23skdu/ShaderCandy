@@ -264,6 +264,31 @@ private:
     float life;
     float maxLife;
   };
+  struct ParticleSoA {
+    std::vector<float> x;
+    std::vector<float> y;
+    std::vector<float> vx;
+    std::vector<float> vy;
+    std::vector<float> life;
+    std::vector<float> maxLife;
+    void resize(size_t n) {
+      x.resize(n);
+      y.resize(n);
+      vx.resize(n);
+      vy.resize(n);
+      life.resize(n);
+      maxLife.resize(n);
+    }
+    void clear() {
+      x.clear();
+      y.clear();
+      vx.clear();
+      vy.clear();
+      life.clear();
+      maxLife.clear();
+    }
+  };
+  ParticleSoA particlesSoA_;
   std::vector<Particle> particles_;
   // xorshift32 state for particle respawn; seeded lazily from the clock.
   uint32_t particleRng_ = 0x9E3779B9u;

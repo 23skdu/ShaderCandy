@@ -1,4 +1,5 @@
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 using namespace metal;
 using namespace ShaderUtils;
@@ -44,7 +45,6 @@ float robotSDF(float3 p, float t, thread float& material) {
     if (antenna < body) { body = antenna; material = (bulb < antenna + 0.01) ? 1.0 : 0.0; }
     
     // Arms
-    float armSide = sign(p.x);
     float3 armP = p;
     armP.x = abs(armP.x) - 0.55;
     // Animate arms

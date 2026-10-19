@@ -1,4 +1,5 @@
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 using namespace metal;
 using namespace ShaderUtils;
@@ -14,20 +15,20 @@ float sdRoundBox(float3 p, float3 b, float r) {
 
 // function sdBox removed (using utils.metal version)
 
-// Rotation matrix
+// Rotation matrices (column vectors for Metal float3x3)
 float3x3 rotateY(float a) {
     float s = sin(a), c = cos(a);
-    return float3x3(c, 0, s, 0, 1, 0, -s, 0, c);
+    return float3x3(float3(c, 0, -s), float3(0, 1, 0), float3(s, 0, c));
 }
 
 float3x3 rotateZ(float a) {
     float s = sin(a), c = cos(a);
-    return float3x3(c, s, 0, -s, c, 0, 0, 0, 1);
+    return float3x3(float3(c, s, 0), float3(-s, c, 0), float3(0, 0, 1));
 }
 
 float3x3 rotateX(float a) {
     float s = sin(a), c = cos(a);
-    return float3x3(1, 0, 0, 0, c, s, 0, -s, c);
+    return float3x3(float3(1, 0, 0), float3(0, c, s), float3(0, -s, c));
 }
 
 // --- Toaster SDF ---
@@ -147,7 +148,6 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     }
     
     if (hit) {
-        float3 norm = getNormal(p, t, finalID); // This is not quite right because of rotations, but let's fix if weird
         // Recalculate normal in local space
         float3 moveP = p;
         moveP.x += t * 1.5; moveP.y += t * 1.0; moveP.z += t * 0.5;

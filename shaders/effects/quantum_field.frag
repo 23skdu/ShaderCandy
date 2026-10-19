@@ -47,6 +47,20 @@ float interference(vec2 uv, float t) {
     return intensity;
 }
 
+// Precomputed directions for momentum uncertainty
+const vec2 cDirs[10] = vec2[10](
+    vec2(cos(0.0), sin(0.0)),
+    vec2(cos(1.0), sin(1.0)),
+    vec2(cos(2.0), sin(2.0)),
+    vec2(cos(3.0), sin(3.0)),
+    vec2(cos(4.0), sin(4.0)),
+    vec2(cos(5.0), sin(5.0)),
+    vec2(cos(6.0), sin(6.0)),
+    vec2(cos(7.0), sin(7.0)),
+    vec2(cos(8.0), sin(8.0)),
+    vec2(cos(9.0), sin(9.0))
+);
+
 // Uncertainty visualization
 vec3 uncertaintyPrinciple(vec2 uv, float t) {
     vec3 color = vec3(0.0);
@@ -56,8 +70,8 @@ vec3 uncertaintyPrinciple(vec2 uv, float t) {
     
     // Momentum uncertainty (spread out)
     float momentum = 0.0;
-    for (float i = 0.0; i < 10.0; i++) {
-        momentum += sin(dot(uv, vec2(cos(i), sin(i))) * 10.0 + t) * 0.1;
+    for (int i = 0; i < 10; i++) {
+        momentum += sin(dot(uv, cDirs[i]) * 10.0 + t) * 0.1;
     }
     
     // Heisenberg: sharp position = spread momentum
@@ -74,7 +88,8 @@ float quantumTunneling(vec2 uv, float t) {
     float barrier = smoothstep(0.05, 0.0, abs(uv.x));
     
     // Wave packet approaching barrier
-    float packet = exp(-pow(uv.x + 0.5 + t * 0.1, 2.0) * 20.0);
+    float packetDist = uv.x + 0.5 + t * 0.1;
+    float packet = exp(-packetDist * packetDist * 20.0);
     
     // Tunneling probability (exponential decay through barrier)
     float tunneling = exp(-abs(uv.x) * 5.0) * (1.0 - barrier);

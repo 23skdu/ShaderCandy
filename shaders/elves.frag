@@ -3,7 +3,7 @@
 // elves - Lothlorien starlight sanctuary with silver Mallorn trees, celestial moonlit waterfall, and noble elven ranger
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     vec2 p = centered;
 
     // -------------------------------------------------------------
@@ -171,14 +171,16 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     }
 
     // Lush Golden-Green Mallorn Canopy above
-    float canopyY = 0.60 + sin(p.x * 2.2) * 0.06 + cos(p.x * 4.5) * 0.03;
-    float canopyNoise = fbm(vec3(p.xy * 3.5, t * 0.04), 3);
-    canopyY += canopyNoise * 0.12;
-    if (p.y > canopyY - 0.22) {
-        float fDepth = clamp((p.y - (canopyY - 0.22)) / 0.32, 0.0, 1.0);
-        vec3 fCol = mix(vec3(0.04, 0.18, 0.12), vec3(0.12, 0.38, 0.24), fDepth);
-        fCol = mix(fCol, vec3(0.78, 0.72, 0.32), smoothstep(0.4, 0.8, canopyNoise) * 0.42);
-        col = mix(col, fCol, fillSDF(canopyY - p.y, 0.015));
+    if (p.y > 0.35) {
+        float canopyY = 0.60 + sin(p.x * 2.2) * 0.06 + cos(p.x * 4.5) * 0.03;
+        float canopyNoise = fbm(vec3(p.xy * 3.5, t * 0.04), 3);
+        canopyY += canopyNoise * 0.12;
+        if (p.y > canopyY - 0.22) {
+            float fDepth = clamp((p.y - (canopyY - 0.22)) / 0.32, 0.0, 1.0);
+            vec3 fCol = mix(vec3(0.04, 0.18, 0.12), vec3(0.12, 0.38, 0.24), fDepth);
+            fCol = mix(fCol, vec3(0.78, 0.72, 0.32), smoothstep(0.4, 0.8, canopyNoise) * 0.42);
+            col = mix(col, fCol, fillSDF(canopyY - p.y, 0.015));
+        }
     }
 
     // Suspended Elven Crystal Lanterns
@@ -187,8 +189,9 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         float dCord = sdSegment(p, lantP + vec2(0.0, 0.20), lantP) - 0.003;
         col = mix(col, vec3(0.3, 0.5, 0.5), fillSDF(dCord, 0.002));
         
-        float dLant = sdCircle(p - lantP, 0.022);
-        float lantGlow = exp(-length(p - lantP) * 16.0);
+        float dLan = length(p - lantP);
+        float dLant = dLan - 0.022;
+        float lantGlow = exp(-dLan * 16.0);
         col += vec3(0.35, 0.85, 1.0) * lantGlow * 0.8;
         col = mix(col, vec3(0.9, 0.98, 1.0), fillSDF(dLant, 0.003));
     }
@@ -198,100 +201,102 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // -------------------------------------------------------------
     vec2 archerOrigin = vec2(0.36, -0.16);
     vec2 ap = p - archerOrigin;
-
-    // A. Flowing hooded cloak & elven tunic
-    float dCloak = sdUnevenCapsule(vec2(ap.x - 0.03, -(ap.y - 0.02)), 0.11, 0.18, 0.38);
-    float dTorso = sdUnevenCapsule(vec2(ap.x, -(ap.y - 0.22)), 0.07, 0.05, 0.20);
-    
-    // B. Head, Hood Cowl, Face Profile & Pointed Ear
-    vec2 headP = ap - vec2(0.0, 0.25);
-    vec2 cowlP = headP - vec2(0.04, 0.02);
-    float dHood = sdUnevenCapsule(vec2(-cowlP.x, cowlP.y), 0.065, 0.01, 0.11);
-    
-    vec2 faceP = headP - vec2(-0.032, -0.012);
-    float dFace = sdCircle(faceP, 0.034);
-    
-    vec2 earP = headP - vec2(0.01, 0.015);
-    earP = rot2D(-0.45) * earP;
-    float dEar = sdUnevenCapsule(earP, 0.014, 0.0025, 0.062);
-
-    // C. Flowing golden/platinum hair cascading down back
-    vec2 hairP = ap - vec2(0.07, 0.10);
-    float hairWave = sin(hairP.y * 12.0 - t * 2.0) * 0.016;
-    float dHair = sdSegment(vec2(hairP.x + hairWave, hairP.y), vec2(-0.02, 0.12), vec2(0.06, -0.18)) - 0.030;
-
-    // D. Arms & Archer Stance
-    vec2 armL_start = vec2(-0.02, 0.12);
-    vec2 armL_end   = vec2(-0.20, 0.08);
-    float dArmBow = sdSegment(ap, armL_start, armL_end) - 0.018;
-
-    vec2 armR_shoulder = vec2(0.04, 0.12);
-    vec2 armR_elbow    = vec2(0.14, 0.10);
-    vec2 armR_hand     = vec2(0.02, 0.15); // near cheek
-    float dArmDraw = min(sdSegment(ap, armR_shoulder, armR_elbow), sdSegment(ap, armR_elbow, armR_hand)) - 0.017;
-
-    // E. Quiver on back with arrows
-    vec2 quiverP = rot2D(0.42) * (ap - vec2(0.08, 0.08));
-    float dQuiver = sdBox2D(quiverP, vec2(0.024, 0.14)) - 0.008;
-    vec2 fletchP = quiverP - vec2(0.0, 0.16);
-    float dFletch = sdSegment(fletchP, vec2(-0.02, 0.0), vec2(0.02, 0.04)) - 0.010;
-
-    // F. Masterwork Lothlorien Recurve Bow
-    vec2 bp = ap - vec2(-0.20, 0.08);
-    float bowCurveX = -0.05 * cos(bp.y * 7.5);
-    float dBow = max(abs(bp.x - bowCurveX) - 0.012, abs(bp.y) - 0.38);
-    vec2 tipT = bp - vec2(-0.05 * cos(0.38 * 7.5), 0.38);
-    vec2 tipB = bp - vec2(-0.05 * cos(-0.38 * 7.5), -0.38);
-    dBow = min(dBow, min(length(tipT), length(tipB)) - 0.015);
-
-    // G. Drawn Bowstring from tips to draw hand
-    vec2 bowTipTop = vec2(-0.20 - 0.05 * cos(0.38 * 7.5), 0.08 + 0.38);
-    vec2 bowTipBot = vec2(-0.20 - 0.05 * cos(-0.38 * 7.5), 0.08 - 0.38);
-    vec2 drawHandPos = armR_hand;
-    float dString = min(
-        sdSegment(ap, bowTipTop, drawHandPos),
-        sdSegment(ap, bowTipBot, drawHandPos)
-    ) - 0.003;
-
-    // H. Luminous Starlight Arrow
     vec2 arrowTipPos = vec2(-0.38, 0.09);
-    float dArrow = sdSegment(ap, drawHandPos, arrowTipPos) - 0.005;
 
-    // Combine Character Parts
-    float elfBody = min(min(min(dCloak, dTorso), min(dHood, dFace)),
-                        min(min(dArmBow, dArmDraw), min(dEar, min(dQuiver, dFletch))));
-    float elfTotal = min(elfBody, min(dHair, min(dBow, min(dArrow, dString))));
+    if (abs(ap.x + 0.1) < 0.40 && abs(ap.y - 0.05) < 0.50) {
+        // A. Flowing hooded cloak & elven tunic
+        float dCloak = sdUnevenCapsule(vec2(ap.x - 0.03, -(ap.y - 0.02)), 0.11, 0.18, 0.38);
+        float dTorso = sdUnevenCapsule(vec2(ap.x, -(ap.y - 0.22)), 0.07, 0.05, 0.20);
+        
+        // B. Head, Hood Cowl, Face Profile & Pointed Ear
+        vec2 headP = ap - vec2(0.0, 0.25);
+        vec2 cowlP = headP - vec2(0.04, 0.02);
+        float dHood = sdUnevenCapsule(vec2(-cowlP.x, cowlP.y), 0.065, 0.01, 0.11);
+        
+        vec2 faceP = headP - vec2(-0.032, -0.012);
+        float dFace = sdCircle(faceP, 0.034);
+        
+        vec2 earP = headP - vec2(0.01, 0.015);
+        earP = rot2D(-0.45) * earP;
+        float dEar = sdUnevenCapsule(earP, 0.014, 0.0025, 0.062);
 
-    if (elfTotal < 0.02) {
-        // Deep woodland green cloak & hood
-        vec3 elfPixel = vec3(0.05, 0.14, 0.09);
+        // C. Flowing golden/platinum hair cascading down back
+        vec2 hairP = ap - vec2(0.07, 0.10);
+        float hairWave = sin(hairP.y * 12.0 - t * 2.0) * 0.016;
+        float dHair = sdSegment(vec2(hairP.x + hairWave, hairP.y), vec2(-0.02, 0.12), vec2(0.06, -0.18)) - 0.030;
 
-        if (dFace < 0.0) {
-            // Fair elven countenance
-            elfPixel = vec3(0.85, 0.77, 0.72);
-        } else if (dEar < 0.0) {
-            // Pointed ear
-            elfPixel = vec3(0.86, 0.75, 0.70);
-        } else if (dHair < elfBody && dHair < dBow) {
-            // Flowing golden-blonde / platinum hair
-            elfPixel = mix(vec3(0.92, 0.85, 0.58), vec3(0.98, 0.95, 0.80), sin(hairP.y * 22.0) * 0.5 + 0.5);
-        } else if (dBow < elfBody) {
-            // Polished Mallorn wood inlaid with pure silver filigree
-            elfPixel = mix(vec3(0.32, 0.25, 0.16), vec3(0.75, 0.85, 0.90), sin(bp.y * 25.0) * 0.5 + 0.5);
-        } else if (dQuiver < elfBody || dFletch < elfBody) {
-            // Silver-embroidered leather quiver
-            elfPixel = vec3(0.18, 0.24, 0.22);
-        } else if (dString < elfBody || dArrow < elfBody) {
-            // Celestial starlight arrow & string
-            elfPixel = vec3(0.95, 0.99, 1.0);
+        // D. Arms & Archer Stance
+        vec2 armL_start = vec2(-0.02, 0.12);
+        vec2 armL_end   = vec2(-0.20, 0.08);
+        float dArmBow = sdSegment(ap, armL_start, armL_end) - 0.018;
+
+        vec2 armR_shoulder = vec2(0.04, 0.12);
+        vec2 armR_elbow    = vec2(0.14, 0.10);
+        vec2 armR_hand     = vec2(0.02, 0.15); // near cheek
+        float dArmDraw = min(sdSegment(ap, armR_shoulder, armR_elbow), sdSegment(ap, armR_elbow, armR_hand)) - 0.017;
+
+        // E. Quiver on back with arrows
+        vec2 quiverP = rot2D(0.42) * (ap - vec2(0.08, 0.08));
+        float dQuiver = sdBox2D(quiverP, vec2(0.024, 0.14)) - 0.008;
+        vec2 fletchP = quiverP - vec2(0.0, 0.16);
+        float dFletch = sdSegment(fletchP, vec2(-0.02, 0.0), vec2(0.02, 0.04)) - 0.010;
+
+        // F. Masterwork Lothlorien Recurve Bow
+        vec2 bp = ap - vec2(-0.20, 0.08);
+        float bowCurveX = -0.05 * cos(bp.y * 7.5);
+        float dBow = max(abs(bp.x - bowCurveX) - 0.012, abs(bp.y) - 0.38);
+        vec2 tipT = bp - vec2(-0.05 * cos(0.38 * 7.5), 0.38);
+        vec2 tipB = bp - vec2(-0.05 * cos(-0.38 * 7.5), -0.38);
+        dBow = min(dBow, min(length(tipT), length(tipB)) - 0.015);
+
+        // G. Drawn Bowstring from tips to draw hand
+        vec2 bowTipTop = vec2(-0.20 - 0.05 * cos(0.38 * 7.5), 0.08 + 0.38);
+        vec2 bowTipBot = vec2(-0.20 - 0.05 * cos(-0.38 * 7.5), 0.08 - 0.38);
+        vec2 drawHandPos = armR_hand;
+        float dString = min(
+            sdSegment(ap, bowTipTop, drawHandPos),
+            sdSegment(ap, bowTipBot, drawHandPos)
+        ) - 0.003;
+
+        // H. Luminous Starlight Arrow
+        float dArrow = sdSegment(ap, drawHandPos, arrowTipPos) - 0.005;
+
+        // Combine Character Parts
+        float elfBody = min(min(min(dCloak, dTorso), min(dHood, dFace)),
+                            min(min(dArmBow, dArmDraw), min(dEar, min(dQuiver, dFletch))));
+        float elfTotal = min(elfBody, min(dHair, min(dBow, min(dArrow, dString))));
+
+        if (elfTotal < 0.02) {
+            // Deep woodland green cloak & hood
+            vec3 elfPixel = vec3(0.05, 0.14, 0.09);
+
+            if (dFace < 0.0) {
+                // Fair elven countenance
+                elfPixel = vec3(0.85, 0.77, 0.72);
+            } else if (dEar < 0.0) {
+                // Pointed ear
+                elfPixel = vec3(0.86, 0.75, 0.70);
+            } else if (dHair < elfBody && dHair < dBow) {
+                // Flowing golden-blonde / platinum hair
+                elfPixel = mix(vec3(0.92, 0.85, 0.58), vec3(0.98, 0.95, 0.80), sin(hairP.y * 22.0) * 0.5 + 0.5);
+            } else if (dBow < elfBody) {
+                // Polished Mallorn wood inlaid with pure silver filigree
+                elfPixel = mix(vec3(0.32, 0.25, 0.16), vec3(0.75, 0.85, 0.90), sin(bp.y * 25.0) * 0.5 + 0.5);
+            } else if (dQuiver < elfBody || dFletch < elfBody) {
+                // Silver-embroidered leather quiver
+                elfPixel = vec3(0.18, 0.24, 0.22);
+            } else if (dString < elfBody || dArrow < elfBody) {
+                // Celestial starlight arrow & string
+                elfPixel = vec3(0.95, 0.99, 1.0);
+            }
+
+            // Moonlight rim lighting along the back profile
+            float rimFactor = clamp((ap.x * 1.5 + ap.y * 0.3 + 0.2), 0.0, 1.0);
+            vec3 rimCol = vec3(0.40, 0.75, 0.90);
+            elfPixel += rimCol * (rimFactor * rimFactor) * 0.40;
+
+            col = mix(col, elfPixel, fillSDF(elfTotal, 0.004));
         }
-
-        // Moonlight rim lighting along the back profile
-        float rimFactor = clamp((ap.x * 1.5 + ap.y * 0.3 + 0.2), 0.0, 1.0);
-        vec3 rimCol = vec3(0.40, 0.75, 0.90);
-        elfPixel += rimCol * (rimFactor * rimFactor) * 0.40;
-
-        col = mix(col, elfPixel, fillSDF(elfTotal, 0.004));
     }
 
     // Radiant Starlight Arrowhead Flare

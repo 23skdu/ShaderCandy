@@ -7,7 +7,7 @@
 // Rotation matrix
 
 // Celtic knot pattern
-float celticKnot(vec2 p, float t) {
+vec2 celticKnot(vec2 p, float t) {
     float pattern = 0.0;
     
     // Scale for knot detail
@@ -32,7 +32,8 @@ float celticKnot(vec2 p, float t) {
                                abs(fract(uv.x + wave2) - 0.5) * 2.0);
     
     // Over-under pattern
-    float overUnder = step(0.0, sin(uv.x * 6.0 + t) * sin(uv.y * 6.0));
+    float rawShadow = sin(uv.x * 6.0 + t) * sin(uv.y * 6.0);
+    float overUnder = step(0.0, rawShadow);
     
     // Combine strands with interlacing
     if(overUnder > 0.5) {
@@ -46,7 +47,7 @@ float celticKnot(vec2 p, float t) {
     float borderLine = smoothstep(0.48, 0.5, max(border.x, border.y));
     pattern += borderLine * 0.5;
     
-    return pattern;
+    return vec2(pattern, rawShadow);
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
@@ -62,14 +63,14 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     vec3 shadowColor = vec3(0.1, 0.15, 0.1); // Dark shadow
     
     // Pattern
-    float pattern = celticKnot(p, t);
+    vec2 knotRes = celticKnot(p, t);
+    float pattern = knotRes.x;
+    float shadow = knotRes.y;
     
     // Apply pattern with shading
     vec3 patternCol = mix(col, knotColor, pattern);
     
     // Add depth/shadow to interlacing
-    vec2 knotUV = p * 3.0;
-    float shadow = sin(knotUV.x * 6.0 + t) * sin(knotUV.y * 6.0);
     patternCol += shadowColor * shadow * pattern * 0.2;
     
     // Highlight

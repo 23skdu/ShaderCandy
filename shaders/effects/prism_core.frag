@@ -21,8 +21,9 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     float glow = 0.0;
     
     // Simulate prism shape with rotating geometric patterns
-    for (float i = 0.0; i < 6.0; i++) {
-        float angle = i * 3.14159 / 3.0 + t * 0.5;
+    for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        float angle = fi * (PI / 3.0) + t * 0.5;
         vec2 dir = vec2(cos(angle), sin(angle));
         
         // Rotating lines forming prism
@@ -31,14 +32,14 @@ vec4 effect_main(vec2 centered, vec2 uv) {
         
         // Cutting spheres create gaps
         vec2 spherePos = vec2(
-            sin(t + i) * 1.2,
-            cos(t * 1.5 + i) * 1.2
+            sin(t + fi) * 1.2,
+            cos(t * 1.5 + fi) * 1.2
         );
         float sphere = length(rotated - spherePos) - 0.5;
         line *= smoothstep(-0.5, 0.0, sphere);
         
         // Color based on angle
-        vec3 c = hsv2rgb(vec3(fract(t * 0.1 + i / 6.0), 0.7, 1.0));
+        vec3 c = hsv2rgb(vec3(fract(t * 0.1 + fi * (1.0 / 6.0)), 0.7, 1.0));
         color += c * line * 0.5;
         
         // Glow around prism
@@ -47,8 +48,9 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Center glow
     float centerDist = length(rotated);
-    color += hsv2rgb(vec3(fract(t * 0.2), 0.8, 1.0)) * (0.1 / (centerDist + 0.1));
-    color += glow * hsv2rgb(vec3(fract(t * 0.2), 0.8, 1.0));
+    vec3 centerColor = hsv2rgb(vec3(fract(t * 0.2), 0.8, 1.0));
+    color += centerColor * (0.1 / (centerDist + 0.1));
+    color += glow * centerColor;
     
     // Vignette
     color *= 1.0 - length(uv - 0.5) * 0.3;

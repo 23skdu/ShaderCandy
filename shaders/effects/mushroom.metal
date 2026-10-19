@@ -170,11 +170,14 @@ float4 renderMushroomScene(float3 p, float t) {
 
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                               constant Uniforms &u [[buffer(0)]]) {
-    // Convert to world space
-    float3 p = in.position.xyz;
+    // Aspect-corrected coordinate space
+    float2 uv = in.texCoord * 2.0 - 1.0;
+    float aspect = u.resolution.x / u.resolution.y;
+    uv.x *= aspect;
+    float3 p = float3(uv * 5.0, 0.0);
     
     // Add some time offset
-    float t = u.time;
+    float t = u.time * u.speed;
     
     // Render the scene
     float4 color = renderMushroomScene(p, t);

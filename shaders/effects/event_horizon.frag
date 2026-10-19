@@ -14,7 +14,11 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Background Stars
     vec3 color = vec3(0.0);
-    float stars = pow(noise(rayUV * 20.0), 15.0) * 2.0;
+    float n = noise(rayUV * 20.0);
+    float n2 = n * n;
+    float n4 = n2 * n2;
+    float n8 = n4 * n4;
+    float stars = (n8 * n4 * n2 * n) * 2.0;
     color += stars * vec3(0.8, 0.9, 1.0);
     
     // Accretion Disk (simplified 2D version)

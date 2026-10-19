@@ -43,12 +43,16 @@ vec4 effect_main(vec2 centered, vec2 uv) {
             sin(angle * 0.7) * 0.2 + 0.1 * sin(t * 0.5 + fi * 2.0) - 0.1
         );
         
+        vec2 d = p - fireflyPos;
+        float distSq = dot(d, d);
+        if (distSq >= 0.0225) continue;
+        
         // Blinking
         float blink = 0.5 + 0.5 * sin(t * 3.0 + fi * 0.5);
-        blink = pow(blink, 3.0);
+        blink = blink * blink * blink;
         
         // Firefly glow
-        float dist = length(p - fireflyPos);
+        float dist = sqrt(distSq);
         float glow = smoothstep(0.05, 0.0, dist) * blink;
         
         // Firefly color (yellow-green)

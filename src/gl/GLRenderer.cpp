@@ -179,6 +179,7 @@ void GLRenderer::shutdown() {
     particleVBO_ = 0;
   }
   particles_.clear();
+  particlesSoA_.clear();
 
   initialized_ = false;
 }
@@ -662,15 +663,31 @@ void GLRenderer::setParticleGravity(float gravity) {
 void GLRenderer::initParticles() {
   particles_.clear();
   particles_.reserve(particleConfig_.count);
+  particlesSoA_.clear();
+  particlesSoA_.resize(particleConfig_.count);
 
   for (int i = 0; i < particleConfig_.count; i++) {
+    float x = (rand() % 2000 / 1000.0f) - 1.0f;
+    float y = (rand() % 2000 / 1000.0f) - 1.0f;
+    float vx = (rand() % 100 / 1000.0f) - 0.05f;
+    float vy = (rand() % 100 / 1000.0f) - 0.05f;
+    float life = rand() % 100 / 100.0f;
+    float maxLife = 1.0f + rand() % 100 / 100.0f;
+
+    particlesSoA_.x[i] = x;
+    particlesSoA_.y[i] = y;
+    particlesSoA_.vx[i] = vx;
+    particlesSoA_.vy[i] = vy;
+    particlesSoA_.life[i] = life;
+    particlesSoA_.maxLife[i] = maxLife;
+
     Particle p;
-    p.x = (rand() % 2000 / 1000.0f) - 1.0f;
-    p.y = (rand() % 2000 / 1000.0f) - 1.0f;
-    p.vx = (rand() % 100 / 1000.0f) - 0.05f;
-    p.vy = (rand() % 100 / 1000.0f) - 0.05f;
-    p.life = rand() % 100 / 100.0f;
-    p.maxLife = 1.0f + rand() % 100 / 100.0f;
+    p.x = x;
+    p.y = y;
+    p.vx = vx;
+    p.vy = vy;
+    p.life = life;
+    p.maxLife = maxLife;
     particles_.push_back(p);
   }
 
@@ -699,31 +716,45 @@ void GLRenderer::updateParticles(float deltaTime) {
   if (!particleConfig_.enabled || particles_.empty())
     return;
 
+  const size_t n = particlesSoA_.x.size();
   float gravity = particleConfig_.gravity * deltaTime * 0.1f;
   float speed = particleConfig_.speed;
 
-  for (auto &p : particles_) {
-    p.vy -= gravity;
-    p.x += p.vx * speed;
-    p.y += p.vy * speed;
-    p.life -= deltaTime;
+  float *x = particlesSoA_.x.data();
+  float *y = particlesSoA_.y.data();
+  float *vx = particlesSoA_.vx.data();
+  float *vy = particlesSoA_.vy.data();
+  float *life = particlesSoA_.life.data();
+  const float *maxLife = particlesSoA_.maxLife.data();
 
-    if (p.y < -1.0f || p.life <= 0.0f) {
-      // xorshift32 rather than rand(): rand() takes the libc lock on every
-      // call, and `rand() % n` is a biased modulo. This is inline, so the
-      // respawn path costs a few ALU ops instead of a call.
+  // Contiguous SoA vectorizable loop
+  for (size_t i = 0; i < n; ++i) {
+    vy[i] -= gravity;
+    x[i] += vx[i] * speed;
+    y[i] += vy[i] * speed;
+    life[i] -= deltaTime;
+  }
+
+  // Respawn and VBO pack
+  for (size_t i = 0; i < n; ++i) {
+    if (y[i] < -1.0f || life[i] <= 0.0f) {
       particleRng_ ^= particleRng_ << 13;
       particleRng_ ^= particleRng_ >> 17;
       particleRng_ ^= particleRng_ << 5;
       const float u1 = (particleRng_ & 0xFFFFu) / 65536.0f;      // [0,1)
       const float u2 = ((particleRng_ >> 16) & 0xFFFFu) / 65536.0f;
 
-      p.x = u1 * 2.0f - 1.0f;
-      p.y = 1.0f;
-      p.vx = u2 * 0.1f - 0.05f;
-      p.vy = -u1 * 0.1f - 0.02f;
-      p.life = p.maxLife;
+      x[i] = u1 * 2.0f - 1.0f;
+      y[i] = 1.0f;
+      vx[i] = u2 * 0.1f - 0.05f;
+      vy[i] = -u1 * 0.1f - 0.02f;
+      life[i] = maxLife[i];
     }
+    particles_[i].x = x[i];
+    particles_[i].y = y[i];
+    particles_[i].vx = vx[i];
+    particles_[i].vy = vy[i];
+    particles_[i].life = life[i];
   }
 
   glBindBuffer(GL_ARRAY_BUFFER, particleVBO_);

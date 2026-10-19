@@ -7,9 +7,10 @@
 vec2 burningShip(vec2 c) {
     vec2 z = vec2(0.0);
     vec2 dz = vec2(0.0);
-    float n = 0.0;
+    int iter = 0;
     
     for(int i = 0; i < 100; i++) {
+        iter = i;
         // Derivative
         dz = 2.0 * vec2(z.x * dz.x - z.y * dz.y, z.x * dz.y + z.y * dz.x) + vec2(1.0, 0.0);
         
@@ -18,12 +19,11 @@ vec2 burningShip(vec2 c) {
         float y = abs(2.0 * z.x * z.y) + c.y;
         z = vec2(x, y);
         
-        n += 1.0;
         if(dot(z, z) > 256.0) break;
     }
     
     float d = 0.5 * log(dot(z, z)) * sqrt(dot(z, z) / dot(dz, dz));
-    return vec2(d, n);
+    return vec2(d, float(iter));
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {

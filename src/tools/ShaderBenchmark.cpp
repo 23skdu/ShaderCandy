@@ -439,6 +439,10 @@ int main(int argc, char **argv) {
     shaderDirs.push_back("shaders");
     shaderDirs.push_back("shaders/base");
     shaderDirs.push_back("shaders/effects");
+    shaderDirs.push_back("shaders/music");
+    shaderDirs.push_back("shaders/audio");
+    shaderDirs.push_back("shaders/neural");
+    shaderDirs.push_back("shaders/system");
   }
 
   for (const auto &dir : shaderDirs) {

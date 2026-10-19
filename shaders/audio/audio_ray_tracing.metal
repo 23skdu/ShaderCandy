@@ -96,13 +96,13 @@ kernel void traceAudioRays(
     float3 dir = ray.direction;
     float energy = ray.energy;
 
-    for (int step = 0; step < 100; step++) {
+    for (int stepIdx = 0; stepIdx < 100; stepIdx++) {
         // March forward
         pos += dir * 0.1;
 
-        // Check if reached listener
-        float distToListener = length(pos - listenerPosition);
-        if (distToListener < 0.5) {
+        // Check if reached listener (squared distance)
+        float3 toListener = pos - listenerPosition;
+        if (dot(toListener, toListener) < 0.25) {
             // Write to acoustic field
             uint2 fieldPos = uint2(rayIndex % acousticField.get_width(), rayIndex / acousticField.get_width());
             float current = acousticField.read(fieldPos).r;
@@ -110,8 +110,8 @@ kernel void traceAudioRays(
             break;
         }
 
-        // Check bounds
-        if (length(pos) > roomSize) {
+        // Check bounds (squared distance)
+        if (dot(pos, pos) > roomSize * roomSize) {
             break;
         }
 
@@ -181,8 +181,9 @@ kernel void applyBinauralHRTF(
     for (int i = 0; i < hrtfLength; i++) {
         int idx = gid - i;
         if (idx >= 0) {
-            leftSum += monoInput[idx] * hrtfLeft[i];
-            rightSum += monoInput[idx] * hrtfRight[i];
+            float inVal = monoInput[idx];
+            leftSum += inVal * hrtfLeft[i];
+            rightSum += inVal * hrtfRight[i];
         }
     }
 

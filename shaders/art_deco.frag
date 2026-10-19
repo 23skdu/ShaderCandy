@@ -22,7 +22,7 @@ float artDecoPattern(vec2 p, float t) {
     float circles = 0.0;
     for(float i = 0.0; i < 3.0; i++) {
         float r = 0.3 + i * 0.25;
-        float c = abs(length(p) - r);
+        float c = abs(radius - r);
         circles += smoothstep(0.02, 0.0, c);
     }
     
@@ -37,6 +37,7 @@ float artDecoPattern(vec2 p, float t) {
 vec4 effect_main(vec2 centered, vec2 uv) {
     float t = time * speed * 0.2;
     vec2 p = centered;
+    float pLen = length(centered);
     
     // Background - art deco colors
     vec3 bg1 = vec3(0.1, 0.05, 0.15); // Deep purple
@@ -52,7 +53,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // Art deco colors - gold and black
     vec3 gold = vec3(0.9, 0.75, 0.3);
     vec3 bronze = vec3(0.7, 0.5, 0.2);
-    vec3 patternCol = mix(bronze, gold, sin(t * 0.3 + length(p) * 3.0) * 0.5 + 0.5);
+    vec3 patternCol = mix(bronze, gold, sin(t * 0.3 + pLen * 3.0) * 0.5 + 0.5);
     
     // Apply pattern
     col = mix(col, patternCol, pattern);
@@ -68,7 +69,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     col += gold * cornerDeco * 0.5;
     
     // Vignette
-    col *= 1.0 - length(centered) * 0.3;
+    col *= 1.0 - pLen * 0.3;
     
     col *= intensity;
     return vec4(col, alpha);

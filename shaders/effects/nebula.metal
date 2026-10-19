@@ -1,6 +1,7 @@
 // Nebula Cloud - Volumetric effect (Metal port)
 
 #include "ShaderInterop.h"
+#include "utils.metal"
 
 using namespace metal;
 using namespace ShaderUtils;

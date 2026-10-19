@@ -40,7 +40,6 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Palm tree silhouette
     vec2 palmP = p - vec2(-0.8, -0.3);
-    float palmAngle = atan(palmP.y, palmP.x);
     float palmRad = length(palmP);
     
     // Palm trunk
@@ -68,8 +67,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     palm2 *= smoothstep(0.8, 0.3, length(palmP2));
     color = mix(color, vec3(0.02, 0.05, 0.02), palm2 * 0.8);
     
-    // Audio reactivity - flag waves more with bass
-    float bassWave = wave * (1.0 + bass * 0.5);
+    // Audio reactivity
     color *= (1.0 + bass * 0.1);
     
     color *= intensity;

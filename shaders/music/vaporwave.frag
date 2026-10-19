@@ -67,10 +67,10 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // Palm leaves
     for (float i = 0.0; i < 5.0; i++) {
         float angle = i * 1.2 - 0.5;
-        vec2 leafEnd = palmPos + vec2(cos(angle) * 0.4, 0.3 + sin(i) * 0.1);
-        vec2 toLeaf = leafEnd - palmPos;
-        float l = length(p - palmPos - toLeaf * clamp(dot(p - palmPos, toLeaf) / dot(toLeaf, toLeaf), 0.0, 1.0));
-        if (l < 0.02 && p.y > palmPos.y) {
+        vec2 toLeaf = vec2(cos(angle) * 0.4, 0.3 + sin(i) * 0.1);
+        float rcpDot = 1.0 / dot(toLeaf, toLeaf);
+        float l = length(trunkP - toLeaf * clamp(dot(trunkP, toLeaf) * rcpDot, 0.0, 1.0));
+        if (l < 0.02 && trunkP.y > 0.0) {
             col = vec3(0.0);
         }
     }

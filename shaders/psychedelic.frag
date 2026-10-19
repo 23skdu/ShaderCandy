@@ -24,12 +24,15 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     
     // Multiple layers of patterns
     vec3 col = vec3(0.0);
+    float pLen = length(p);
+    float pAng = atan(p.y, p.x);
     
     for(float i = 0.0; i < 5.0; i++) {
-        vec2 q = p * (2.0 + i * 0.5);
+        float scale = 2.0 + i * 0.5;
+        vec2 q = p * scale;
         
         // Swirling pattern
-        float spiral = sin(length(q) * 5.0 - t * (2.0 + i) + atan(q.y, q.x) * 3.0);
+        float spiral = sin(pLen * scale * 5.0 - t * (2.0 + i) + pAng * 3.0);
         
         // Ripple pattern
         float ripple = sin(q.x * 4.0 + t) * cos(q.y * 4.0 - t);
@@ -44,7 +47,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     }
     
     // Center glow
-    float glow = smoothstep(0.5, 0.0, length(centered));
+    float glow = smoothstep(0.5, 0.0, pLen);
     col += vec3(1.0, 0.8, 0.9) * glow * 0.5;
     
     // Saturation boost
