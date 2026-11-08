@@ -171,11 +171,18 @@ private:
                 "Measured compilation times for " + std::to_string(timings.size()) + " shaders", 0.0};
     }
 
-    TestResult testShaderBaselineComparison() {
-        std::string baselinePath = "shader_regression_baseline.txt";
-        if (!std::filesystem::exists(baselinePath)) {
-            baselinePath = "../shader_regression_baseline.txt";
+    static std::string baselineFilePath() {
+        if (std::filesystem::exists("build") && std::filesystem::is_directory("build")) {
+            return "build/shader_regression_baseline.txt";
         }
+        if (std::filesystem::exists("../build") && std::filesystem::is_directory("../build")) {
+            return "../build/shader_regression_baseline.txt";
+        }
+        return "/tmp/shadercandy_regression_baseline.txt";
+    }
+
+    TestResult testShaderBaselineComparison() {
+        std::string baselinePath = baselineFilePath();
         if (!std::filesystem::exists(baselinePath)) {
             return {__func__, true, "No baseline found — skipping (run tests twice to establish)", 0.0};
         }
@@ -218,7 +225,7 @@ private:
     }
 
     void saveBaseline(const std::vector<ShaderTiming> &timings) {
-        std::ofstream file("shader_regression_baseline.txt");
+        std::ofstream file(baselineFilePath());
         if (!file.is_open()) return;
         file << "# ShaderCandy Regression Baseline\n";
         for (const auto &t : timings) {
