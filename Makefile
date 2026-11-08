@@ -278,8 +278,9 @@ clean:
 	rm -rf $(BUILD_DEBUG_DIR) $(BUILD_RELEASE_DIR) $(BUILD_HARDENED_DIR) \
 		$(BUILD_ASAN_DIR) $(BUILD_TSAN_DIR) $(BUILD_UBSAN_DIR) \
 		/tmp/shadercandy-coverage /tmp/shadercandy-tsan.log \
+		/tmp/shadercandy_regression_baseline.txt \
 		scripts/__pycache__ tests/__pycache__ \
-		SHADER_CATALOG.md shadercandy-linux.tar.gz shadercandy-macos.zip shadercandy.deb
+		docs/SHADER_CATALOG.md shadercandy-linux.tar.gz shadercandy-macos.zip shadercandy.deb
 	find $(BUILD_DIR) -name '*.gcda' -delete 2>/dev/null || true
 
 distclean: clean
@@ -314,19 +315,19 @@ shader-audit:
 	$(PYTHON) tests/use_centered.py
 
 shader-catalog:
-	@echo "Generating SHADER_CATALOG.md..."
-	@echo "# Shader Catalog" > SHADER_CATALOG.md
-	@echo "" >> SHADER_CATALOG.md
-	@echo "## Available Shaders" >> SHADER_CATALOG.md
-	@echo "" >> SHADER_CATALOG.md
+	@echo "Generating docs/SHADER_CATALOG.md..."
+	@echo "# Shader Catalog" > docs/SHADER_CATALOG.md
+	@echo "" >> docs/SHADER_CATALOG.md
+	@echo "## Available Shaders" >> docs/SHADER_CATALOG.md
+	@echo "" >> docs/SHADER_CATALOG.md
 	@for shader in shaders/effects/*.frag; do \
 		name=$$(basename "$$shader" .frag); \
-		echo "### $$name" >> SHADER_CATALOG.md; \
-		echo "" >> SHADER_CATALOG.md; \
-		head -20 "$$shader" | grep "//" | sed 's|^//|-|' >> SHADER_CATALOG.md || true; \
-		echo "" >> SHADER_CATALOG.md; \
+		echo "### $$name" >> docs/SHADER_CATALOG.md; \
+		echo "" >> docs/SHADER_CATALOG.md; \
+		head -20 "$$shader" | grep "//" | sed 's|^//|-|' >> docs/SHADER_CATALOG.md || true; \
+		echo "" >> docs/SHADER_CATALOG.md; \
 	done
-	@echo "Generated SHADER_CATALOG.md."
+	@echo "Generated docs/SHADER_CATALOG.md."
 
 # ==============================================================================
 # Static Analysis & Linting (C/C++, GLSL, Shell, Python, Markdown)
