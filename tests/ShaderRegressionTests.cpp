@@ -239,7 +239,7 @@ private:
             if (std::getline(ss, name, ',') &&
                 std::getline(ss, compiled, ',') &&
                 std::getline(ss, time)) {
-                result[name] = std::stod(time);
+                result[name] = (compiled == "1") ? std::stod(time) : 0.0;
             }
         }
         return result;
