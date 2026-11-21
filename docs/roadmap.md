@@ -128,19 +128,100 @@ in this roadmap is false. Evidence uses current file:line references.
   other docs' counts and cross-references as part of this merge (references to
   `nextsteps.md` now point to this `roadmap.md`).
 
+### P0-8. The local shader gate silently skips 4 of the 114 shaders
+
+- **Evidence**: `tests/validate_shaders.sh` names each temporary output by
+  basename (`res="$tmp/$stem.frag"`). Four stems exist in both `shaders/` and
+  `shaders/effects/`: `audio_bars`, `audio_wave`, `nebula`, `plasma`. The loop
+  overwrites each earlier temp file, so only **110 unique shaders** are ever
+  compiled. The "compiled OK: 114 failed: 0" output counts loop iterations, not
+  distinct shaders.
+- **Impact**: The repo's primary shader gate has a coverage hole, and the
+  "114/114 clean" claim in this roadmap, `README.md:123`, and
+  `docs/testing.md:24` is not literally true.
+- **Fix**: Key temp files by a hash of the full path (or `dirname` relative to
+  `shaders/`) so all 114 are compiled; assert the compiled count equals the
+  discovered `.frag` count.
+
+### P0-9. macOS MPS ray-traced audio has a type-mismatch defect
+
+- **Evidence**: `src/audio/AcousticSimulator.mm:114-120` creates an
+  `MPSTriangleAccelerationStructure` and force-casts it to
+  `_accelerationStructure`, a property typed `MPSTriangleIndexBuffer *`
+  (`:16`). That value is passed as `accelerationStructure:` at `:232`. These
+  are different MPS types, so the "Ray-Traced Audio (MPS) ✅ Production Ready"
+  claim (`ShaderCandyMasterPlan.md:81,96`) is unsafe; this is likely a compile
+  error or undefined behaviour on macOS. Not verifiable on this Linux host.
+- **Impact**: A headline macOS feature may not build; the CI macOS job does not
+  exercise audio code paths with a real device.
+- **Fix**: Change the property type to `MPSTriangleAccelerationStructure *`,
+  remove the cast, and add a macOS compile gate.
+
+### P0-10. macOS wallpaper mode is documented as shipped but does not exist
+
+- **Evidence**: `ShaderCandyMasterPlan.md:42,68` marks "Wallpaper Desktop Mode
+  ✅ Production Ready (WallpaperEngine / xwinwrap)" and
+  `ApplicationModesGuide.md:23,99-120,271` documents a `WallpaperEngine` API,
+  `--wallpaper`/`--clear-wallpaper` flags and `kCGDesktopWindowLevel`. There is
+  **no** `WallpaperEngine` implementation under `src/platform/macos/`; the only
+  one is Linux (`src/platform/linux/wallpaper.cpp:74`). `CMakeLists.txt:27,668`
+  defines `BUILD_WALLPAPER` for Linux only. Zero hits for the documented flags
+  in `src/` or `osx/`.
+- **Impact**: Users following the guide cannot do what it says; docs overstate
+  macOS parity.
+- **Fix**: Either implement the macOS mode or downgrade the claim to
+  "Linux-only" and remove the API docs until it exists.
+
+### P0-11. "Runtime AVX2 dispatch" and "10 built-in CoreML styles" are false claims
+
+- **Evidence**: `ShaderCandyMasterPlan.md:52` and `README.md:8` claim runtime
+  dispatch to AVX2; `CMakeLists.txt:146-147` explicitly says the flags select a
+  *baseline*, not runtime dispatch, and default to static `-msse4.2`; AVX2 is
+  opt-in with no `__builtin_cpu_supports` check anywhere. Separately,
+  `NeuralEffectsGuide.md:40,49` advertises 10 built-in artistic styles, but the
+  repo contains **0** `.mlmodel`/`.mlmodelc` files; `StyleLibrary.mm:102-104`
+  only discovers user-imported bundled models and `:114-153` is display
+  metadata. The engine itself is real (`MetalRenderer.mm:443,1958-1963`).
+- **Impact**: Performance and feature expectations are wrong; users expect
+  styles that cannot load.
+- **Fix**: Correct the docs to "SSE4.2 baseline; AVX2 opt-in at build time"
+  and "style metadata provided; models must be supplied by the user", or ship
+  the models / add a real CPU feature check.
+
+### P0-12. Stale test counts and an incomplete Linux install
+
+- **Evidence**: `ShaderCandyMasterPlan.md:106` and `README.md:188` still claim
+  **109 tests / 10 suites**; the binary reports **140 / 12** (verified). The
+  Linux installer (`install/install_linux.sh:156-159`) copies only
+  `shaders/*.frag`, `shaders/effects/*.frag` and `shaders/base/`, omitting
+  `shaders/{music,audio,neural,system}` (13 shaders) and every `.metal` file,
+  while CMake's install rules (`CMakeLists.txt:704-711`) preserve the full
+  tree. `ShaderCandyMasterPlan.md:47` still cites the deleted
+  `shaders/base/common.metal`; `docs/shaders.md:5` says 113 shaders.
+- **Impact**: Two false status claims and an installed product missing 13
+  shader effects relative to the documented corpus.
+- **Fix**: Update the counts in these docs, make the installer copy the full
+  `shaders/` tree (or call `cmake --install`), and remove the deleted-file
+  reference.
+
 ---
 
 ### P0 status summary
 
 | ID | Area | Status |
 |---|---|---|
-| P0-1 | CI shader validation | Open |
+| P0-1 | CI shader validation job | Open |
 | P0-2 | CI benchmark no-op | Open |
 | P0-3 | fast-math vs finite uniforms | Open |
 | P0-4 | CI workflow consolidation / real gates | Open |
 | P0-5 | Time-wrap drift fix incomplete | Open |
 | P0-6 | Coverage gate not enforced | Open |
 | P0-7 | Stale doc counts/claims | Partially addressed by this merge |
+| P0-8 | Local shader gate skips 4 shaders | Open |
+| P0-9 | macOS MPS acceleration-structure type | Open |
+| P0-10 | macOS wallpaper mode does not exist | Open |
+| P0-11 | AVX2 / CoreML style false claims | Open |
+| P0-12 | Test counts / incomplete Linux install | Open |
 
 Everything below is historical context and completed work, retained for the
 rationale behind the current code. New work should start from Part 0.
