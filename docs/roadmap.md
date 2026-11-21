@@ -206,22 +206,96 @@ in this roadmap is false. Evidence uses current file:line references.
 
 ---
 
+### P0-13. HeadlessRenderer and MultiDisplayManager are simulations, not implementations
+
+- **Evidence**: `MultiDisplayManager.cpp:25-41` always reports one hard-coded
+  1920×1080 display (no X11/Wayland/AppKit enumeration); `:286-303`
+  `renderToBuffer()` fills a synthetic gradient and ignores `currentShader_`;
+  `:381-383` `getAvailableGPUs()` returns two hard-coded strings. Neither
+  class is referenced outside its own file except by tests
+  (`RendererFeatureTests.cpp:269,303`, `CoverageExpansionTests.cpp`). Docs
+  claim "headless offscreen rendering with ffmpeg video encoding" and
+  "Multi-Display Spanning Production Ready".
+- **Impact**: Documented features produce wrong output (gradient, not shader)
+  or fake data; the 140-test count includes tests that validate simulations.
+- **Fix**: Either implement real rendering/enumeration or downgrade the docs
+  and remove the tautological tests (`RendererFeatureTests.cpp:386-485`).
+
+### P0-14. Metal VRS and three roadmap APIs are stubs / never called
+
+- **Evidence**: `MetalRenderer.mm:326` sets `_variableRateShadingEnabled = NO`
+  and nothing sets it YES, so the VRS branches at `:2232-2241,2371-2379` are
+  dead; `setupMotionAdaptiveVRSRateMap:motionMagnitude:` (`:2201-2218`)
+  always `return nil`. Three more methods are declared (`MetalRenderer.h:325,330,331`)
+  and defined (`MetalRenderer.mm:2157-2199`) but never called anywhere.
+- **Impact**: "Variable Rate Shading ✅ Production Ready" and the mesh/indirect
+  command-buffer roadmap claims are false.
+- **Fix**: Implement or remove the stubs and correct
+  `ShaderCandyMasterPlan.md:75,91`.
+
+### P0-15. Tautological "Simulation" tests inflate the test count
+
+- **Evidence**: `RendererFeatureTests.cpp:386-398,400-408,432-446,448-485`
+  assert locally recomputed constants (e.g. `clusterTriangles=128 <= 256`,
+  `recordedCommands[i]=(i+1)*16`, sum==160) and never call the production APIs
+  they claim to test. `ShaderCandyMasterPlan.md:106` and `README.md:188` then
+  cite 109/140 tests as evidence of coverage.
+- **Impact**: The green suite is weaker than reported; "140/140 pass" is not
+  a meaningful quality signal for those features.
+- **Fix**: Rewrite these tests against the real APIs or remove them and adjust
+  the count.
+
+### P0-16. Dead build defines and an unconditional ALSA include
+
+- **Evidence**: `CMakeLists.txt` defined `HAS_PULSEAUDIO`, `HAS_ALSA`,
+  `USE_GLEW` but no source ever read them (verified full-tree grep). Meanwhile
+  `src/audio/AudioInput_Linux.cpp:11` includes `<alsa/asoundlib.h>` and calls
+  `snd_pcm_open()` (`:48`) unconditionally, even when CMake selected
+  PulseAudio and skipped ALSA detection (`CMakeLists.txt:69-97`). The defines
+  were removed in this commit; the include is still unconditional.
+- **Impact**: A false impression of backend selection; potential build failure
+  on PulseAudio-only systems without ALSA headers.
+- **Fix**: Guard the ALSA include behind a real `HAS_ALSA` define that CMake
+  actually sets, or make the audio backend selection genuinely conditional.
+
+### P0-17. Orphaned/duplicate packaging and macOS test double-registration
+
+- **Evidence**: `package/usr/share/shadercandy/shaders/` is a stale 146-file
+  copy differing from the live tree; three duplicate DMG scripts
+  (`osx/build_dmg.sh`, `osx/scripts/create_dmg.sh`, `scripts/create_dmg.sh`);
+  unreferenced entitlements (`osx/ShaderCandy*.entitlements`); duplicate
+  `debian/` and `linux/debian/` trees; `tests/main.mm:10` includes
+  `MetalCompilationTests.mm` while `CMakeLists.txt:797` also compiles it
+  separately, registering the suite twice on macOS.
+- **Impact**: Multiple sources of truth; packaging can ship stale shaders; macOS
+  test count doubled.
+- **Fix**: Delete orphans, consolidate packaging, and deduplicate the test
+  registration.
+
 ### P0 status summary
 
 | ID | Area | Status |
 |---|---|---|
 | P0-1 | CI shader validation job | Open |
 | P0-2 | CI benchmark no-op | Open |
-| P0-3 | fast-math vs finite uniforms | Open |
-| P0-4 | CI workflow consolidation / real gates | Open |
-| P0-5 | Time-wrap drift fix incomplete | Open |
-| P0-6 | Coverage gate not enforced | Open |
-| P0-7 | Stale doc counts/claims | Partially addressed by this merge |
-| P0-8 | Local shader gate skips 4 shaders | Open |
-| P0-9 | macOS MPS acceleration-structure type | Open |
-| P0-10 | macOS wallpaper mode does not exist | Open |
-| P0-11 | AVX2 / CoreML style false claims | Open |
-| P0-12 | Test counts / incomplete Linux install | Open |
+| P0-3 | fast-math vs finite uniforms | Implemented (CMake) |
+| P0-4 | CI workflow consolidation / real gates | Implemented (ci.yml) |
+| P0-5 | Time-wrap drift fix incomplete | Partially implemented (106 shaders wrapped) |
+| P0-6 | Coverage gate not enforced | Implemented (ci.yml) |
+| P0-7 | Stale doc counts/claims | Partially addressed |
+| P0-8 | Local shader gate skips 4 shaders | Implemented (validate_shaders.sh) |
+| P0-9 | macOS MPS acceleration-structure type | Implemented (AcousticSimulator.mm) |
+| P0-10 | macOS wallpaper mode does not exist | Doc corrected |
+| P0-11 | AVX2 / CoreML style false claims | Doc corrected |
+| P0-12 | Test counts / incomplete Linux install | Partially implemented (install script) |
+| P0-13 | HeadlessRenderer/MultiDisplayManager fake | Open (doc downgrade pending) |
+| P0-14 | Metal VRS / roadmap APIs stubs | Open |
+| P0-15 | Tautological simulation tests | Open |
+| P0-16 | Dead defines + unconditional ALSA include | Partially implemented |
+| P0-17 | Orphaned/duplicate packaging + test dup | Open |
+
+Everything below is historical context and completed work, retained for the
+rationale behind the current code. New work should start from Part 0.
 
 Everything below is historical context and completed work, retained for the
 rationale behind the current code. New work should start from Part 0.
