@@ -840,7 +840,9 @@ if(BUILD_TESTS)
     
     if(BUILD_OPENGL)
         target_link_libraries(shadercandy-test PRIVATE shadercandy_gl)
-        target_sources(shadercandy-test PRIVATE src/platform/linux/GLShaderProgram.cpp)
+        if(LINUX)
+            target_sources(shadercandy-test PRIVATE src/platform/linux/GLShaderProgram.cpp)
+        endif()
     endif()
 
     if(BUILD_AUDIO_ACTUAL)

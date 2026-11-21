@@ -1,7 +1,14 @@
 #pragma once
 
 #include "../core/ShaderInterop.h"
+#if defined(__APPLE__)
+#ifndef GL_SILENCE_DEPRECATION
+#define GL_SILENCE_DEPRECATION
+#endif
+#include <OpenGL/gl3.h>
+#else
 #include "../platform/linux/GLLoader.h"
+#endif
 #include <array>
 #include <string>
 #include <unordered_map>

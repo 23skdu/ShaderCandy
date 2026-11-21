@@ -10,8 +10,10 @@
 #include <sys/stat.h>
 
 #if defined(__APPLE__)
-#include <OpenGL/gl3.h>
+#ifndef GL_SILENCE_DEPRECATION
 #define GL_SILENCE_DEPRECATION
+#endif
+#include <OpenGL/gl3.h>
 #elif defined(__linux__)
 #include "../platform/linux/GLLoader.h"
 #include <GL/gl.h>
