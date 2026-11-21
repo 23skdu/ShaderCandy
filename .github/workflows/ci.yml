@@ -18,150 +18,81 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake \
-            libx11-dev libxss-dev libxmu-dev \
+            build-essential cmake ninja-build \
+            libx11-dev libxss-dev libxmu-dev libxxf86vm-dev libxi-dev libxrandr-dev \
             libgl-dev libpulse-dev libfftw3-dev \
-            pkg-config valgrind clang-tidy
-
-      - name: Cache build
-        uses: actions/cache@v4
-        with:
-          path: build
-          key: ${{ runner.os }}-build-${{ hashFiles('CMakeLists.txt') }}
-          restore-keys: ${{ runner.os }}-build-
+            pkg-config valgrind clang-tidy clang-format cppcheck \
+            glslc shaderc spirv-tools
 
       - name: Configure
-        run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
+        run: make configure
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: make build
 
       - name: Run tests
-        run: |
-          cd build
-          if [ -f shadercandy-test ]; then
-            ./shadercandy-test
-          fi
+        run: make test-all
 
-      - name: Lint with clang-tidy
-        run: |
-          clang-tidy src/core/*.cpp src/core/*.h \
-            -p build --warnings-as-errors=warning 2>&1 || true
+      - name: Lint
+        run: make lint
 
-      - name: Check for memory leaks (valgrind)
-        run: |
-          cd build
-          if [ -f shadercandy-test ]; then
-            valgrind --leak-check=full \
-              --track-origins=yes \
-              --errors-for-leak-kinds=none \
-              --suppressions=../.valgrind.supp \
-              ./shadercandy-test
-            EXIT_CODE=$?
-            # Check for invalid reads/writes/uses (actual bugs), not system library leaks
-            if [ $EXIT_CODE -ne 0 ]; then
-              echo "Valgrind detected memory errors (not system library leaks)"
-              exit 1
-            fi
-          fi
+      - name: Security
+        run: make security
+
+      - name: Shader validation
+        run: make validate-shaders
+
+      - name: Accuracy gate
+        run: make accuracy-gate
+
+      - name: Performance / SIMD gate
+        run: make perf-check
+
+      - name: Valgrind
+        run: make mem-valgrind
 
   build-asan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake \
-            libx11-dev libxss-dev libxmu-dev \
-            libgl-dev libpulse-dev libfftw3-dev \
-            pkg-config
-
-      - name: Configure with AddressSanitizer
-        run: |
-          mkdir -p build-asan && cd build-asan
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
-
-      - name: Build
-        run: cmake --build build-asan -j$(nproc)
-
-      - name: Run tests under ASAN
-        run: |
-          cd build-asan
-          if [ -f shadercandy-test ]; then
-            ./shadercandy-test
-          fi
+          sudo apt-get install -y build-essential cmake libx11-dev libxss-dev libxmu-dev libgl-dev libpulse-dev libfftw3-dev pkg-config
+      - name: Configure + build with ASan
+        run: make mem-asan
 
   build-tsan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake \
-            libx11-dev libxss-dev libxmu-dev \
-            libgl-dev libpulse-dev libfftw3-dev \
-            pkg-config
-
-      - name: Configure with ThreadSanitizer
-        run: |
-          mkdir -p build-tsan && cd build-tsan
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
-
-      - name: Build
-        run: cmake --build build-tsan -j$(nproc)
-
-      - name: Run tests under TSAN
-        run: |
-          cd build-tsan
-          if [ -f shadercandy-test ]; then
-            ./shadercandy-test
-          fi
+          sudo apt-get install -y build-essential cmake libx11-dev libxss-dev libxmu-dev libgl-dev libpulse-dev libfftw3-dev pkg-config
+      - name: Configure + build with TSan
+        run: make mem-tsan
 
   build-ubsan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake \
-            libx11-dev libxss-dev libxmu-dev \
-            libgl-dev libpulse-dev libfftw3-dev \
-            pkg-config
+          sudo apt-get install -y build-essential cmake libx11-dev libxss-dev libxmu-dev libgl-dev libpulse-dev libfftw3-dev pkg-config
+      - name: Configure + build with UBSan
+        run: make mem-ubsan
 
-      - name: Configure with UBSan
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
         run: |
-          mkdir -p build-ubsan && cd build-ubsan
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
-
-      - name: Build
-        run: cmake --build build-ubsan -j$(nproc)
-
-      - name: Run tests under UBSAN
-        run: |
-          cd build-ubsan
-          if [ -f shadercandy-test ]; then
-            ./shadercandy-test
-          fi
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libx11-dev libxss-dev libxmu-dev libgl-dev libpulse-dev libfftw3-dev pkg-config gcov
+      - name: Coverage gate
+        run: make coverage-gate

@@ -80,6 +80,10 @@ TREE_B  ?= shaders
 	makehooks install-commit-hook install-hooks verify pre-commit \
 	install uninstall docs package-tar package-deb
 
+# Convenience aliases for the CI gates
+accuracy: accuracy-gate
+perf-gate: perf-check
+scan: lint security accuracy-gate perf-check
 # Default target
 all: build
 
