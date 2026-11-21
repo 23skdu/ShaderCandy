@@ -2,7 +2,7 @@
 
 This document provides a complete catalog of all available shaders in ShaderCandy, organized by category.
 
-**Total Shaders:** 113 unique effects  
+**Total Shaders:** 113 unique shaders with **100% GLSL / Metal parity** (117 `.frag` files and 114 standalone `.metal` files + `base/utils.metal`)  
 **Platforms:** macOS (Metal), Linux (OpenGL/GLSL)  
 **Build Requirements:** CMake 3.20+, C++17
 
@@ -1139,7 +1139,7 @@ Dynamic storm with lightning, clouds, and heavy rain.
 ---
 
 ### Waterfall
-**File:** `waterfall.metal` / `waterfall.frag`
+**File:** `effects/waterfall.metal` / `waterfall.frag`
 
 Cascading waterfall with mist, spray, and rocky surroundings.
 
@@ -1148,6 +1148,42 @@ Cascading waterfall with mist, spray, and rocky surroundings.
 - Mist and spray
 - Rock formations
 - Ambient moisture
+
+---
+
+### Clouds
+**File:** `effects/clouds.metal` / `effects/clouds.frag`
+
+Volumetric raymarched 3D FBM cloudscape with atmospheric sky gradient and directional sun glow.
+
+**Features:**
+- 48-step volumetric raymarching through 3D FBM noise
+- Density-based soft lighting and sky blending
+- Directional sun glow
+
+---
+
+### Default
+**File:** `effects/default.metal` / `effects/default.frag`
+
+Classic multi-layered plasma fractal with 6-octave FBM turbulence, smooth sine color mapping, and subtle vignette.
+
+**Features:**
+- Layered sinusoidal plasma waves + 2D FBM
+- Smooth RGB phase cycling and glow
+- Vignette framing
+
+---
+
+### SMPTE Calibration
+**File:** `effects/smpte_calibration.metal` / `effects/smpte_calibration.frag`
+
+8-bar 75% SMPTE color bars with bottom black gradient ramp for HDR and SDR display calibration.
+
+**Features:**
+- 8-bar 75% SMPTE reference pattern (white, yellow, cyan, green, magenta, red, blue, black)
+- Bottom 5% black level gradient ramp
+- Intensity / peak brightness scaling
 
 ---
 
@@ -1561,17 +1597,18 @@ layout(std140) uniform Uniforms {
 ```
 shaders/
 ├── base/
-│   ├── common.glsl      # GLSL common definitions
-│   ├── common.metal     # Metal common definitions
-│   ├── utils.metal      # Metal utility functions
-│   └── default.metal    # Default shader
-├── effects/             # Visual effects (52 shaders)
-├── music/               # Music-reactive (10 shaders)
-├── audio/               # Audio visualization (1 shader)
-├── neural/              # Neural network effects (1 shader)
+│   ├── common.glsl      # GLSL common definitions & helpers
+│   ├── vertex.glsl      # GLSL fullscreen vertex shader
+│   ├── utils.metal      # Metal utility functions & constants
+│   └── default.metal    # Default fallback Metal shader
+├── effects/             # Visual effects (Metal & GLSL)
+├── music/               # Music-reactive (10 shaders, Metal & GLSL)
+├── audio/               # Audio ray tracing (Metal & GLSL)
+├── neural/              # Neural style blend (Metal & GLSL)
 ├── system/
-│   └── debug_overlay.metal  # Debug visualization
-└── [root]/              # Classic & character shaders (49 shaders)
+│   ├── debug_overlay.metal  # Debug visualization (Metal)
+│   └── debug_overlay.frag   # Debug visualization (GLSL)
+└── [root]/              # Classic & character GLSL shaders (49 shaders)
 ```
 
 ---

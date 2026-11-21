@@ -20,6 +20,7 @@ sudo cmake --install .
 ## Dependencies
 
 - **Build**: CMake 3.20+, C++17 compiler, pkg-config
+- **macOS (Homebrew)**: Run `make brew-deps` to install `cmake`, `ninja`, `pkg-config`, `clang-format`, `cppcheck`, `shaderc` (`glslc`), `glslang` (`glslangValidator`), `doxygen`, `llvm` (`clang-tidy`, `scan-build`), `ccache`, `shellcheck`, and `markdownlint-cli`. Then build with `make build` (or `make build-ninja` for Ninja + ccache) and verify with `make test-metal` and `make validate-shaders`.
 - **Linux**: libx11-dev, libxss-dev, libgl-dev, libpulse-dev, libfftw3-dev
 - **Optional**: GLFW (for standalone player), Wayland dev libs (for Wayland mode)
 

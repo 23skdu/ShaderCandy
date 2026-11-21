@@ -462,7 +462,7 @@ flowchart TD
     Results --> Format["Console Summary & Exit Code Report"]
 
     subgraph "Verification Gates (tests/)"
-        Gate1["validate_shaders.sh\n114/114 .frag compile"]
+        Gate1["validate_shaders.sh + validate-metal\n117/117 .frag + 114/114 .metal compile"]
         Gate2["lint.sh\nclang-tidy, clean"]
         Gate3["coverage.sh\ngcov summary, 95.43%"]
         Gate4["tsan.sh\n0 races in src/ and tests/"]

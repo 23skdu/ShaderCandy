@@ -21,7 +21,9 @@ Related documents:
 | Build and run all tests | `cmake --build build --target shadercandy-test && ./build/shadercandy-test` | 140 passed, 0 failed |
 | Run one suite | `./build/shadercandy-test --run "Concurrency Tests"` | — |
 | List suites | `./build/shadercandy-test --list` | — |
-| Validate every shader | `tests/validate_shaders.sh` | 114 compiled, 0 failed |
+| Validate every shader | `make validate-shaders` (`tests/validate_shaders.sh` + Metal runtime) | 117 `.frag` + 114 `.metal` compiled, 0 failed |
+| Validate Metal suites (macOS) | `make test-metal` | 123 Metal/Audio/Neural/Uniform tests passed |
+| Validate GLSL with glslang | `make validate-glslang` | 0 errors |
 | Lint | `tests/lint.sh` | no warnings |
 | Coverage | `tests/coverage.sh` | see [Coverage](#coverage) |
 | Race detection | `tests/tsan.sh` | 0 races in project code |
@@ -81,7 +83,7 @@ Pass `--no-build` to reuse an existing instrumented build.
 |--------|-------|
 | Project line coverage | **95.43%** (7905 / 8282) |
 | Files at 100% | 17 of 37 |
-| Shaders compiling | 114 / 114 |
+| Shaders compiling | 117 / 117 GLSL `.frag`, 114 / 114 Metal `.metal` (113 unique shaders, 100% parity) |
 | Tests | 140 / 140 |
 
 Coverage counts only `src/`, `tests/` and `tools/`. System headers pulled in
@@ -240,12 +242,17 @@ are a toolchain packaging artifact, not defects.
 ## Shader validation
 
 ```bash
-tests/validate_shaders.sh
+make validate-shaders     # Validates all 117 GLSL .frag shaders (glslc) + all 114 Metal shaders on macOS
+make validate-glslang     # Validates GLSL with Khronos glslangValidator
+make validate-metal       # Validates all 114 standalone Metal shaders via xcrun metal or Metal runtime
+make test-metal           # Runs Metal Compilation, Audio & Neural, and Property Uniform suites (macOS)
 ```
 
-Compiles all 114 `.frag` shaders with `glslc` through the same `#include`
+`tests/validate_shaders.sh` compiles all 117 `.frag` shaders with `glslc` through the same `#include`
 resolution the renderer uses, so a shader that passes here is one the renderer
-can load. **This must stay at 114/114** after any shader edit.
+can load. On macOS, `make validate-metal` compiles all 114 standalone `.metal` shaders
+plus `shaders/base/utils.metal` and `src/core/ShaderInterop.h`. **All 117 GLSL and 114 Metal shaders
+(113 unique effects at 100% GLSL ↔ Metal parity) must compile with 0 failures** after any shader edit.
 
 ---
 

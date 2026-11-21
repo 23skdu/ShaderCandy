@@ -75,8 +75,9 @@ for f in $(find "$SRC" -name '*.frag' | sort); do
   } > "$tmp/${stem}_${tag}.wrapped.frag"
   # shaderc demands an explicit binding on uniform blocks; Mesa does not.
   # Patch the throwaway copy only, never the source.
-  sed -i -E 's/^layout\(std140\) uniform ([A-Za-z_][A-Za-z0-9_]*) \{/layout(std140, binding = 0) uniform \1 {/' \
-    "$tmp/${stem}_${tag}.wrapped.frag"
+  sed -E 's/^layout\(std140\) uniform ([A-Za-z_][A-Za-z0-9_]*) \{/layout(std140, binding = 0) uniform \1 {/' \
+    "$tmp/${stem}_${tag}.wrapped.frag" > "$tmp/${stem}_${tag}.wp1.frag" \
+    && mv "$tmp/${stem}_${tag}.wp1.frag" "$tmp/${stem}_${tag}.wrapped.frag"
   # shaderc also wants an explicit location on loose (non-opaque) uniforms;
   # Mesa assigns them implicitly. Number them per file, test copy only.
   awk '/^uniform (float|int|vec[234]|mat[234]) [A-Za-z_][A-Za-z0-9_]*.*;/ {
@@ -97,7 +98,7 @@ for f in $(find "$SRC" -name '*.frag' | sort); do
   fi
 done
 
-discovered=$(find "$SRC" -name '*.frag' | wc -l)
+discovered=$(find "$SRC" -name '*.frag' | wc -l | tr -d ' ')
 echo "compiled OK: $pass   failed: $fail   discovered: $discovered"
 if [ "$pass" -ne "$discovered" ]; then
   echo "FAIL: only $pass of $discovered shaders compiled (silent-skip guard tripped)."
