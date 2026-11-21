@@ -1,16 +1,149 @@
-# ShaderCandy next steps and stabilization plan
+# ShaderCandy roadmap: P0 priorities, stabilization, and optimization
 
-This document captures the post-audit optimization plan for the ShaderCandy
-renderer. It has two parts:
+This is the single consolidated engineering roadmap for ShaderCandy. It merges
+the former `docs/nextsteps.md` (Parts 1-3) with a new deep-analysis pass and
+adds a **Part 0 - P0 priorities** section that must be addressed before further
+optimization work.
 
-* **Part 1** — the original stabilization pass (items 1-10), which is complete.
-* **Part 2** — the shader/SIMD performance pass. This is the current work.
+* **Part 0** — P0 gaps, dead code, and correctness problems found in the
+  November 2026 deep analysis (this is the active work).
+* **Part 1** — the original stabilization pass (items 1-10), complete.
+* **Part 2** — the shader/SIMD performance pass; most items complete.
+* **Part 3** — verification: coverage, races, lint; complete.
 
-Part 2 is grounded in a review of all 114 GLSL fragment shaders and 116 Metal
-shaders, the shared shader libraries, the GLSL include/preamble pipeline, the
-OpenGL render loop, the CPU-side audio analysis path, and the build flags. Every
-quantified claim below was either measured on hardware with
-`build/shadercandy-bench` or is explicitly labelled as an analytical estimate.
+Part 2 is grounded in a review of all **114 GLSL fragment shaders** and
+**115 Metal shaders** on disk (the old "116 Metal" and "72 Metal shaders"
+figures in this document were stale), the shared shader libraries, the GLSL
+include/preamble pipeline, the OpenGL render loop, the CPU-side audio analysis
+path, and the build flags. Every quantified claim was either measured on
+hardware with `build/shadercandy-bench` or is explicitly labelled as an
+analytical estimate. Where a claim below was checked against the current tree
+and found stale, Part 0 records the correction rather than silently rewriting
+history.
+
+---
+
+## Part 0 - P0 priorities (deep analysis, 2026-11-21)
+
+These are release-blocking gaps found by auditing the tree against its own
+docs, build files, and CI. Each item is **P0** because it either means CI is
+not actually testing what it claims, or a user-visible correctness guarantee
+in this roadmap is false. Evidence uses current file:line references.
+
+### P0-1. CI shader validation job compiles shaders the wrong way and is not a real gate
+
+- **Evidence**: `.github/workflows/build.yml:139-144` runs
+  `glslangValidator -S frag "$shader"` directly on `shaders/effects/*.frag`.
+  Those files use `#include "base/common.glsl"` (e.g.
+  `shaders/effects/plasma.frag:3`), which glslangValidator cannot resolve from
+  the shader's own directory; there is no `-I shaders` and no include callback.
+  The project's real gate, `tests/validate_shaders.sh`, expands includes with
+  Python and compiles with `glslc` — and it is **not called by either CI
+  workflow**.
+- **Impact**: The shader job fails for the wrong reason (missing include)
+  while the actual 114/114 compile check never runs in CI. A shader regression
+  can merge green.
+- **Fix**: Replace the loop with `GLSC=glslc ./tests/validate_shaders.sh`
+  (install `glslc`/shaderc in the job), and keep the 114/114 assertion.
+
+### P0-2. CI benchmark job is a silent no-op
+
+- **Evidence**: `.github/workflows/build.yml:201` runs
+  `./shadercandy-test --benchmark`, but `tests/main.cpp:19-70` implements only
+  `--help`, `--list`, and `--run`. The binary prints `Unknown option:
+  --benchmark` and exits non-zero; because the command is piped to `tee`, the
+  exit status is masked. The following `grep -q "regression"` can never match,
+  so the job always succeeds while measuring nothing.
+- **Impact**: "Performance regression detection" in CI is fictional.
+- **Fix**: Run the real benchmark (`tests/run_benchmarks.sh` or
+  `tests/full_bench.sh` via `build.shadercandy-bench`), or add a `--benchmark`
+  mode to the test binary; use `set -o pipefail` and a real perf gate.
+
+### P0-3. Global `-O3 -ffast-math` invalidates the finite-uniform guarantees
+
+- **Evidence**: `CMakeLists.txt:12-16` applies `-O3 -ffast-math` to **all**
+  build types, including Debug and every sanitizer build. Part 1 item 4 and
+  `src/core/UniformBuffer.cpp:11` `sanitizeFinite()` depend on well-defined
+  `isfinite`/NaN/Inf behaviour; `clang-tidy` reports `use of infinity is
+  undefined behavior due to the currently enabled floating-point options` at
+  `UniformBuffer.cpp:12`. `-O3` also degrades sanitizer diagnostics.
+- **Impact**: The "finite uniforms" safety property is compiler-undefined in
+  the shipped binary; Debug builds are not debug builds.
+- **Fix**: Apply `-ffast-math` only to Release, use `-O0 -g` for Debug, and
+  never combine fast-math with the sanitizer build types (or drop `-ffast-math`
+  entirely for the core math path and measure before restoring it).
+
+### P0-4. Two overlapping CI workflows with divergent, partially disabled gates
+
+- **Evidence**: `.github/workflows/ci.yml` and `.github/workflows/build.yml`
+  both trigger on push to `main` and PR. `ci.yml:48-51` runs clang-tidy with
+  `|| true` and lints only `src/core/*`; `build.yml:164-168` runs
+  `clang-format --dry-run --Werror` although the repo has **no `.clang-format`**
+  (the config itself states formatting is not enforced); `build.yml:172-175`
+  ends its cppcheck step with `|| true`; `ci.yml:59` uses
+  `--errors-for-leak-kinds=none` in a job named "Check for memory leaks".
+- **Impact**: CI cost is doubled and no lint/format/leak gate actually blocks a
+  merge. The repo's enforced gates (`tests/lint.sh`, `tests/tsan.sh`,
+  `tests/coverage.sh`) are never run in CI.
+- **Fix**: Consolidate to one workflow; call the repo's own gates
+  (`tests/lint.sh`, `tests/validate_shaders.sh`, `tests/tsan.sh` with its
+  suppression file, Valgrind with `--error-exitcode=1`); drop or commit a real
+  `.clang-format` before re-enabling that check.
+
+### P0-5. Long-session time-wrapping fix claimed DONE is mostly absent
+
+- **Evidence**: Section 2.8 and Phase 4 item 12 claim
+  `mod(time, 3600.0)` was applied "across all time-dependent shaders". Only
+  **10** shader files currently wrap `time`; **30+** files still use an
+  unbounded `time` uniform directly (e.g. `shaders/effects/voronoi_cells.frag`,
+  `shaders/effects/particles.frag`, `shaders/effects/julia_4d.frag`,
+  `shaders/gradient_waves.frag`).
+- **Impact**: The noise-freezing/banding bug described in 2.8 still occurs in
+  most shaders after ~3 hours — a user-visible correctness defect.
+- **Fix**: Either complete the wrap across all time-dependent shaders (with
+  pixel-identity checks where animation cycles allow it) or correct this
+  roadmap to say the fix is partial and track it as an open P1.
+
+### P0-6. Coverage is reported but never enforced
+
+- **Evidence**: `tests/coverage.sh` intentionally exits 0 regardless of
+  percentage; `docs/testing.md:18-27` and Part 3.3 report **95.43%**; neither
+  CI workflow has a coverage step. The `coverage-gate` Make target (>= 90%) is
+  never invoked automatically.
+- **Impact**: "95.43% coverage" is an observation, not a regression gate; a
+  future change can silently drop coverage.
+- **Fix**: Add `make coverage-gate` to the consolidated CI workflow.
+
+### P0-7. Stale documentation claims that mislead maintainers
+
+- **Evidence**: (a) Section 2.6.11 says `USE_AVX2`/`USE_NEON` are "never
+  referenced", but `src/core/MathUtils.h:18,24` uses both. (b) The intro said
+  "116 Metal shaders" and Phase 4 item 13 said "all 72 Metal shaders"; the tree
+  has **115** `.metal` files, of which **85** include `utils.metal`. (c) Section
+  2.7 lists 12 bugs as if open, while Phase 4 marks items 1, 3, 4, 6, 7, 8,
+  11, 12 DONE. (d) `docs/shaders.md:5` says 113 shaders; README says 110+.
+- **Impact**: The roadmap contradicts the code and other docs, so "what is
+  done" cannot be trusted.
+- **Fix**: Treat this Part 0 as the authority on current status; update the
+  other docs' counts and cross-references as part of this merge (references to
+  `nextsteps.md` now point to this `roadmap.md`).
+
+---
+
+### P0 status summary
+
+| ID | Area | Status |
+|---|---|---|
+| P0-1 | CI shader validation | Open |
+| P0-2 | CI benchmark no-op | Open |
+| P0-3 | fast-math vs finite uniforms | Open |
+| P0-4 | CI workflow consolidation / real gates | Open |
+| P0-5 | Time-wrap drift fix incomplete | Open |
+| P0-6 | Coverage gate not enforced | Open |
+| P0-7 | Stale doc counts/claims | Partially addressed by this merge |
+
+Everything below is historical context and completed work, retained for the
+rationale behind the current code. New work should start from Part 0.
 
 ---
 

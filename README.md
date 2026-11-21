@@ -176,7 +176,7 @@ ShaderCandy ships with **110+ shaders** across multiple categories:
 * `docs/ShaderAuthoringGuide.md` -- Developer guide for creating and translating shaders (Metal & GLSL)
 * `docs/LinuxFeatures.md` -- Linux platform architecture, Wayland/X11 details, and build instructions
 * `docs/HdrImplementation.md` -- High-bit-depth rendering and tone mapping documentation
-* `docs/nextsteps.md` -- Active performance and stability engineering roadmap
+* `docs/roadmap.md` -- Active performance and stability engineering roadmap
 * `docs/release_notes_0_1_0.md` -- v0.1.0 release notes
 * `docs/release_notes_0_2_0.md` -- v0.2.0 release notes
 * `docs/NeuralEffectsGuide.md` -- CoreML neural style transfer engine guide (macOS-only)

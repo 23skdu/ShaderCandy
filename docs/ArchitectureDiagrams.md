@@ -94,7 +94,7 @@ The watcher thread deliberately issues no `gl*` call. OpenGL commands submitted
 from a thread that does not own the context, concurrently with the render
 thread's draw calls, are undefined behaviour; this was a live crash source
 until ThreadSanitizer surfaced it. All GL work is therefore funnelled through
-`render()`. See [nextsteps.md](./nextsteps.md) section 3.1 and
+`render()`. See [roadmap.md](./roadmap.md) section 3.1 and
 [LinuxFeatures.md](./LinuxFeatures.md#hot-reload-threading).
 
 ---
@@ -504,7 +504,7 @@ graph TD
     Src --> Audio["audio/ (AudioInput, AudioUtils, AcousticSimulator)"]
     Src --> Config["config/ (ConfigurationManager, Presets)"]
 
-    Docs --> D1["nextsteps.md (Active Roadmap)"]
+    Docs --> D1["roadmap.md (Active Roadmap)"]
     Docs --> D2["ShaderCandyMasterPlan.md (Architecture Master)"]
     Docs --> D3["ArchitectureDiagrams.md (This Document)"]
     Docs --> D4["ApplicationModesGuide.md (User Guide)"]

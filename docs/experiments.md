@@ -246,7 +246,7 @@ allocator's dependence analysis. The gain is real and matches E2.
    hoist it" unless it is going into a loop; per-iteration vector math is
    already fine.
 4. This makes the CPU-uniform-array recommendations in
-   `docs/nextsteps.md` 2.6.1 (upload `uSparks[24]` etc.) **lower** priority
+   `docs/roadmap.md` 2.6.1 (upload `uSparks[24]` etc.) **lower** priority
    than they first appear: a global `vec3 arr[24]` filled per fragment
    captures most of the same benefit without touching the host uniform ABI.
    The CPU-uniform route remains valuable only where the table is large enough

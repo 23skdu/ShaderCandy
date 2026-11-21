@@ -109,7 +109,7 @@ A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapc
 
 ## Roadmap & Future Work
 
-Detailed engineering objectives are maintained in **[nextsteps.md](./nextsteps.md)**. All 8 original roadmap items are now completed, plus additional Linux GL features (transition system, post-processing, adaptive quality, smart rotation). Current focus areas include expanding test coverage, improving documentation, and community distribution channels.
+Detailed engineering objectives are maintained in **[roadmap.md](./roadmap.md)**. All 8 original roadmap items are now completed, plus additional Linux GL features (transition system, post-processing, adaptive quality, smart rotation). Current focus areas include expanding test coverage, improving documentation, and community distribution channels.
 
 ---
 
@@ -117,7 +117,7 @@ Detailed engineering objectives are maintained in **[nextsteps.md](./nextsteps.m
 
 | Document | Purpose |
 | :--- | :--- |
-| **[nextsteps.md](./nextsteps.md)** | Active engineering roadmap and keyboard controls reference |
+| **[roadmap.md](./roadmap.md)** | Active engineering roadmap and keyboard controls reference |
 | **[ArchitectureDiagrams.md](./ArchitectureDiagrams.md)** | Visual diagrams of rendering, display spanning, audio, and core pipelines |
 | **[ApplicationModesGuide.md](./ApplicationModesGuide.md)** | User guide for Standalone Player, Wallpaper Mode, and Screensaver on macOS and Linux |
 | **[ShaderAuthoringGuide.md](./ShaderAuthoringGuide.md)** | Developer guide for creating and translating shaders across Metal and GLSL |

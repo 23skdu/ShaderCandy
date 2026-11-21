@@ -23,4 +23,4 @@ Our updated Master Plan places all core rendering, standalone apps, and screensa
 > **Note:** v0.2.0 has been released with many of these improvements. See [release_notes_0_2_0.md](./release_notes_0_2_0.md) for details.
 
 ---
-*For a complete architectural overview and future steps, see [ArchitectureDiagrams.md](./ArchitectureDiagrams.md), [ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md), and [nextsteps.md](./nextsteps.md).*
+*For a complete architectural overview and future steps, see [ArchitectureDiagrams.md](./ArchitectureDiagrams.md), [ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md), and [roadmap.md](./roadmap.md).*

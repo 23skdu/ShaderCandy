@@ -6,7 +6,7 @@ clang-tidy is configured.
 
 Related documents:
 
-- [`nextsteps.md`](nextsteps.md) — the optimisation work that motivated the
+- [`roadmap.md`](roadmap.md) — the optimisation work that motivated the
   current race-hardening, and its measurements.
 - [`experiments.md`](experiments.md) — raw measurement log (E1–E10).
 - [`LinuxFeatures.md`](LinuxFeatures.md) — platform behaviour, including hot
@@ -266,4 +266,4 @@ These tools exist because whole-corpus before/after timing is worthless here
 `ShaderBenchmark` requires `-time <seconds>` to pin animation time;
 without it every animated shader looks like a regression.
 
-See [`nextsteps.md`](nextsteps.md) for what these were used to establish.
+See [`roadmap.md`](roadmap.md) for what these were used to establish.

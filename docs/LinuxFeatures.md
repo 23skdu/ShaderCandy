@@ -299,7 +299,7 @@ The watcher never issues a `gl*` call. This is not a stylistic preference:
 submitting GL commands from a thread that does not own the context, while the
 render thread is submitting draw calls, is undefined behaviour and was a
 long-standing source of crashes. It was found by ThreadSanitizer and is
-recorded in [nextsteps.md](./nextsteps.md) section 3.1.
+recorded in [roadmap.md](./roadmap.md) section 3.1.
 
 `checkForShaderReload()` is deliberately a pure stat-and-compare so that it is
 safe off-thread and testable without a GL context. Its four outcomes are
@@ -312,4 +312,4 @@ covered by `testGLRendererHotReloadDetection`.
 - **[ApplicationModesGuide.md](./ApplicationModesGuide.md)**: Usage guide for player, wallpaper, and screensaver modes.
 - **[ShaderAuthoringGuide.md](./ShaderAuthoringGuide.md)**: Developer guide for creating and translating GLSL shaders.
 - **[ShaderCandyMasterPlan.md](./ShaderCandyMasterPlan.md)**: Master architecture plan and feature matrix.
-- **[nextsteps.md](./nextsteps.md)**: Active engineering roadmap.
+- **[roadmap.md](./roadmap.md)**: Active engineering roadmap.
