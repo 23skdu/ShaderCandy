@@ -20,7 +20,7 @@ float wave(vec2 p, float t) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.3;
+    float t = mod(time * speed * 0.3, 3600.0);
     vec2 p = centered;
     
     // Sky gradient

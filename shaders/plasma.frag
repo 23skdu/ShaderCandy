@@ -1,7 +1,7 @@
 #include "base/common.glsl"
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.5;
+    float t = mod(time * speed * 0.5, 3600.0);
     
     // Create plasma effect with multiple sine waves
     float v = sin(centered.x * 10.0 + t);

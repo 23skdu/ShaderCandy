@@ -124,7 +124,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float aspect = uniforms.resolution.x / uniforms.resolution.y;
     uv.x *= aspect;
     
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     
     // Camera with slow x-axis rotation
     float camAngle = t * 0.1;

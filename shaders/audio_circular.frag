@@ -6,7 +6,7 @@
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     vec2 p = centered;
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     
     // Audio simulation
     float bass = 0.5 + 0.5 * sin(t * 3.0);

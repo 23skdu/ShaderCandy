@@ -1,7 +1,7 @@
 #include "base/common.glsl"
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.3;
+    float t = mod(time * speed * 0.3, 3600.0);
     
     // Convert to polar coordinates
     float angle = atan(centered.y, centered.x);

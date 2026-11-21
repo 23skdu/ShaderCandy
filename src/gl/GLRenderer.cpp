@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <ctime>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -445,7 +446,12 @@ void GLRenderer::render(float time) {
     }
   }
 
-  double currentTime = clock() / (double)CLOCKS_PER_SEC;
+  // Use wall-clock (steady) time, not process CPU time. clock() only counts
+  // CPU time consumed by this process, so with vsync/GPU waits it reports a
+  // tiny fraction of the real frame duration, inflating FPS and preventing
+  // adaptive quality from ever scaling down.
+  double currentTime = std::chrono::duration<double>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
   double delta = 0.0;
   if (lastFrameTime_ > 0.0) {
     delta = currentTime - lastFrameTime_;
@@ -475,8 +481,8 @@ void GLRenderer::render(float time) {
           currentResolutionScale_ =
               std::max(adaptiveQualityConfig_.minResolutionScale,
                        currentResolutionScale_ - 0.01f * adaptiveQualityConfig_.adaptationSpeed);
-          int newW = (int)(1920 * currentResolutionScale_);
-          int newH = (int)(1080 * currentResolutionScale_);
+          int newW = (int)(baseRenderWidth_ * currentResolutionScale_);
+          int newH = (int)(baseRenderHeight_ * currentResolutionScale_);
           if (newW != renderWidth_ || newH != renderHeight_) {
             renderWidth_ = newW;
             renderHeight_ = newH;
@@ -570,6 +576,10 @@ void GLRenderer::resize(int width, int height) {
   if (width > 0 && height > 0) {
     renderWidth_ = width;
     renderHeight_ = height;
+    // Track the unscaled base so adaptive quality scales from the real window
+    // size instead of a hard-coded 1920x1080.
+    baseRenderWidth_ = width;
+    baseRenderHeight_ = height;
     metrics_.memoryUsageBytes = width * height * 4;
     uniforms_.resolution.x = (float)width;
     uniforms_.resolution.y = (float)height;

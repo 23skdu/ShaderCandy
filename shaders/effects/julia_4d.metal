@@ -28,7 +28,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 3.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * 0.15;
+    float t = mod(u.time * 0.15, 3600.0);
     
     // 4D Julia parameter - animates through different shapes
     float4 c = float4(

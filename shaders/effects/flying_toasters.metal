@@ -83,7 +83,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float aspect = uniforms.resolution.x / uniforms.resolution.y;
     uv.x *= aspect;
     
-    float t = uniforms.time * uniforms.speed * 0.4;
+    float t = mod(uniforms.time * uniforms.speed * 0.4, 3600.0);
     
     // Background stars
     float3 color = float3(0.01, 0.01, 0.02);

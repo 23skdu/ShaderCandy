@@ -29,7 +29,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = uv * 2.0 - 1.0;
     p.x *= uniforms.resolution.x / uniforms.resolution.y;
     
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     float viscosity = 0.01;
     float turbulence = 1.0;
     float colorShift = 0.5;

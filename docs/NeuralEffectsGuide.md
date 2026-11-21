@@ -37,7 +37,7 @@ flowchart TD
 
 ## Key Features
 
-- **10 Built-In Artistic Styles**: Van Gogh, Monet, Picasso, Hokusai, Mondrian, Cyberpunk, Oil Painting, Watercolor, Sketch, and Vintage.
+- **Style Metadata for 10 Artistic Styles**: Van Gogh, Monet, Picasso, Hokusai, Mondrian, Cyberpunk, Oil Painting, Watercolor, Sketch, and Vintage. (The engine ships style metadata and loading code; `.mlmodel`/`.mlmodelc` files must be supplied by the user or bundled separately — none are included in the repository.)
 - **Hardware Acceleration**: Low-power, low-latency inference executed on the Apple Neural Engine (ANE) and Metal Performance Shaders (MPS).
 - **Dynamic Style Blending**: Continuous adjustment of artistic intensity (`0.0` – `1.0`) in real time.
 - **Audio-Reactive Stylization**: Neural style strength dynamically driven by bass and spectral flux.

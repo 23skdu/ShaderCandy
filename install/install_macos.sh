@@ -308,13 +308,13 @@ uninstall_screensaver() {
         fi
     done
 
-    # Remove build artifacts
-    echo "Cleaning up build artifacts..."
-    if [ -d "$PROJECT_ROOT/build" ]; then
-        rm -rf "$PROJECT_ROOT/build"
-    fi
-    if [ -d "$PROJECT_ROOT/build-make" ]; then
-        rm -rf "$PROJECT_ROOT/build-make"
+    # Remove build artifacts (only with explicit confirmation)
+    if [ -d "$PROJECT_ROOT/build" ] || [ -d "$PROJECT_ROOT/build-make" ]; then
+        read -p "Remove build directories (build/, build-make/)? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf "$PROJECT_ROOT/build" "$PROJECT_ROOT/build-make"
+        fi
     fi
     
     echo "Uninstallation complete!"

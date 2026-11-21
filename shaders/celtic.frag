@@ -51,7 +51,7 @@ vec2 celticKnot(vec2 p, float t) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.15;
+    float t = mod(time * speed * 0.15, 3600.0);
     vec2 p = centered;
     
     // Background - parchment color

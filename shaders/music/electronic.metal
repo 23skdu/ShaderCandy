@@ -32,7 +32,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 uv = in.texCoord * 2.0 - 1.0;
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
     
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     float3 ro = float3(sin(t*0.2)*4.0, 2.0, cos(t*0.2)*4.0);
     float3 rd = normalize(float3(uv, 1.2));
     rd = lookAt(ro, float3(0,0,0)) * rd;

@@ -13,7 +13,7 @@
 @property(nonatomic, strong, nullable) id<MTLDevice> device;
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> commandQueue;
 @property(nonatomic, strong, nullable) MPSRayIntersector *rayIntersector;
-@property(nonatomic, strong, nullable) MPSTriangleIndexBuffer *accelerationStructure;
+@property(nonatomic, strong, nullable) MPSTriangleAccelerationStructure *accelerationStructure;
 @property(nonatomic, strong, nullable) id<MTLTexture> acousticFieldTexture;
 @property(nonatomic, strong, nullable) id<MTLTexture> sceneGeometryTexture;
 @property(nonatomic, assign) simd_float3 audioSourcePosition;
@@ -117,7 +117,7 @@
     accelDesc.vertexStride = sizeof(simd_float3);
     accelDesc.usage = MPSAccelerationStructureUsageUsage;
 
-    _accelerationStructure = (MPSTriangleIndexBuffer *)accelDesc;
+    _accelerationStructure = accelDesc;
 }
 
 - (void)shutdown {

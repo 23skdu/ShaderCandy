@@ -103,7 +103,7 @@ float sparkle(float2 uv, float time) {
 
 // Flying rainbow arc
 float3 rainbowArc(float2 uv, float time, float offset) {
-    float t = time * 0.3 + offset;
+    float t = mod(time * 0.3, 3600.0) + offset;
     float2 center = float2(
         sin(t * 0.7) * 0.3,
         cos(t * 0.5) * 0.2 + 0.1
@@ -150,7 +150,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 centered = uv * 2.0 - 1.0;
     centered.x *= uniforms.resolution.x / uniforms.resolution.y;
 
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
 
     // Background: soft pastel gradient
     float3 bg = mix(

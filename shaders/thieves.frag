@@ -3,7 +3,7 @@
 // thieves - Dark alley with treasure chest and gold coins
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     
     vec2 p = centered;
     

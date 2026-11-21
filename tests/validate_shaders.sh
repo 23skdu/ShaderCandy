@@ -58,7 +58,12 @@ for f in $(find "$SRC" -name '*.frag' | sort); do
   name="$(basename "$f")"
   stem="${name%.frag}"
   [ "$stem" = "common" ] || [ "$stem" = "vertex" ] && continue
-  res="$tmp/$stem.frag"
+  # Use a path-derived unique name so shaders sharing a basename (e.g.
+  # shaders/nebula.frag vs shaders/effects/nebula.frag) do not overwrite each
+  # other's temp files and get silently skipped.
+  rel="${f#$ROOT/}"
+  tag="$(printf '%s' "$rel" | sha256sum | cut -c1-12)"
+  res="$tmp/${stem}_${tag}.frag"
   resolve "$f" "$res"
   {
     # The runtime injects "#version 330 core"; Mesa's compiler accepts
@@ -67,20 +72,20 @@ for f in $(find "$SRC" -name '*.frag' | sort); do
     # checking *our* edits rather than driver-leniency differences.
     echo '#version 450 core'
     cat "$res"
-  } > "$tmp/$stem.wrapped.frag"
+  } > "$tmp/${stem}_${tag}.wrapped.frag"
   # shaderc demands an explicit binding on uniform blocks; Mesa does not.
   # Patch the throwaway copy only, never the source.
   sed -i -E 's/^layout\(std140\) uniform ([A-Za-z_][A-Za-z0-9_]*) \{/layout(std140, binding = 0) uniform \1 {/' \
-    "$tmp/$stem.wrapped.frag"
+    "$tmp/${stem}_${tag}.wrapped.frag"
   # shaderc also wants an explicit location on loose (non-opaque) uniforms;
   # Mesa assigns them implicitly. Number them per file, test copy only.
   awk '/^uniform (float|int|vec[234]|mat[234]) [A-Za-z_][A-Za-z0-9_]*.*;/ {
          printf "layout(location = %d) %s\n", 900 + n++, $0
          next
-       } { print }' "$tmp/$stem.wrapped.frag" > "$tmp/$stem.wp2.frag" \
-    && mv "$tmp/$stem.wp2.frag" "$tmp/$stem.wrapped.frag"
+       } { print }' "$tmp/${stem}_${tag}.wrapped.frag" > "$tmp/${stem}_${tag}.wp2.frag" \
+    && mv "$tmp/${stem}_${tag}.wp2.frag" "$tmp/${stem}_${tag}.wrapped.frag"
   if err=$("$GLSC" -fshader-stage=fragment --target-env=opengl4.5 \
-             "$tmp/$stem.wrapped.frag" -o /dev/null 2>&1); then
+             "$tmp/${stem}_${tag}.wrapped.frag" -o /dev/null 2>&1); then
     pass=$((pass+1))
   else
     fail=$((fail+1))
@@ -92,7 +97,13 @@ for f in $(find "$SRC" -name '*.frag' | sort); do
   fi
 done
 
-echo "compiled OK: $pass   failed: $fail"
+discovered=$(find "$SRC" -name '*.frag' | wc -l)
+echo "compiled OK: $pass   failed: $fail   discovered: $discovered"
+if [ "$pass" -ne "$discovered" ]; then
+  echo "FAIL: only $pass of $discovered shaders compiled (silent-skip guard tripped)."
+  echo "failing:$failed" | tr ' ' '\n' | sed '/^$/d'
+  exit 1
+fi
 if [ "$fail" -gt 0 ]; then
   echo "failing:$failed" | tr ' ' '\n' | sed '/^$/d'
   exit 1

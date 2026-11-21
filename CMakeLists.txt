@@ -9,10 +9,19 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-if(APPLE)
+# Keep optimization and fast-math scoped to Release builds only. Applying
+# -O3/-ffast-math globally (including Debug and sanitizer builds) defeats
+# the NaN/Inf guards in UniformBuffer and degrades debugger/sanitizer
+# diagnostics (-ffast-math implies -ffinite-math-only, which lets the
+# compiler assume inputs are never NaN/Inf).
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  if(APPLE)
     add_compile_options(-O3 -ffast-math -fstrict-aliasing)
-else()
+  else()
     add_compile_options(-O3 -ffast-math)
+  endif()
+else()
+  add_compile_options(-O0 -g)
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -92,7 +101,6 @@ if(LINUX AND BUILD_AUDIO)
         target_compile_options(shadercandy_audio_linux PUBLIC
             ${PULSELIB_CFLAGS_OTHER}
             ${FFTW3_CFLAGS_OTHER}
-            -DHAS_PULSEAUDIO=1
         )
         message(STATUS "  Audio support: PulseAudio (PipeWire compatible)")
     else()
@@ -119,7 +127,6 @@ if(LINUX AND BUILD_AUDIO)
             target_compile_options(shadercandy_audio_linux PUBLIC
                 ${ALSALIB_CFLAGS_OTHER}
                 ${FFTW3_CFLAGS_OTHER}
-                -DHAS_ALSA=1
             )
             message(STATUS "  Audio support: ALSA")
         else()
@@ -344,7 +351,6 @@ if(BUILD_OPENGL)
             endif()
             if(GLEW_FOUND)
                 target_link_libraries(shadercandy_gl PUBLIC GLEW::GLEW)
-                target_compile_definitions(shadercandy_gl PUBLIC USE_GLEW=1)
             endif()
         else()
             target_link_libraries(shadercandy_gl PUBLIC

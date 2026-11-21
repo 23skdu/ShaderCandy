@@ -7,7 +7,7 @@ using namespace ShaderUtils;
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
     float2 uv = in.texCoord;
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     
     float3 color = float3(
         0.5 + 0.5 * sin(t + uv.x * 3.14159),

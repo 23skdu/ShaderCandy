@@ -77,7 +77,7 @@ float rayMarch(float3 ro, float3 rd, float t) {
 
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
-    float t = uniforms.time * uniforms.speed * 0.3;
+    float t = mod(uniforms.time * uniforms.speed * 0.3, 3600.0);
     
     float3 ro = float3(
         sin(t) * 1.5,

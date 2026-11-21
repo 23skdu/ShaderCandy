@@ -1,7 +1,7 @@
 #include "../base/common.glsl"
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.5;
+    float t = mod(time * speed * 0.5, 3600.0);
     
     // Animate the Julia constant
     vec2 c = vec2(0.355 + 0.1 * sin(t), 0.355 + 0.1 * cos(t * 0.7));

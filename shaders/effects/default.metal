@@ -40,7 +40,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 uv = in.texCoord;
     float2 p = uv * 6.0;
     
-    float t = u.time * 0.3;
+    float t = mod(u.time * 0.3, 3600.0);
     
     // Multiple plasma layers
     float v1 = sin(p.x + t);

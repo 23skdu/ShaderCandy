@@ -340,11 +340,18 @@ void ShaderProgram::updateUniforms(int width, int height, float mouseX,
   time_t t = time(nullptr);
   struct tm tm_buf;
   tm *lt = localtime_r(&t, &tm_buf);
-  uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
-  uniforms.date[1] = static_cast<float>(lt->tm_mon + 1);
-  uniforms.date[2] = static_cast<float>(lt->tm_mday);
-  uniforms.date[3] =
-      static_cast<float>(lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec);
+  if (lt) {
+    uniforms.date[0] = static_cast<float>(lt->tm_year + 1900);
+    uniforms.date[1] = static_cast<float>(lt->tm_mon + 1);
+    uniforms.date[2] = static_cast<float>(lt->tm_mday);
+    uniforms.date[3] =
+        static_cast<float>(lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec);
+  } else {
+    uniforms.date[0] = 0.0f;
+    uniforms.date[1] = 0.0f;
+    uniforms.date[2] = 0.0f;
+    uniforms.date[3] = 0.0f;
+  }
 
   if (audioData) {
     uniforms.volume = audioData->volume;
@@ -356,6 +363,18 @@ void ShaderProgram::updateUniforms(int width, int height, float mouseX,
     int samplesToCopy = std::min(256, (int)audioData->spectrum.size());
     for (int i = 0; i < samplesToCopy; ++i) {
       uniforms.audioData[i] = audioData->spectrum[i];
+    }
+    for (int i = samplesToCopy; i < 256; ++i) {
+      uniforms.audioData[i] = 0.0f;
+    }
+  } else {
+    uniforms.volume = 0.0f;
+    uniforms.bass = 0.0f;
+    uniforms.mid = 0.0f;
+    uniforms.treble = 0.0f;
+    uniforms.beat = 0.0f;
+    for (int i = 0; i < 256; ++i) {
+      uniforms.audioData[i] = 0.0f;
     }
   }
 
@@ -390,8 +409,11 @@ bool StandalonePlayer::initialize(int argc, char **argv) {
   }
 
   // Configure OpenGL
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  // Shaders in this project are authored as GLSL 4.5 (#version 450 core), so
+  // the context must provide at least OpenGL 4.5. A 3.3 core context would
+  // reject every shader at compile time.
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
   // Create window

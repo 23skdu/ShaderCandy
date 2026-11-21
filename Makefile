@@ -216,14 +216,14 @@ build-debug:
 	$(CMAKE) --build $(BUILD_DEBUG_DIR) -j$(NPROC)
 
 build-avx2:
-	@echo "Building with AVX2+FMA SIMD intrinsics enabled..."
-	$(CMAKE) -S . -B $(BUILD_DIR) \
+	@echo "Building with AVX2+FMA SIMD intrinsics enabled in $(BUILD_DIR)-avx2..."
+	$(CMAKE) -S . -B $(BUILD_DIR)-avx2 \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DENABLE_COVERAGE=OFF \
 		-DBUILD_TESTS=ON \
 		-DSHADERCANDY_FORCE_AVX2=ON \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-	$(CMAKE) --build $(BUILD_DIR) -j$(NPROC)
+	$(CMAKE) --build $(BUILD_DIR)-avx2 -j$(NPROC)
 
 build-hardened:
 	@echo "Building with compiler and linker security hardening flags in $(BUILD_HARDENED_DIR)..."

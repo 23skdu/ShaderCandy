@@ -2,7 +2,7 @@
 
 // Simple bloom approximation effect
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     
     // Create bright spots
     float brightness = 0.0;

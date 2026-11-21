@@ -26,9 +26,13 @@ Preset::Preset()
   auto now = std::chrono::system_clock::now();
   auto time = std::chrono::system_clock::to_time_t(now);
   std::tm tm_buf;
-  localtime_r(&time, &tm_buf);
+  std::tm *tm = localtime_r(&time, &tm_buf);
   std::ostringstream oss;
-  oss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%SZ");
+  if (tm) {
+    oss << std::put_time(tm, "%Y-%m-%dT%H:%M:%SZ");
+  } else {
+    oss << "1970-01-01T00:00:00Z";
+  }
   createdDate = oss.str();
 }
 

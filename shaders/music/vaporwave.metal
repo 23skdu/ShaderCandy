@@ -353,7 +353,7 @@ float3 calcNormal(float3 p, float time) {
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                               constant Uniforms& u [[buffer(0)]]) {
     float2 uv = in.texCoord;
-    float t = u.time * u.speed * 0.2;
+    float t = mod(u.time * u.speed * 0.2, 3600.0);
     
     // Camera setup
     float3 ro = float3(0.0, 0.5 + sin(t * 0.1) * 0.2, 3.0);

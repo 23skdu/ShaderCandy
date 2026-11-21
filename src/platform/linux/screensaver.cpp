@@ -673,8 +673,12 @@ public:
     struct tm *tm = localtime_r(&time, &tm_buf);
 
     std::stringstream ss;
-    ss << "shadercandy_" << std::put_time(tm, "%Y%m%d_%H%M%S") << ".ppm"
-       << std::ends;
+    if (tm) {
+      ss << "shadercandy_" << std::put_time(tm, "%Y%m%d_%H%M%S") << ".ppm"
+         << std::ends;
+    } else {
+      ss << "shadercandy_screenshot.ppm" << std::ends;
+    }
     std::string filename = ss.str();
     filename.pop_back();
 

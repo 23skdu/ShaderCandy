@@ -13,7 +13,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float aspect = uniforms.resolution.y > 0 ? uniforms.resolution.x / uniforms.resolution.y : 1.0;
     uv.x *= aspect;
     
-    float t = uniforms.time * uniforms.speed * 0.2;
+    float t = mod(uniforms.time * uniforms.speed * 0.2, 3600.0);
     
     // Zoom in on an interesting coordinate
     float zoom = pow(2.0, 1.0 + 5.0 * (0.5 + 0.5 * sin(t * 0.5)));

@@ -49,7 +49,7 @@ Shaders share a common mathematical and algorithmic foundation across platforms:
 - `GLSLWrapper`: Recursive `#include` resolver with mtime-based file caching for fast shader compilation.
 
 ### 3. SIMD Optimization
-Runtime CPU math dispatch automatically leverages ARM NEON on Apple Silicon and AVX2 on x86_64, with portable scalar fallbacks for universal compatibility.
+CPU math uses ARM NEON on Apple Silicon (compile-time) and an SSE4.2 baseline on x86_64. AVX2 is opt-in at build time via `-DSHADERCANDY_FORCE_AVX2=ON` (no runtime CPU feature check); there is no runtime dispatch.
 
 ### 4. Note on Vulkan Backend
 A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapchain`, `VK_EXT_swapchain_colorspace`). However, following architectural evaluation and contributor clarity audits, Vulkan support was retired. OpenGL 3.3+/4.5 paired with native Wayland and X11 provides full performance parity, lower driver overhead, and maximum stability across Linux distributions.
@@ -62,10 +62,10 @@ A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapc
 | :--- | :---: | :---: | :--- |
 | **Core Rendering Pipeline** | ✅ | ✅ | Production Ready |
 | **Shader Library (110+ Shaders)** | ✅ | ✅ | Production Ready (3D Raymarching & Music Overhaul) |
-| **Hot-Reloading System** | ✅ | ✅ | Production Ready (inotify File Watcher + Rollback) |
+| **Hot-Reloading System** | ✅ | ✅ | Production Ready (macOS: GCD VNODE watcher; Linux: inotify File Watcher + Rollback) |
 | **Screensaver Integration** | ✅ | ✅ | Production Ready (macOS, X11, Wayland) |
 | **Standalone Player** | ✅ | ✅ | Production Ready (Windowed, Fullscreen, Multi-Display) |
-| **Wallpaper Desktop Mode** | ✅ | ✅ | Production Ready (`WallpaperEngine` / `xwinwrap`) |
+| **Wallpaper Desktop Mode** | ❌ | ✅ | Linux-only (X11/Wayland); no macOS implementation yet |
 | **Multi-Display Spanning** | ✅ | ✅ | Production Ready (`MultiDisplayManager`, `HeadlessRenderer`) |
 | **Audio Reactivity (FFT)** | ✅ | ✅ | Production Ready (AVFoundation / ALSA + FFTW3) |
 | **Audio Utils** | N/A | ✅ | Production Ready (packAudioForShader, getDominantFrequency, getSpectralCentroid, bandHasEnergy) |
@@ -103,7 +103,7 @@ A Vulkan backend was previously explored for Linux HDR swapchains (`VK_KHR_swapc
 - **Post-Processing Config**: `GLPostProcessConfig` with vignette (intensity, radius), chromatic aberration (amount), film grain (intensity), CRT scanlines (intensity), and color tint (R, G, B) — each independently toggleable.
 - **Adaptive Quality**: `GLAdaptiveQualityConfig` dynamically scales resolution to maintain target FPS with configurable min/max resolution scale bounds.
 - **Smart Shader Rotation**: Shuffle mode, favorites list, skip list, and auto-rotate with configurable per-shader duration for hands-free browsing.
-- **109 Tests, 0 Valgrind Errors**: Comprehensive unit and integration test coverage across 10 suites with verified memory safety.
+- **140 Tests, 0 Valgrind Errors**: Comprehensive unit and integration test coverage across 12 suites with verified memory safety.
 
 ---
 

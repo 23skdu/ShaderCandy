@@ -13,7 +13,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float aspect = uniforms.resolution.y > 0 ? uniforms.resolution.x / uniforms.resolution.y : 1.0;
     uv.x *= aspect;
     
-    float t = uniforms.time * uniforms.speed * 0.5;
+    float t = mod(uniforms.time * uniforms.speed * 0.5, 3600.0);
     
     // Animate the Julia constant
     float2 c = float2(0.355 + 0.1 * sin(t), 0.355 + 0.1 * cos(t * 0.7));

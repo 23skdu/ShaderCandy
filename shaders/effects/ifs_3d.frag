@@ -48,7 +48,7 @@ float rayMarch(vec3 ro, vec3 rd) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.2;
+    float t = mod(time * speed * 0.2, 3600.0);
     setupIFS(t);
     
     // Camera

@@ -32,7 +32,7 @@ vec4 effect_main(vec2 centered, vec2 uv) {
     // Offset to show the ship shape
     vec2 c = p - vec2(0.5, 0.0);
     
-    float t = time * 0.1;
+    float t = mod(time * 0.1, 3600.0);
     
     // Animate the fractal slightly
     c += vec2(0.05 * sin(t), 0.03 * cos(t));

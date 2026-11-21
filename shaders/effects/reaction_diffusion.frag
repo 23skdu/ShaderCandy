@@ -57,7 +57,7 @@ vec2 evaluateChemicals(vec2 p, float t, float feed, float kill) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.4;
+    float t = mod(time * speed * 0.4, 3600.0);
 
     // Interactive mouse reagent seeding
     vec2 mPos = (mouse - 0.5) * 2.0;

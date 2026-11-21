@@ -10,7 +10,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 uv = in.texCoord;
     float2 p = uv * 2.0 - 1.0;
     p.x *= uniforms.resolution.x / uniforms.resolution.y;
-    float t = uniforms.time * uniforms.speed * 0.08;
+    float t = mod(uniforms.time * uniforms.speed * 0.08, 3600.0);
     
     // Dark background
     float3 color = float3(0.1, 0.08, 0.12);

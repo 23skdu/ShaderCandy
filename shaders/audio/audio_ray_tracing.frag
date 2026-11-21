@@ -3,7 +3,7 @@
 // audio_ray_tracing - Visual representation of audio ray tracing
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     
     vec2 p = uv * 2.0 - 1.0;
     float aspect = resolution.x / resolution.y;

@@ -5,7 +5,7 @@
 // Lissajous - Lissajous curves
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.5;
+    float t = mod(time * speed * 0.5, 3600.0);
     vec2 p = centered;
     
     // Dark background

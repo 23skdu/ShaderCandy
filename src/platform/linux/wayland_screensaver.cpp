@@ -92,7 +92,7 @@ public:
   std::string vertexSourceStr;
   std::string fragmentSourceStr;
 
-  Uniforms uniforms;
+  Uniforms uniforms{};
   int frameCount = 0;
   std::chrono::steady_clock::time_point startTime;
   std::chrono::steady_clock::time_point lastFrame;
@@ -261,6 +261,19 @@ public:
     uniforms.mouse[0] = (width > 0) ? mouseX / width : 0.0f;
     uniforms.mouse[1] = (height > 0) ? 1.0f - (mouseY / height) : 0.0f;
     uniforms.frame = frameCount++;
+    uniforms.speed = 1.0f;
+    uniforms.intensity = 1.0f;
+    uniforms.alpha = 1.0f;
+    uniforms.gravity = 9.8f;
+    uniforms.volume = 0.0f;
+    uniforms.bass = 0.0f;
+    uniforms.mid = 0.0f;
+    uniforms.treble = 0.0f;
+    uniforms.beat = 0.0f;
+    uniforms.gpuTime = 0.0f;
+    uniforms.cpuTime = 0.0f;
+    uniforms.fps = 0.0f;
+    for (int i = 0; i < 256; i++) uniforms.audioData[i] = 0.0f;
 
     lastFrame = now;
 

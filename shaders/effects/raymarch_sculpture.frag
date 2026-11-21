@@ -25,7 +25,7 @@ void setupSculpture(float t, float tm) {
 // Distance to scene
 float map(vec3 p) {
     // Time-based rotation
-    float t = time * 0.3;
+    float t = mod(time * 0.3, 3600.0);
     
     // Main sphere with holes
     vec3 q = rotateY(p, t);
@@ -110,7 +110,7 @@ float calcAO(vec3 p, vec3 n) {
 vec4 effect_main(vec2 centered, vec2 uv) {
     setupSculpture(time * 0.3, time);
     // Camera setup
-    float t = time * 0.2;
+    float t = mod(time * 0.2, 3600.0);
     vec3 ro = vec3(
         sin(t) * 4.0,
         sin(t * 0.5) * 1.0 + 0.5,

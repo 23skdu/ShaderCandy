@@ -177,7 +177,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float3 p = float3(uv * 5.0, 0.0);
     
     // Add some time offset
-    float t = u.time * u.speed;
+    float t = mod(u.time * u.speed, 3600.0);
     
     // Render the scene
     float4 color = renderMushroomScene(p, t);

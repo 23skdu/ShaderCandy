@@ -33,7 +33,7 @@ float sierpinski(vec2 p, int iterations) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.1;
+    float t = mod(time * speed * 0.1, 3600.0);
     
     // Scale and position
     vec2 p = centered * 2.5;

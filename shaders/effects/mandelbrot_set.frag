@@ -1,7 +1,7 @@
 #include "../base/common.glsl"
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.2;
+    float t = mod(time * speed * 0.2, 3600.0);
     
     // Zoom in on an interesting coordinate
     float zoom = pow(2.0, 1.0 + 5.0 * (0.5 + 0.5 * sin(t * 0.5)));

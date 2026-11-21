@@ -78,7 +78,7 @@ vec3 calcNormal(vec3 p) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.1;
+    float t = mod(time * speed * 0.1, 3600.0);
     
     // Camera
     vec3 ro = vec3(cos(t * 0.3) * 3.0, sin(t * 0.2) * 1.5, sin(t * 0.3) * 3.0);

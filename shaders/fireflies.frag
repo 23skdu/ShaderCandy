@@ -7,7 +7,7 @@
 // Rotation matrix
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.2;
+    float t = mod(time * speed * 0.2, 3600.0);
     vec2 p = centered;
     
     // Night sky gradient

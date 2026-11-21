@@ -53,7 +53,7 @@ float rayMarch(vec3 ro, vec3 rd, vec4 c) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.1;
+    float t = mod(time * speed * 0.1, 3600.0);
     
     // Animate Julia constant in 4D
     vec4 c = vec4(

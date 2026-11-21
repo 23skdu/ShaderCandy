@@ -115,7 +115,7 @@ void setupDNAParticles(float t) {
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     // Camera setup
-    float t = time * 0.3;
+    float t = mod(time * 0.3, 3600.0);
     setupDNAParticles(t);
     
     vec3 ro = vec3(

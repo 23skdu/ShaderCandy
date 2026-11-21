@@ -36,7 +36,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * 0.25;
+    float t = mod(u.time * 0.25, 3600.0);
     
     // Warm, smooth background gradient
     float3 col = float3(0.1, 0.05, 0.15);  // Deep purple

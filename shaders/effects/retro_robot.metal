@@ -71,7 +71,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float aspect = uniforms.resolution.x / uniforms.resolution.y;
     uv.x *= aspect;
     
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     
     // Camera
     float3 ro = float3(2.0 * sin(t * 0.2), 0.5, 3.0);

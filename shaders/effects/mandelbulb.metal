@@ -130,7 +130,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 centered = in.texCoord * 2.0 - 1.0;
     centered.x *= uniforms.resolution.x / uniforms.resolution.y;
     
-    float t = uniforms.time * uniforms.speed * 0.15;
+    float t = mod(uniforms.time * uniforms.speed * 0.15, 3600.0);
     float radius = 2.5 + sin(uniforms.time * 0.1) * 0.3;
     
     float3 ro = float3(

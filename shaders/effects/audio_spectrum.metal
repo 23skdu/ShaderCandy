@@ -11,7 +11,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 centered = in.texCoord * 2.0 - 1.0;
     centered.x *= uniforms.resolution.x / uniforms.resolution.y;
     
-    float t = uniforms.time;
+    float t = mod(uniforms.time, 3600.0);
     float volume = uniforms.volume;
     float bass = uniforms.bass;
     float beat = uniforms.beat;

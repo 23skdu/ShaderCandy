@@ -17,7 +17,7 @@ layout(std140) uniform AudioUniforms {
 
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
     
     vec3 color = vec3(0.02, 0.02, 0.05);
     

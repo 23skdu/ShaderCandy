@@ -35,7 +35,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     // Offset to show the ship shape
     float2 c = p - float2(0.5, 0.0);
     
-    float t = u.time * 0.1;
+    float t = mod(u.time * 0.1, 3600.0);
     
     // Animate the fractal slightly
     c += float2(0.05 * sin(t), 0.03 * cos(t));

@@ -8,7 +8,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
     float2 uv = in.texCoord * 2.0 - 1.0;
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     
     float2 p = float2(atan2(uv.y, uv.x) / 3.14159, 0.5 / length(uv)) + t * 0.1;
     p.y += p.x * 2.0;

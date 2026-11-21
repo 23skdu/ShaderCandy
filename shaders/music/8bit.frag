@@ -3,7 +3,7 @@
 // 8bit - Retro 8-bit platformer scene (GLSL version)
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.5;
+    float t = mod(time * speed * 0.5, 3600.0);
     
     // Pixelate
     float pixelSize = 64.0;

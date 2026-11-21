@@ -69,7 +69,7 @@ vec3 getNormal(vec3 p, float t, float id) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.4;
+    float t = mod(time * speed * 0.4, 3600.0);
     
     // Background stars
     vec3 color = vec3(0.01, 0.01, 0.02);

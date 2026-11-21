@@ -90,7 +90,7 @@ vec3 getPalette(float t, int palette) {
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     // Time with viscosity adjustment
-    float t = time * (1.0 - viscosity * 10.0);
+    float t = mod(time * (1.0 - viscosity * 10.0), 3600.0);
     
     // Get fluid velocity at this point
     vec2 vel = fluidVelocity(uv, t);

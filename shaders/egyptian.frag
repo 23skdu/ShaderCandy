@@ -55,7 +55,7 @@ float ankh(vec2 p) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.1;
+    float t = mod(time * speed * 0.1, 3600.0);
     vec2 p = centered;
     
     // Desert sky gradient

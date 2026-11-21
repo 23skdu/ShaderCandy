@@ -25,7 +25,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * 0.4;
+    float t = mod(u.time * 0.4, 3600.0);
     
     // Graffiti-style background
     float3 bgCol = float3(0.05, 0.05, 0.1);

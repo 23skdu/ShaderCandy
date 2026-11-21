@@ -8,7 +8,7 @@
 
 // Volume rendering of nebula
 float nebula(vec3 p) {
-    float t = time * 0.1;
+    float t = mod(time * 0.1, 3600.0);
     
     // Domain warp for organic movement
     vec3 q = p;
@@ -98,7 +98,7 @@ vec4 rayMarchVolume(vec3 ro, vec3 rd) {
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     // Camera setup - slowly rotating around center
-    float t = time * 0.1;
+    float t = mod(time * 0.1, 3600.0);
     float camRadius = 4.0 + sin(time * 0.2) * 0.5;
     
     vec3 ro = vec3(

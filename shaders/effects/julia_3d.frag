@@ -43,7 +43,7 @@ vec3 getNormal(vec3 p, vec4 c) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.3;
+    float t = mod(time * speed * 0.3, 3600.0);
     
     vec4 c = vec4(-0.2, 0.6 * sin(t * 0.4), 0.4 * cos(t * 0.3), 0.2 * sin(t * 0.5));
     

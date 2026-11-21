@@ -46,7 +46,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 3.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * 0.1;
+    float t = mod(u.time * 0.1, 3600.0);
     
     float3 ro = float3(2.0 * sin(t), 1.5 * cos(t * 0.8), -3.0 * cos(t * 0.3));
     float3 rd = normalize(float3(p, 1.5));

@@ -119,7 +119,7 @@ float calcAO(vec3 p, vec3 n) {
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     // Camera animation
-    float t = time * 0.15;
+    float t = mod(time * 0.15, 3600.0);
     float radius = 2.5 + sin(time * 0.1) * 0.3;
     
     vec3 ro = vec3(

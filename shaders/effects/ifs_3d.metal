@@ -59,7 +59,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 3.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * 0.2;
+    float t = mod(u.time * 0.2, 3600.0);
     
     // Camera
     float3 ro = float3(2.0 * sin(t * 0.3), 1.5, 2.0 * cos(t * 0.3));

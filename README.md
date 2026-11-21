@@ -5,9 +5,9 @@ ShaderCandy is a cross-platform screensaver application that renders real-time p
 ## Key Features
 
 * **Cross-Platform Native Rendering**: Uses Metal on macOS and OpenGL/Wayland/X11 on Linux for direct hardware access.
-* **SIMD Optimizations**: Implements SIMD-accelerated math operations for CPU-side calculations (ARM NEON on Apple Silicon, AVX2 on x86_64).
+* **SIMD Optimizations**: Implements SIMD-accelerated math operations for CPU-side calculations (ARM NEON on Apple Silicon, SSE4.2 baseline on x86_64; AVX2 opt-in at build time).
 * **Modular Shader Architecture**: Provides a shared library of GLSL and Metal shader functions (noise, SDFs, math utilities) to simplify effect creation.
-* **Hot Reloading**: inotify-based file watcher with `#include` caching (mtime-based invalidation) for instant shader recompilation on save.
+* **Hot Reloading**: inotify-based file watcher on Linux (GCD VNODE watcher on macOS) with `#include` caching (mtime-based invalidation) for instant shader recompilation on save.
 * **Audio Reactivity**: Microphones and system audio input feed directly into FFT spectral analysis with Audio Utils (`packAudioForShader`, `getDominantFrequency`, `getSpectralCentroid`, `bandHasEnergy`).
 * **Bloom Post-Processing**: FBO-based bloom pipeline with configurable quality levels (Low/Medium/High/Ultra) and Gaussian blur passes.
 * **Headless Rendering**: `HeadlessRenderer` with ffmpeg video encoding (PNG/JPG/PPM output) and offscreen FBO rendering.
@@ -185,7 +185,7 @@ ShaderCandy ships with **110+ shaders** across multiple categories:
 
 GitHub Actions CI runs on every push and PR (all actions v4):
 - Builds on Ubuntu with full dependency matrix
-- Runs the full test suite (109 tests)
+- Runs the full test suite (140 tests across 12 suites)
 - Static analysis with clang-tidy and cppcheck
 - Memory leak detection with valgrind (0 application errors)
 

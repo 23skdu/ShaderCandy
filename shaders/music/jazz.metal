@@ -45,7 +45,7 @@ float custom_fbm(float2 p) {
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                           constant Uniforms& u [[buffer(0)]]) {
     float2 uv = in.texCoord;
-    float t = u.time * 0.2;
+    float t = mod(u.time * 0.2, 3600.0);
     
     // Flowing curves (saxophone-esque)
     float2 p = uv * 3.0;

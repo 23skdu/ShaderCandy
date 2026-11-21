@@ -33,7 +33,7 @@ float tree(vec2 p, float height, float width) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed * 0.05;
+    float t = mod(time * speed * 0.05, 3600.0);
     vec2 p = centered;
     
     // Sky gradient

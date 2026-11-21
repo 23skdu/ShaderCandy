@@ -2,7 +2,7 @@
 
 vec4 effect_main(vec2 centered, vec2 uv) {
     vec2 gridUV = uv * 20.0; // Scale up for more squares
-    float t = time * speed * 0.3;
+    float t = mod(time * speed * 0.3, 3600.0);
     
     // Create checkerboard pattern
     vec2 grid = floor(gridUV);

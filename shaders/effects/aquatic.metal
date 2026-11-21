@@ -175,7 +175,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * u.speed * 0.2;
+    float t = mod(u.time * u.speed * 0.2, 3600.0);
     
     // 3D depth layers
     float3 finalColor = float3(0.0);

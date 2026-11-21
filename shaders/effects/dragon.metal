@@ -74,7 +74,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 uv = in.texCoord * 2.0 - 1.0;
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
     
-    float t = uniforms.time * uniforms.speed;
+    float t = mod(uniforms.time * uniforms.speed, 3600.0);
     
     // Blink animation (periodic)
     float blinkPhase = fract(t * 0.3);

@@ -324,13 +324,16 @@ private:
 
   int renderWidth_ = 0;
   int renderHeight_ = 0;
+  // Base (unscaled) render dimensions captured at resize(); adaptive quality
+  // scales from these instead of a hard-coded 1920x1080.
+  int baseRenderWidth_ = 1920;
+  int baseRenderHeight_ = 1080;
 
   // Blit program (passthrough for FBO -> screen when HDR off)
   unsigned int blitProgram_ = 0;
 
   // Video encoding state
-  FILE *ffmpegProcess_ = nullptr;
-  bool encodingVideo_ = false;
+  // (removed dead members ffmpegProcess_/encodingVideo_: never read or written)
 
   // Callbacks
   std::function<void(const std::string &)> shaderChangedCallback_;

@@ -92,7 +92,7 @@ float sparkle(vec2 uv, float time) {
 }
 
 vec3 rainbowArc(vec2 uv, float time, float offset) {
-    float t = time * 0.3 + offset;
+    float t = mod(time * 0.3, 3600.0) + offset;
     vec2 center = vec2(
         sin(t * 0.7) * 0.3,
         cos(t * 0.5) * 0.2 + 0.1
@@ -132,7 +132,7 @@ vec3 sparkleTrail(vec2 uv, float time) {
 }
 
 vec4 effect_main(vec2 centered, vec2 uv) {
-    float t = time * speed;
+    float t = mod(time * speed, 3600.0);
 
     // Background: soft pastel gradient
     vec3 bg = mix(

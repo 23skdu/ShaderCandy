@@ -39,7 +39,7 @@ fragment float4 fragment_main(VertexOut in [[stage_in]],
     float2 p = (uv - 0.5) * 2.0;
     p.x *= u.resolution.x / u.resolution.y;
     
-    float t = u.time * 1.5;
+    float t = mod(u.time * 1.5, 3600.0);
     
     // Chaotic custom_noise (aggressive)
     float2 q = p;

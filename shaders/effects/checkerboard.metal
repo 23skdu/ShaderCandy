@@ -8,7 +8,7 @@ using namespace ShaderUtils;
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
     float2 uv = in.texCoord * 20.0; // Scale up for more squares
-    float t = uniforms.time * uniforms.speed * 0.3;
+    float t = mod(uniforms.time * uniforms.speed * 0.3, 3600.0);
     
     // Create checkerboard pattern
     float2 grid = floor(uv);

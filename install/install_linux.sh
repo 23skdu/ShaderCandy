@@ -149,14 +149,17 @@ install_binaries() {
     
     cd "$PROJECT_ROOT/build"
     
-    # Install binary
-    sudo install -m 755 shadercandy-screensaver /usr/local/bin/
-    
-    # Install shaders
+    # Install binaries
+    for bin in shadercandy-screensaver shadercandy-player shadercandy-wallpaper \
+               shadercandy-wayland shadercandy-bench; do
+        if [ -f "$bin" ]; then
+            sudo install -m 755 "$bin" /usr/local/bin/
+        fi
+    done    
+    # Install shaders, preserving the full directory layout (music/, audio/,
+    # neural/, system/, effects/) so relative #include paths resolve.
     sudo mkdir -p /usr/local/share/shadercandy/shaders
-    sudo cp ../shaders/*.frag /usr/local/share/shadercandy/shaders/ 2>/dev/null || true
-    sudo cp ../shaders/effects/*.frag /usr/local/share/shadercandy/shaders/ 2>/dev/null || true
-    sudo cp -r ../shaders/base /usr/local/share/shadercandy/shaders/ 2>/dev/null || true
+    sudo cp -r ../shaders/* /usr/local/share/shadercandy/shaders/
     
     # Set permissions
     sudo chmod -R 755 /usr/local/share/shadercandy

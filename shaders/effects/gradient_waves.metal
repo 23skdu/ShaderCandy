@@ -8,7 +8,7 @@ using namespace ShaderUtils;
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                              constant Uniforms &uniforms [[buffer(0)]]) {
     float2 uv = in.texCoord;
-    float t = uniforms.time * uniforms.speed * 0.2;
+    float t = mod(uniforms.time * uniforms.speed * 0.2, 3600.0);
     
     // Create flowing waves
     float wave1 = sin(uv.x * 5.0 + t) * 0.5 + 0.5;
