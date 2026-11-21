@@ -8,10 +8,11 @@ SHELL := /bin/bash
 # Platform and concurrency detection
 UNAME_S := $(shell uname -s)
 NPROC   := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-export PATH := /home/linuxbrew/.linuxbrew/bin:$(PATH)
+export PATH := /opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$(PATH)
 
 # Build directories
 BUILD_DIR          ?= build
+BUILD_NINJA_DIR    ?= build-ninja
 BUILD_RELEASE_DIR  ?= build-release
 BUILD_DEBUG_DIR    ?= build-debug
 BUILD_HARDENED_DIR ?= build-hardened
@@ -21,17 +22,19 @@ BUILD_UBSAN_DIR    ?= build-ubsan
 BUILD_COV_DIR      ?= build-coverage
 PREFIX             ?= /usr/local
 
-# Toolchain configuration (C/C++17, Objective-C++, CMake, GLSL/Metal, Python, Shell)
+# Toolchain configuration (C/C++17, Objective-C++, CMake, Ninja, ccache, GLSL/Metal, Python, Shell)
+BREW         ?= $(shell which brew 2>/dev/null)
 CMAKE        ?= $(shell which cmake 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/cmake)
 CTEST        ?= $(shell which ctest 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/ctest)
 NINJA        ?= $(shell which ninja 2>/dev/null || echo /usr/bin/ninja)
+CCACHE       ?= $(shell which ccache 2>/dev/null)
 CC           ?= $(shell which /usr/bin/gcc 2>/dev/null || which cc)
 CXX          ?= $(shell which /usr/bin/g++ 2>/dev/null || which c++)
 CLANG        ?= $(shell which clang 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/clang)
 CLANGXX      ?= $(shell which clang++ 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/clang++)
-CLANG_TIDY   ?= $(shell which /home/linuxbrew/.linuxbrew/bin/clang-tidy 2>/dev/null || which clang-tidy)
+CLANG_TIDY   ?= $(shell which clang-tidy 2>/dev/null || which /opt/homebrew/opt/llvm/bin/clang-tidy 2>/dev/null || which /home/linuxbrew/.linuxbrew/bin/clang-tidy 2>/dev/null)
 CLANG_FORMAT ?= $(shell which clang-format 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/clang-format)
-SCAN_BUILD   ?= $(shell which scan-build 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/scan-build)
+SCAN_BUILD   ?= $(shell which scan-build 2>/dev/null || which /opt/homebrew/opt/llvm/bin/scan-build 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/scan-build)
 CPPCHECK     ?= $(shell which cppcheck 2>/dev/null || echo /usr/bin/cppcheck)
 VALGRIND     ?= $(shell which valgrind 2>/dev/null || echo /usr/bin/valgrind)
 GCOV         ?= $(shell which gcov 2>/dev/null || echo /usr/bin/gcov)
@@ -44,6 +47,9 @@ MARKDOWNLINT ?= $(shell which markdownlint 2>/dev/null || echo /home/linuxbrew/.
 DOXYGEN      ?= $(shell which doxygen 2>/dev/null)
 READELF      ?= $(shell which readelf 2>/dev/null || echo /usr/bin/readelf)
 PKG_CONFIG   ?= $(shell which pkg-config 2>/dev/null || echo /usr/bin/pkg-config)
+
+# Recommended Homebrew dev tools (macOS / Linuxbrew)
+BREW_DEV_TOOLS := cmake ninja pkg-config clang-format cppcheck shaderc glslang doxygen llvm ccache shellcheck markdownlint-cli
 
 # Compiler security hardening flags (C/C++17)
 HARDENING_CFLAGS   ?= -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Wformat=2 -Wformat-security -fPIE
@@ -70,13 +76,13 @@ TREE_A  ?= shaders
 TREE_B  ?= shaders
 
 .PHONY: all help ci release \
-	configure build build-release build-debug build-avx2 build-hardened build-bench build-test validate-build deps clean distclean \
-	validate-shaders check-shaders shader-lint shader-cost cost-analyze shader-audit shader-catalog \
+	configure build build-ninja build-release build-debug build-avx2 build-hardened build-bench build-test validate-build deps brew-deps ccache-stats ccache-clear clean distclean \
+	validate-shaders validate-glslang validate-metal check-shaders shader-lint shader-cost cost-analyze shader-audit shader-catalog \
 	lint lint-fast lint-cxx clang-tidy lint-cppcheck cppcheck staticcheck deadcode fmt fmt-check lint-shell lint-python markdown-lint \
 	security sec sec-cert sec-cppcheck sec-banned-apis sec-shaders sec-scripts sec-hardening sec-audit sec-scan-build \
 	perf perf-check bench bench-ci bench-full bench-measure bench-ab compare-frames bound-probe accuracy-gate oracle-gate \
 	mem mem-check mem-leaks mem-asan asan mem-tsan tsan race mem-ubsan ubsan mem-valgrind valgrind \
-	test test-short test-all test-list test-suite test-math test-concurrency test-shaders test-coverage coverage coverage-gate \
+	test test-short test-all test-list test-suite test-math test-concurrency test-shaders test-metal test-coverage coverage coverage-gate \
 	makehooks install-commit-hook install-hooks verify pre-commit \
 	install uninstall docs package-tar package-deb
 
@@ -97,6 +103,7 @@ help:
 	@echo "Build Targets (CMake + C/C++17 / Objective-C++):"
 	@echo "  configure            Configure CMake build directory ($(BUILD_DIR)) with compile_commands.json"
 	@echo "  build                Compile all platform targets (screensaver, player, wallpaper, wayland, bench, test)"
+	@echo "  build-ninja          Fast parallel build with Ninja + ccache in $(BUILD_NINJA_DIR)"
 	@echo "  build-release        Build optimized Release binaries (-O3 -DNDEBUG)"
 	@echo "  build-debug          Build Debug binaries with full symbols (-g) in $(BUILD_DEBUG_DIR)"
 	@echo "  build-avx2           Build with AVX2+FMA SIMD intrinsics enabled (-DSHADERCANDY_FORCE_AVX2=ON)"
@@ -104,12 +111,17 @@ help:
 	@echo "  build-bench          Build shadercandy-bench CLI shader benchmark binary"
 	@echo "  build-test           Build shadercandy-test unit & integration test binary"
 	@echo "  validate-build       Verify build artifacts, shaders, source structure, and docs (tests/validate_build.sh)"
-	@echo "  deps                 Verify installed C/C++, OpenGL/Metal, audio, Wayland, and shader compiler dependencies"
+	@echo "  deps                 Verify installed C/C++, CMake, Ninja, ccache, LLVM, shader, and doc dependencies"
+	@echo "  brew-deps            Install/upgrade all C++/CMake/shader dev tools via Homebrew"
+	@echo "  ccache-stats         Display ccache compiler cache statistics"
+	@echo "  ccache-clear         Clear the ccache compiler cache"
 	@echo "  clean                Remove auxiliary sanitizer/coverage build trees and temporary artifacts"
 	@echo "  distclean            Remove all build directories including $(BUILD_DIR)/"
 	@echo ""
 	@echo "Shader Validation & Analysis (GLSL & Metal):"
-	@echo "  validate-shaders     Compile-check all 114 GLSL .frag shaders with glslc (tests/validate_shaders.sh)"
+	@echo "  validate-shaders     Compile-check all GLSL .frag shaders with glslc (tests/validate_shaders.sh)"
+	@echo "  validate-glslang     Validate GLSL shaders with glslangValidator (Khronos reference validator)"
+	@echo "  validate-metal       Compile-check all Metal .metal shaders via Metal runtime (macOS)"
 	@echo "  shader-cost          Run reach-weighted static ALU/transcendental/noise cost analysis (tests/cost_analyze.py)"
 	@echo "  shader-audit         Check shader corpus for duplicate SDF/rot helpers and redundant centered coords"
 	@echo "  shader-catalog       Generate SHADER_CATALOG.md from shader effect headers"
@@ -160,6 +172,7 @@ help:
 	@echo "  test-math            Run Math & SIMD Tests and Logic & Uniform Tests"
 	@echo "  test-concurrency     Run Concurrency Tests suite"
 	@echo "  test-shaders         Run all shader compilation, wrapper, regression, and glslc validation tests"
+	@echo "  test-metal           Run macOS Metal compilation, audio/neural, and uniform property test suites"
 	@echo "  test-coverage        Build with gcov instrumentation and report line coverage (tests/coverage.sh)"
 	@echo "  coverage-gate        Enforce >= 90% project line coverage quality gate"
 	@echo "  verify               Run fast pre-commit verification suite"
@@ -200,6 +213,16 @@ build:
 	fi
 	@echo "Building all ShaderCandy targets in $(BUILD_DIR)..."
 	$(CMAKE) --build $(BUILD_DIR) -j$(NPROC)
+
+build-ninja:
+	@echo "Configuring and building with Ninja$(if $(CCACHE), + ccache,) in $(BUILD_NINJA_DIR)..."
+	$(CMAKE) -S . -B $(BUILD_NINJA_DIR) -G Ninja \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DENABLE_COVERAGE=OFF \
+		-DBUILD_TESTS=ON \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		$(if $(CCACHE),-DCMAKE_C_COMPILER_LAUNCHER=$(CCACHE) -DCMAKE_CXX_COMPILER_LAUNCHER=$(CCACHE) -DCMAKE_OBJCXX_COMPILER_LAUNCHER=$(CCACHE),)
+	$(CMAKE) --build $(BUILD_NINJA_DIR) -j$(NPROC)
 
 build-release:
 	@echo "Configuring and building Release artifacts in $(BUILD_DIR)..."
@@ -263,11 +286,18 @@ validate-build: build
 deps:
 	@echo "Checking ShaderCandy build and verification dependencies..."
 	@printf "  %-18s : %s\n" "CMake" "$$($(CMAKE) --version 2>/dev/null | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "Ninja" "$$($(NINJA) --version 2>/dev/null | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "ccache" "$$($(CCACHE) --version 2>/dev/null | head -n1 || echo 'MISSING')"
 	@printf "  %-18s : %s\n" "C++ Compiler" "$$($(CXX) --version 2>/dev/null | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "Clang-Format" "$$($(CLANG_FORMAT) --version 2>/dev/null | head -n1 || echo 'MISSING')"
 	@printf "  %-18s : %s\n" "Clang-Tidy" "$$($(CLANG_TIDY) --version 2>/dev/null | grep -E 'version' | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "Scan-Build" "$$(test -x '$(SCAN_BUILD)' && echo '$(SCAN_BUILD)' || echo 'MISSING')"
 	@printf "  %-18s : %s\n" "Cppcheck" "$$($(CPPCHECK) --version 2>/dev/null || echo 'MISSING')"
 	@printf "  %-18s : %s\n" "glslc (shaderc)" "$$($(GLSLC) --version 2>/dev/null | head -n1 || echo 'MISSING')"
-	@printf "  %-18s : %s\n" "Valgrind" "$$($(VALGRIND) --version 2>/dev/null || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "glslangValidator" "$$($(GLSLANG) --version 2>/dev/null | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "Doxygen" "$$($(DOXYGEN) --version 2>/dev/null | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "pkg-config" "$$($(PKG_CONFIG) --version 2>/dev/null | head -n1 || echo 'MISSING')"
+	@printf "  %-18s : %s\n" "Valgrind" "$$($(VALGRIND) --version 2>/dev/null || echo 'MISSING (Linux only)')"
 	@printf "  %-18s : %s\n" "ShellCheck" "$$($(SHELLCHECK) --version 2>/dev/null | grep '^version:' || echo 'MISSING')"
 	@printf "  %-18s : %s\n" "Python 3" "$$($(PYTHON) --version 2>/dev/null || echo 'MISSING')"
 	@if [ "$(UNAME_S)" = "Linux" ] && [ -x "$(PKG_CONFIG)" ]; then \
@@ -277,9 +307,31 @@ deps:
 		done; \
 	fi
 
+brew-deps:
+	@if [ -z "$(BREW)" ]; then \
+		echo "ERROR: Homebrew (brew) not found in PATH."; \
+		exit 1; \
+	fi
+	@echo "Installing/updating ShaderCandy C++/CMake/shader dev tools via Homebrew..."
+	$(BREW) install $(BREW_DEV_TOOLS)
+
+ccache-stats:
+	@if [ -z "$(CCACHE)" ]; then \
+		echo "ERROR: ccache not installed. Run 'make brew-deps'."; \
+		exit 1; \
+	fi
+	$(CCACHE) -s
+
+ccache-clear:
+	@if [ -z "$(CCACHE)" ]; then \
+		echo "ERROR: ccache not installed. Run 'make brew-deps'."; \
+		exit 1; \
+	fi
+	$(CCACHE) -C
+
 clean:
 	@echo "Cleaning auxiliary build directories and temporary test/profiling artifacts..."
-	rm -rf $(BUILD_DEBUG_DIR) $(BUILD_RELEASE_DIR) $(BUILD_HARDENED_DIR) \
+	rm -rf $(BUILD_NINJA_DIR) $(BUILD_DEBUG_DIR) $(BUILD_RELEASE_DIR) $(BUILD_HARDENED_DIR) \
 		$(BUILD_ASAN_DIR) $(BUILD_TSAN_DIR) $(BUILD_UBSAN_DIR) \
 		/tmp/shadercandy-coverage /tmp/shadercandy-tsan.log \
 		/tmp/shadercandy_regression_baseline.txt \
@@ -298,9 +350,29 @@ distclean: clean
 validate-shaders:
 	@echo "Validating all GLSL fragment shaders with glslc..."
 	GLSC=$(GLSLC) ./tests/validate_shaders.sh
-	@if [ "$(UNAME_S)" = "Darwin" ] && [ -n "$(XCRUN)" ]; then \
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		$(MAKE) validate-metal; \
+	fi
+
+validate-glslang:
+	@if [ -z "$(GLSLANG)" ]; then \
+		echo "ERROR: glslangValidator not found. Run 'make brew-deps'."; \
+		exit 1; \
+	fi
+	@echo "Validating GLSL base vertex shader with glslangValidator..."
+	$(GLSLANG) -S vert shaders/base/vertex.glsl
+	@echo "PASS: glslangValidator checks passed."
+
+validate-metal:
+	@if [ "$(UNAME_S)" != "Darwin" ]; then \
+		echo "Skipping Metal validation (macOS only)."; \
+	elif [ -n "$(XCRUN)" ] && $(XCRUN) -sdk macosx metal --version >/dev/null 2>&1; then \
 		echo "Validating Metal shaders with xcrun metal..."; \
 		$(PYTHON) scripts/test_shaders.py; \
+	else \
+		echo "Offline xcrun metal toolchain unavailable; validating all Metal shaders via Metal runtime..."; \
+		$(MAKE) build-test; \
+		./$(BUILD_DIR)/shadercandy-test --run "Metal Compilation Tests"; \
 	fi
 
 check-shaders: validate-shaders
@@ -688,6 +760,15 @@ test-shaders: build-test validate-shaders
 	./$(BUILD_DIR)/shadercandy-test --run "Shader Compilation Tests"
 	./$(BUILD_DIR)/shadercandy-test --run "Shader Wrapper Tests"
 	./$(BUILD_DIR)/shadercandy-test --run "Shader Regression Tests"
+
+test-metal: build-test
+	@if [ "$(UNAME_S)" != "Darwin" ]; then \
+		echo "ERROR: test-metal is macOS only."; \
+		exit 1; \
+	fi
+	./$(BUILD_DIR)/shadercandy-test --run "Metal Compilation Tests"
+	./$(BUILD_DIR)/shadercandy-test --run "Audio and Neural Tests"
+	./$(BUILD_DIR)/shadercandy-test --run "Property Uniform Tests"
 
 test-coverage:
 	@echo "Running gcov line coverage suite (tests/coverage.sh)..."
