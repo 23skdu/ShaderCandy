@@ -8,19 +8,9 @@
 #import <XCTest/XCTest.h>
 #import <Metal/Metal.h>
 #import <CoreML/CoreML.h>
-
-// Forward declarations
-@interface NeuralStyleEngine : NSObject
-+ (instancetype)sharedEngine;
-- (BOOL)initializeWithDevice:(id<MTLDevice>)device error:(NSError **)error;
-- (NSArray<NSString *> *)availableStyles;
-@end
-
-@interface StyleTransferModel : NSObject
-- (instancetype)initWithName:(NSString *)name modelURL:(NSURL *)url;
-- (BOOL)loadWithError:(NSError **)error;
-@property(nonatomic, assign, readonly) BOOL isLoaded;
-@end
+#import "NeuralStyleEngine.h"
+#import "StyleLibrary.h"
+#import "StyleTransferModel.h"
 
 @interface NeuralStyleTests : XCTestCase
 
@@ -72,7 +62,8 @@
 }
 
 - (void)testAvailableStyles {
-    NSArray<NSString *> *styles = [_engine availableStyles];
+    StyleLibrary *library = [StyleLibrary sharedLibrary];
+    NSArray<StylePreset *> *styles = library.allStyles;
 
     XCTAssertNotNil(styles, @"Should return available styles array");
     // Note: styles may be empty if no models are bundled
@@ -81,7 +72,8 @@
 #pragma mark - Model Tests
 
 - (void)testStyleTransferModelCreation {
-    StyleTransferModel *model = [[StyleTransferModel alloc] initWithName:@"test" modelURL:nil];
+    NSURL *dummyURL = [NSURL fileURLWithPath:@"/nonexistent/test.mlmodel"];
+    StyleTransferModel *model = [[StyleTransferModel alloc] initWithName:@"test" modelURL:dummyURL];
 
     XCTAssertNotNil(model, @"Model should be created");
     XCTAssertFalse(model.isLoaded, @"Model should not be loaded initially");
@@ -118,12 +110,13 @@
 #pragma mark - Integration Tests
 
 - (void)testModelLoadingWithoutURL {
-    StyleTransferModel *model = [[StyleTransferModel alloc] initWithName:@"test" modelURL:nil];
+    NSURL *missingURL = [NSURL fileURLWithPath:@"/nonexistent/test.mlmodel"];
+    StyleTransferModel *model = [[StyleTransferModel alloc] initWithName:@"test" modelURL:missingURL];
 
     NSError *error = nil;
     BOOL success = [model loadWithError:&error];
 
-    XCTAssertFalse(success, @"Loading should fail without URL");
+    XCTAssertFalse(success, @"Loading should fail with nonexistent URL");
     XCTAssertNotNil(error, @"Error should be set");
 }
 

@@ -149,8 +149,10 @@
     return;
   }
 
-  // Create a command buffer and encoder
-  id<MTLCommandBuffer> commandBuffer = [_device newCommandBuffer];
+  // Create a command queue and command buffer
+  id<MTLCommandQueue> commandQueue = [_device newCommandQueue];
+  XCTAssertNotNil(commandQueue, @"Command queue should be created");
+  id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
   XCTAssertNotNil(commandBuffer, @"Command buffer should be created");
 
   // Create a dummy texture for testing

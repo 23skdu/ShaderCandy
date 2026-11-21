@@ -73,6 +73,7 @@ typedef NS_ENUM(NSInteger, MetalGPUFamily) {
 @property(nonatomic, readonly) BOOL supportsTileShaders;
 @property(nonatomic, readonly) BOOL supportsSimdGroups;
 @property(nonatomic, readonly) BOOL supportsMeshShaders;
+@property(nonatomic, readonly) BOOL supportsVariableRateShading;
 @property(nonatomic, readonly) NSUInteger recommendedMaxWorkingSetSize;
 @property(nonatomic, readonly) BOOL isLowPower;
 @property(nonatomic, readonly) BOOL isHeadless;

@@ -7,6 +7,11 @@
 
 #import "AcousticSimulator.h"
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
+#include <algorithm>
+#include <vector>
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 @interface AcousticSimulator ()
 
@@ -64,7 +69,6 @@
     _rayIntersector = [[MPSRayIntersector alloc] initWithDevice:device];
     _rayIntersector.rayDataType = MPSRayDataTypeOriginMinDistanceDirectionMaxDistance;
     _rayIntersector.intersectionDataType = MPSIntersectionDataTypeDistancePrimitiveIndex;
-    _rayIntersector.maxQueryCount = 1024;
 
     // Create acceleration structure from scene geometry
     [self buildAccelerationStructure];
@@ -115,7 +119,8 @@
     accelDesc.triangleCount = vertexCount / 3;
     accelDesc.vertexBuffer = _triangleBuffer;
     accelDesc.vertexStride = sizeof(simd_float3);
-    accelDesc.usage = MPSAccelerationStructureUsageUsage;
+    accelDesc.usage = MPSAccelerationStructureUsageNone;
+    [accelDesc rebuild];
 
     _accelerationStructure = accelDesc;
 }
@@ -156,6 +161,7 @@
                                                                                           height:256
                                                                                        mipmapped:NO];
         desc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
+        desc.storageMode = MTLStorageModeShared;
         _acousticFieldTexture = [_device newTextureWithDescriptor:desc];
     }
 
@@ -202,7 +208,7 @@
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
 
     NSUInteger rayCount = 1024;
-    MPSRayOriginMinDistanceDirectionMaxDistance *rays = _rayBuffer.contents;
+    auto *rays = static_cast<MPSRayOriginMinDistanceDirectionMaxDistance *>(_rayBuffer.contents);
 
     // Generate rays from audio source in all directions
     for (NSUInteger i = 0; i < rayCount; i++) {
@@ -223,19 +229,20 @@
 
     // Encode MPS ray intersection
     [_rayIntersector encodeIntersectionToCommandBuffer:commandBuffer
-                                         rayBufferType:MPSRayBufferTypeFlat
-                                           rayBuffer:_rayBuffer
-                                        rayBufferOffset:0
-                                   intersectionBuffer:_intersectionBuffer
+                                      intersectionType:MPSIntersectionTypeNearest
+                                             rayBuffer:_rayBuffer
+                                       rayBufferOffset:0
+                                    intersectionBuffer:_intersectionBuffer
                               intersectionBufferOffset:0
-                                             rayCount:rayCount
-                            accelerationStructure:_accelerationStructure];
+                                              rayCount:rayCount
+                                 accelerationStructure:_accelerationStructure];
 
     [commandBuffer commit];
     [commandBuffer waitUntilCompleted];
 
     // Process intersections and accumulate acoustic energy
-    MPSIntersectionDistancePrimitiveIndex *intersections = _intersectionBuffer.contents;
+    auto *intersections = static_cast<MPSIntersectionDistancePrimitiveIndex *>(_intersectionBuffer.contents);
+    std::vector<float> fieldData(256 * 256, 0.0f);
 
     for (NSUInteger i = 0; i < rayCount; i++) {
         float distance = intersections[i].distance;
@@ -259,11 +266,15 @@
 
             float energy = absorptionFactor * _sourceFrequency / 440.0;
             uint32_t pixel = texY * 256 + texX;
-            float *texData = (float *)[_acousticFieldTexture contents];
-            if (texData) {
-                texData[pixel] += energy;
-            }
+            fieldData[pixel] += energy;
         }
+    }
+
+    if (_acousticFieldTexture) {
+        [_acousticFieldTexture replaceRegion:MTLRegionMake2D(0, 0, 256, 256)
+                                 mipmapLevel:0
+                                   withBytes:fieldData.data()
+                                 bytesPerRow:256 * sizeof(float)];
     }
 }
 
@@ -300,3 +311,5 @@
 }
 
 @end
+
+#pragma clang diagnostic pop

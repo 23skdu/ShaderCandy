@@ -7,18 +7,7 @@
 
 #import <XCTest/XCTest.h>
 #import <Metal/Metal.h>
-
-// Forward declarations
-@interface RayAudioEngine : NSObject
-+ (instancetype)sharedEngine;
-- (BOOL)initializeWithSampleRate:(double)sampleRate error:(NSError **)error;
-- (void)start;
-- (void)stop;
-- (void)setAudioSource:(NSInteger)sourceID position:(simd_float3)position;
-- (void)processAudioBuffer:(float *)buffer frameCount:(NSUInteger)frameCount;
-@property(nonatomic, assign) simd_float3 listenerPosition;
-@property(nonatomic, assign) BOOL isRunning;
-@end
+#import "RayAudioEngine.h"
 
 @interface RayAudioTests : XCTestCase
 
@@ -135,9 +124,10 @@
     [_engine setAudioSource:1 position:simd_make_float3(-1.0, 0.0, 0.0)];
     [_engine setAudioSource:2 position:simd_make_float3(0.0, 1.0, 0.0)];
 
-    float buffer[1024];
+    NSMutableData *bufferData = [NSMutableData dataWithLength:1024 * sizeof(float)];
 
     [self measureBlock:^{
+        float *buffer = static_cast<float *>(bufferData.mutableBytes);
         for (int i = 0; i < 100; i++) {
             [_engine processAudioBuffer:buffer frameCount:1024];
         }

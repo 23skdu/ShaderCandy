@@ -11,6 +11,7 @@
 #import "../../metal/MetalSharedState.h"
 #import "../../neural/NeuralStyleEngine.h"
 #import "StandaloneAppWindowController.h"
+#import <IOKit/ps/IOPowerSources.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface StandaloneAppDelegate ()

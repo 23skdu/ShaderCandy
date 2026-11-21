@@ -1,5 +1,6 @@
 #import "../src/audio/AudioInput.h"
 #import "../src/neural/NeuralStyleEngine.h"
+#import "../src/neural/StyleLibrary.h"
 #import "../src/audio/AcousticSimulator.h"
 #import "../src/audio/RayAudioEngine.h"
 #import "../src/audio/SoundscapeGenerator.h"
@@ -56,7 +57,8 @@ private:
 
     TestResult testNeuralEngineBasics() {
         NeuralStyleEngine *engine = [NeuralStyleEngine sharedEngine];
-        [engine availableStyles];
+        StyleLibrary *library = [StyleLibrary sharedLibrary];
+        TEST_ASSERT(library != nil, "StyleLibrary shared instance should exist");
         engine.styleStrength = 0.5f;
         TEST_ASSERT(engine.styleStrength == 0.5f, "Style strength failed");
         

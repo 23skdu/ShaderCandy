@@ -196,6 +196,8 @@ if(MACOS AND BUILD_METAL)
     
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
+    find_library(MPS_FRAMEWORK MetalPerformanceShaders REQUIRED)
+    find_library(IOKIT_FRAMEWORK IOKit REQUIRED)
     find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
     find_library(AVFOUNDATION_FRAMEWORK AVFoundation REQUIRED)
     find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
@@ -243,6 +245,8 @@ if(MACOS AND BUILD_METAL)
     target_compile_options(shadercandy_audio PUBLIC -fobjc-arc)
     target_link_libraries(shadercandy_audio PUBLIC
         shadercandy_core
+        ${METAL_FRAMEWORK}
+        ${MPS_FRAMEWORK}
         ${AVFOUNDATION_FRAMEWORK}
         ${ACCELERATE_FRAMEWORK}
         ${COREMEDIA_FRAMEWORK}
@@ -436,6 +440,7 @@ if(MACOS AND BUILD_SCREENSAVER_MACOS)
         ${QUARTZCORE_FRAMEWORK}
         ${COCOA_FRAMEWORK}
         ${COREMEDIA_FRAMEWORK}
+        ${IOKIT_FRAMEWORK}
     )
     
     if(TARGET metal_shaders)
@@ -528,6 +533,7 @@ target_link_libraries(ShaderCandyPlayer PRIVATE
            ${COREMEDIA_FRAMEWORK}
            ${COREML_FRAMEWORK}
            ${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}
+           ${IOKIT_FRAMEWORK}
            "-framework Foundation"
           "-framework AppKit"
       )
@@ -802,6 +808,7 @@ if(BUILD_TESTS)
         list(APPEND TEST_SOURCES tests/main.mm)
         list(APPEND TEST_SOURCES tests/MetalCompilationTests.mm)
         list(APPEND TEST_SOURCES tests/AudioAndNeuralTests.mm)
+        list(APPEND TEST_SOURCES tests/PropertyUniformTests.mm)
         list(APPEND TEST_SOURCES src/platform/macos/MacOSMetalViewAdapter.mm)
     else()
         # Linux: unity build — main.cpp #includes the test .cpp files directly
@@ -825,6 +832,7 @@ if(BUILD_TESTS)
             ${AVFOUNDATION_FRAMEWORK}
             ${ACCELERATE_FRAMEWORK}
             ${COREMEDIA_FRAMEWORK}
+            ${IOKIT_FRAMEWORK}
             "-framework Foundation"
             "-framework AppKit"
         )
@@ -877,6 +885,7 @@ if(BUILD_TESTS)
             ${AVFOUNDATION_FRAMEWORK}
             ${ACCELERATE_FRAMEWORK}
             ${COREMEDIA_FRAMEWORK}
+            ${IOKIT_FRAMEWORK}
         )
         
         add_test(NAME ShaderCandyTests COMMAND ShaderCandyTests)

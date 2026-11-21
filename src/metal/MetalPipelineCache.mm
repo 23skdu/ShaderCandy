@@ -146,33 +146,13 @@
         state.renderPipeline = _renderPipelineCache[key];
     }
 
-    // 2. Try binary archive (persistent cache)
-    if (!state.renderPipeline && _enableDiskCache) {
-        id<MTLBinaryArchive> archive = [self archiveForDevice:device];
-        if (archive) {
-            NSError *archiveError = nil;
-            MTLBinaryArchiveDescriptor *archiveDesc = [[MTLBinaryArchiveDescriptor alloc] init];
-            archiveDesc.url = [NSURL fileURLWithPath:[_diskCachePath stringByAppendingPathComponent:@"pipeline_archive.metallib"]];
-
-            id<MTLBinaryArchive> loadedArchive = [device newBinaryArchiveWithDescriptor:archiveDesc error:&archiveError];
-            if (!archiveError && loadedArchive) {
-                NSError *pipelineError = nil;
-                state.renderPipeline = [loadedArchive renderPipelineStateWithDescriptor:descriptor error:&pipelineError];
-                if (pipelineError) {
-#ifdef DEBUG
-                    NSLog(@"MetalPipelineCache: Binary archive miss for %@: %@", shaderName, pipelineError);
-#endif
-                } else {
-#ifdef DEBUG
-                    NSLog(@"MetalPipelineCache: Restored %@ from binary archive", shaderName);
-#endif
-                }
-            }
-        }
-    }
-
-    // 3. Compile from source
+    // 2. Compile from source (leveraging MTLBinaryArchive when disk cache is enabled)
     if (!state.renderPipeline) {
+        id<MTLBinaryArchive> archive = _enableDiskCache ? [self archiveForDevice:device] : nil;
+        if (archive) {
+            descriptor.binaryArchives = @[archive];
+        }
+
         NSError *compileError = nil;
         state.renderPipeline = [device newRenderPipelineStateWithDescriptor:descriptor
                                                                    error:&compileError];
@@ -182,20 +162,17 @@
         }
 
         // Add to binary archive for future persistence
-        if (_enableDiskCache) {
-            id<MTLBinaryArchive> archive = [self archiveForDevice:device];
-            if (archive) {
-                NSError *addError = nil;
-                [archive addRenderPipelineStateWithDescriptor:descriptor error:&addError];
-                if (addError) {
+        if (archive) {
+            NSError *addError = nil;
+            [archive addRenderPipelineFunctionsWithDescriptor:descriptor error:&addError];
+            if (addError) {
 #ifdef DEBUG
-                    NSLog(@"MetalPipelineCache: Failed to add to archive: %@", addError);
+                NSLog(@"MetalPipelineCache: Failed to add to archive: %@", addError);
 #endif
-                }
-                // Serialize periodically (every 10 pipelines)
-                if ((_renderPipelineCache.count + _computePipelineCache.count) % 10 == 0) {
-                    [self serializeArchive];
-                }
+            }
+            // Serialize periodically (every 10 pipelines)
+            if ((_renderPipelineCache.count + _computePipelineCache.count) % 10 == 0) {
+                [self serializeArchive];
             }
         }
 

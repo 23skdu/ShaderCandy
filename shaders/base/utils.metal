@@ -5,8 +5,8 @@
 using namespace metal;
 
 // Common constants
-constexpr float PI = 3.14159265358979323846f;
-constexpr float TWO_PI = 6.28318530717958647692f;
+constant constexpr float PI = 3.14159265358979323846f;
+constant constexpr float TWO_PI = 6.28318530717958647692f;
 
 // Utility functions for Metal Shaders
 namespace ShaderUtils {

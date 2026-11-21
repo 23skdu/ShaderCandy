@@ -81,7 +81,7 @@ struct ParticleOut {
     float pointSize [[point_size]];
 };
 
-vertex ParticleOut vertex_particles(device Particle *particles [[buffer(0)]],
+vertex ParticleOut vertex_particles(const device Particle *particles [[buffer(0)]],
                                    uint id [[vertex_id]]) {
     ParticleOut out;
     float2 pos = particles[id].position;

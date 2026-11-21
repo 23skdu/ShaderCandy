@@ -4,6 +4,7 @@
 //
 
 #import "MetalHeapManager.h"
+#include <algorithm>
 
 @implementation MetalHeapManager
 

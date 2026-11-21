@@ -53,7 +53,7 @@
     gpuStart = CACurrentMediaTime();
   }];
 
-  __weak typeof(self) weakSelf = self;
+  __weak __typeof__(self) weakSelf = self;
   [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull buf) {
     double gpuEnd = CACurrentMediaTime();
     double gpuDurationMs = (buf.GPUEndTime - buf.GPUStartTime) * 1000.0;

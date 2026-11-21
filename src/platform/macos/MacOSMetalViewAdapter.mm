@@ -9,6 +9,7 @@
 #import "../../audio/SoundscapeGenerator.h"
 #import "../../metal/MetalRenderer.h"
 #import "../../metal/MetalSharedState.h"
+#import <IOKit/ps/IOPowerSources.h>
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -474,6 +475,25 @@
                                error:&error];
 }
 
+- (void)cycleToPreviousShader {
+  if (_availableShaders.count == 0)
+    return;
+
+  NSUInteger index = [_availableShaders indexOfObject:_currentShaderName];
+  if (index == NSNotFound || index == 0) {
+    index = _availableShaders.count - 1;
+  } else {
+    index -= 1;
+  }
+  _currentShaderName = _availableShaders[index];
+  _lastCycleTime = [NSDate date];
+
+  NSError *error = nil;
+  [_renderer transitionToShaderNamed:_currentShaderName
+                            duration:2.0
+                               error:&error];
+}
+
 #pragma mark - MTKViewDelegate
 
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {
@@ -528,36 +548,29 @@
       [self saveScreenshot];
       return;
     } else if ([chars isEqualToString:@"="] || [chars isEqualToString:@"+"]) {
-      if (_renderer) {
-        _renderer.intensity = MIN(2.0f, _renderer.intensity + 0.1f);
-      }
+      _intensity = MIN(2.0f, _intensity + 0.1f);
       return;
     } else if ([chars isEqualToString:@"-"]) {
-      if (_renderer) {
-        _renderer.intensity = MAX(0.0f, _renderer.intensity - 0.1f);
-      }
+      _intensity = MAX(0.0f, _intensity - 0.1f);
       return;
     }
   }
 
+  if (chars.length == 0) {
+    [super keyDown:event];
+    return;
+  }
+
   unichar ch = [chars characterAtIndex:0];
   if (ch == NSLeftArrowFunctionKey) {
-    if (_renderer) {
-      [_renderer previousShader];
-    }
+    [self cycleToPreviousShader];
   } else if (ch == NSRightArrowFunctionKey) {
-    if (_renderer) {
-      [_renderer nextShader];
-    }
+    [self cycleToNextShader];
   } else if ([chars isEqualToString:@" "] || [chars isEqualToString:@"p"] ||
              [chars isEqualToString:@"P"]) {
-    if (_renderer) {
-      [_renderer nextShader];
-    }
+    [self cycleToNextShader];
   } else if ([chars isEqualToString:@"n"] || [chars isEqualToString:@"N"]) {
-    if (_renderer) {
-      [_renderer previousShader];
-    }
+    [self cycleToPreviousShader];
   } else if ([chars isEqualToString:@"d"] || [chars isEqualToString:@"D"]) {
     if (_renderer) {
       _renderer.showDebugOverlay = !_renderer.showDebugOverlay;
@@ -571,9 +584,7 @@
       [_renderer testAllShaders];
     }
   } else if ([chars isEqualToString:@"\t"]) {
-    if (_renderer) {
-      [_renderer nextShader];
-    }
+    [self cycleToNextShader];
   } else if ([event keyCode] == 0x3D) {
     [self saveScreenshot];
   } else {

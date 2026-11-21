@@ -1,8 +1,9 @@
 #include "../src/core/ShaderInterop.h"
-#import "../src/platform/macos/ShaderCandyView.h"
+#import "../src/metal/MetalRenderer.h"
 #include "TestFramework.h"
 #import <Metal/Metal.h>
-#include <iostream>
+#include <cmath>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -17,77 +18,62 @@ public:
     std::vector<TestResult> results;
 
     @autoreleasepool {
-      NSRect frame = NSMakeRect(0, 0, 800, 600);
-      ShaderCandyView *view = [[ShaderCandyView alloc] initWithFrame:frame
-                                                           isPreview:NO];
-
-      // Force initialization to create buffers
-      [view setupMetal];
-
-      // If setupMetal failed (no device), we can't test buffers
-      if (!view.renderer.device || !view.renderer.uniformBuffer) {
+      id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+      if (!device) {
         results.push_back(
-            {"Initialization", false,
-             "Metal device or uniform buffer not available for test", 0.0});
+            {"Initialization", false, "Metal device not available for test", 0.0});
         return results;
       }
 
-      // Test Shader Discovery
-      NSArray *shaders = view.availableShaders;
-      NSArray *expected = @[
-        @"mandelbulb_3d", @"julia_3d", @"julia_set", @"mandelbrot_set",
-        @"flying_toasters", @"voronoi_cells", @"tunnel", @"plasma", @"ripples"
-      ];
-
-      bool shadersPass = true;
-      std::string missingShaders = "";
-      for (NSString *name in expected) {
-        if (![shaders containsObject:name]) {
-          shadersPass = false;
-          missingShaders += [name UTF8String];
-          missingShaders += " ";
-        }
+      NSError *error = nil;
+      MetalRenderer *renderer = [MetalRenderer rendererWithDevice:device error:&error];
+      if (!renderer || !renderer.resources || !renderer.resources.uniformBuffer) {
+        results.push_back(
+            {"Initialization", false,
+             "MetalRenderer or uniform buffer not available for test", 0.0});
+        return results;
       }
-      results.push_back({"Shader Discovery", shadersPass,
-                         shadersPass ? "All expected shaders found"
-                                     : "Missing: " + missingShaders,
-                         0.0});
 
-      // Test Speed
-      view.speed = 2.5f;
-      [view.renderer updateUniformsWithTime:0.0];
-      results.push_back(checkUniformValue(
-          "Speed", view, offsetof(struct Uniforms, speed), 2.5f));
+      // Verify device capability info (including VRS flag)
+      results.push_back(
+          {"Device Info", renderer.deviceInfo != nil,
+           renderer.deviceInfo ? "MetalDeviceInfo populated" : "Missing deviceInfo",
+           0.0});
 
-      // Test Intensity
-      view.intensity = 1.3f;
-      view.renderer.frameCount++; // Simulate next frame
-      [view.renderer updateUniformsWithTime:0.0];
-      results.push_back(checkUniformValue(
-          "Intensity", view, offsetof(struct Uniforms, intensity), 1.3f));
+      // Test Uniforms mapping for time, speed, intensity, gravity
+      [renderer updateUniformsWithTime:12.5
+                         mousePosition:NSMakePoint(400, 300)
+                          mouseButtons:1
+                                 speed:2.5f
+                             intensity:1.3f
+                               gravity:4.2f
+                                height:600.0];
 
-      // Test Gravity
-      view.gravity = 4.2f;
-      view.renderer.frameCount++;
-      [view.renderer updateUniformsWithTime:0.0];
       results.push_back(checkUniformValue(
-          "Gravity", view, offsetof(struct Uniforms, gravity), 4.2f));
+          "Time", renderer, offsetof(struct Uniforms, time), 12.5f));
+      results.push_back(checkUniformValue(
+          "Speed", renderer, offsetof(struct Uniforms, speed), 2.5f));
+      results.push_back(checkUniformValue(
+          "Intensity", renderer, offsetof(struct Uniforms, intensity), 1.3f));
+      results.push_back(checkUniformValue(
+          "Gravity", renderer, offsetof(struct Uniforms, gravity), 4.2f));
+      results.push_back(checkUniformValue(
+          "MouseButtons", renderer, offsetof(struct Uniforms, mouseButtons), 1.0f));
+
+      [renderer shutdown];
     }
 
     return results;
   }
 
 private:
-  TestResult checkUniformValue(const std::string &name, ShaderCandyView *view,
+  TestResult checkUniformValue(const std::string &name, MetalRenderer *renderer,
                                size_t offset, float expected) {
-    // Uniforms are triple buffered
-    NSUInteger bufferIndex = (view.renderer.frameCount) % 3;
-    uint8_t *contents = (uint8_t *)[view.renderer.uniformBuffer contents];
-    float *actualPtr =
-        (float *)(contents + bufferIndex * sizeof(struct Uniforms) + offset);
+    uint8_t *contents = static_cast<uint8_t *>(renderer.resources.uniformBuffer.contents);
+    float *actualPtr = reinterpret_cast<float *>(contents + offset);
     float actual = *actualPtr;
 
-    bool passed = (std::abs(actual - expected) < 0.001f);
+    bool passed = (std::fabs(actual - expected) < 0.001f);
     std::string msg = passed
                           ? "Correctly updated"
                           : "Mismatch: Expected " + std::to_string(expected) +

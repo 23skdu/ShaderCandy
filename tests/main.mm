@@ -2,15 +2,11 @@
 #include <cstring>
 #include <iostream>
 
-// Include test files to ensure they're compiled and registered
+// Include C++ test files to ensure they're compiled and registered
+// (macOS Objective-C++ test suites are compiled as separate translation units in CMakeLists.txt)
 #include "LogicAndUniformTests.cpp"
 #include "MathAndCoreTests.cpp"
 #include "ShaderCompilationTests.cpp"
-#ifdef __APPLE__
-#include "MetalCompilationTests.mm"
-// PropertyUniformTests.mm disabled - requires new MetalRenderer API
-// #include "PropertyUniformTests.mm"
-#endif
 
 using namespace ShaderCandy::Test;
 

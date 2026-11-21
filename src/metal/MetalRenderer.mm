@@ -2229,7 +2229,7 @@ transition_complete:;
 
 #if TARGET_OS_MAC
   if (@available(macOS 10.15.4, *)) {
-    if (_variableRateShadingEnabled && _supportsVariableRateShading && descriptor) {
+    if (_variableRateShadingEnabled && _deviceInfo.supportsVariableRateShading && descriptor) {
       if (!_rasterizationRateMap && descriptor.colorAttachments[0].texture) {
         id<MTLTexture> targetTex = descriptor.colorAttachments[0].texture;
         MTLSize sampleSize = MTLSizeMake(targetTex.width, targetTex.height, 1);
@@ -2368,7 +2368,7 @@ transition_complete:;
 
 #if TARGET_OS_MAC
   if (@available(macOS 10.15.4, *)) {
-    if (_variableRateShadingEnabled && _supportsVariableRateShading && _resources.sceneTexture) {
+    if (_variableRateShadingEnabled && _deviceInfo.supportsVariableRateShading && _resources.sceneTexture) {
       if (!_rasterizationRateMap) {
         MTLSize sampleSize = MTLSizeMake(_resources.sceneTexture.width, _resources.sceneTexture.height, 1);
         MTLRasterizationRateLayerDescriptor *layerDesc = [[MTLRasterizationRateLayerDescriptor alloc] initWithSampleCount:sampleSize];

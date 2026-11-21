@@ -7,24 +7,10 @@
 
 #import <XCTest/XCTest.h>
 #import <Metal/Metal.h>
-
-// Forward declarations
-@interface NeuralStyleEngine : NSObject
-+ (instancetype)sharedEngine;
-- (BOOL)initializeWithDevice:(id<MTLDevice>)device error:(NSError **)error;
-@property(nonatomic, assign) float styleStrength;
-@end
-
-@interface HDRPipeline : NSObject
-+ (instancetype)sharedPipeline;
-- (BOOL)initializeWithDevice:(id<MTLDevice>)device error:(NSError **)error;
-@property(nonatomic, assign) BOOL hdrEnabled;
-@end
-
-@interface RayAudioEngine : NSObject
-+ (instancetype)sharedEngine;
-- (BOOL)initializeWithSampleRate:(double)sampleRate error:(NSError **)error;
-@end
+#import "HDRPipeline.h"
+#import "NeuralStyleEngine.h"
+#import "RayAudioEngine.h"
+#include <vector>
 
 @interface WallpaperEngine : NSObject
 + (instancetype)sharedEngine;
@@ -71,8 +57,9 @@
     XCTAssertTrue(neuralSuccess, @"Neural engine should initialize");
     XCTAssertTrue(hdrSuccess, @"HDR pipeline should initialize");
 
-    // Enable HDR with neural style
-    _hdrPipeline.hdrEnabled = YES;
+    // Configure HDR with neural style
+    _hdrPipeline.autoDetectHDR = YES;
+    _hdrPipeline.toneMapping = ToneMappingOperatorACES;
     _neuralEngine.styleStrength = 0.8;
 
     XCTAssertTrue(YES, @"Neural style and HDR should work together");
@@ -131,13 +118,14 @@
     XCTAssertTrue(audioSuccess, @"Audio should initialize");
 
     // Configure all features
-    _hdrPipeline.hdrEnabled = YES;
+    _hdrPipeline.autoDetectHDR = YES;
+    _hdrPipeline.toneMapping = ToneMappingOperatorACES;
     _neuralEngine.styleStrength = 0.7;
     [_audioEngine start];
 
     // Simulate one frame with all features
-    float audioBuffer[256];
-    [_audioEngine processAudioBuffer:audioBuffer frameCount:256];
+    std::vector<float> audioBuffer(256, 0.0f);
+    [_audioEngine processAudioBuffer:audioBuffer.data() frameCount:256];
 
     XCTAssertTrue(YES, @"All features should work together");
 }
@@ -157,9 +145,10 @@
     [_audioEngine initializeWithSampleRate:48000.0 error:nil];
     [_audioEngine start];
 
-    float audioBuffer[1024];
+    NSMutableData *audioData = [NSMutableData dataWithLength:1024 * sizeof(float)];
 
     [self measureBlock:^{
+        float *audioBuffer = static_cast<float *>(audioData.mutableBytes);
         for (int i = 0; i < 60; i++) {
             [_audioEngine processAudioBuffer:audioBuffer frameCount:1024];
         }

@@ -6,9 +6,7 @@
 //
 
 #import <XCTest/XCTest.h>
-
-@class StyleLibrary;
-@class StylePreset;
+#import "StyleLibrary.h"
 
 @interface StyleLibraryTests : XCTestCase
 
