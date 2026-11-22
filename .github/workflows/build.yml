@@ -72,7 +72,7 @@ jobs:
     
     - name: Upload artifacts
       if: matrix.build_type == 'Release' && matrix.compiler == 'gcc'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: shadercandy-linux
         path: build/shadercandy-linux.tar.gz
@@ -124,7 +124,7 @@ jobs:
     
     - name: Upload artifacts
       if: matrix.build_type == 'Release'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: shadercandy-macos-arm64
         path: build/shadercandy-macos-arm64.zip
@@ -176,7 +176,7 @@ jobs:
         ./osx/build_dmg.sh
 
     - name: Upload DMG artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: shadercandy-macos-arm64-dmg
         path: osx/dmg/*.dmg
@@ -234,7 +234,7 @@ jobs:
         ./tests/run_benchmarks.sh -dir ./shaders -frames 60 2>&1 | tee benchmark_results.txt
     
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: benchmark-results
         path: benchmark_results.txt
@@ -312,7 +312,7 @@ jobs:
         done
     
     - name: Upload documentation artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: documentation
         path: |
