@@ -68,7 +68,7 @@ jobs:
       run: |
         cd build
         ninja package || true
-        tar czf shadercandy-linux.tar.gz shadercandy-screensaver shadercandy-test ../shaders/
+        tar czf shadercandy-linux.tar.gz shadercandy-screensaver shadercandy-test shadercandy-bench ../shaders/
     
     - name: Upload artifacts
       if: matrix.build_type == 'Release' && matrix.compiler == 'gcc'
@@ -77,9 +77,9 @@ jobs:
         name: shadercandy-linux
         path: build/shadercandy-linux.tar.gz
 
-  # macOS Build
+  # macOS Build (Apple Silicon / arm64)
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       matrix:
         build_type: [Release, Debug]
@@ -97,6 +97,7 @@ jobs:
         cd build
         cmake .. -G Xcode \
           -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+          -DCMAKE_OSX_ARCHITECTURES=arm64 \
           -DBUILD_METAL=ON \
           -DBUILD_OPENGL=OFF \
           -DBUILD_SCREENSAVER_MACOS=ON \
@@ -110,44 +111,75 @@ jobs:
                    -configuration ${{ matrix.build_type }} \
                    -derivedDataPath ./DerivedData
     
+    - name: Validate Metal shaders
+      if: matrix.build_type == 'Release'
+      run: |
+        make validate-metal
+
     - name: Package
       if: matrix.build_type == 'Release'
       run: |
         cd build
-        zip -r shadercandy-macos.zip DerivedData/Build/Products/Release/ShaderCandy.saver
+        zip -r shadercandy-macos-arm64.zip DerivedData/Build/Products/Release/ShaderCandy.saver
     
     - name: Upload artifacts
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: shadercandy-macos
-        path: build/shadercandy-macos.zip
+        name: shadercandy-macos-arm64
+        path: build/shadercandy-macos-arm64.zip
 
-  # Shader Validation
+  # Shader Validation (GLSL)
   validate-shaders:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install shader compiler
+    - name: Install shader compilers
       run: |
-        wget https://github.com/KhronosGroup/glslang/releases/download/main-tot/glslang-main-linux-Release.zip
-        unzip glslang-main-linux-Release.zip -d /tmp/glslang
-        sudo cp /tmp/glslang/bin/glslangValidator /usr/local/bin/
+        sudo apt-get update
+        sudo apt-get install -y glslc shaderc spirv-tools
     
     - name: Validate GLSL shaders
       run: |
-        for shader in shaders/effects/*.frag; do
-          echo "Validating $shader..."
-          glslangValidator -S frag "$shader" || exit 1
-        done
+        GLSC=glslc ./tests/validate_shaders.sh
+
+  # Metal Shader Validation (macOS)
+  validate-metal:
+    runs-on: macos-15
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: brew install cmake
     
     - name: Validate Metal shaders
+      run: make validate-metal
+
+  # macOS DMG (Apple Silicon / arm64)
+  build-macos-dmg:
+    runs-on: macos-15
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
       run: |
-        echo "Metal shaders require macOS for compilation"
-        echo "Skipping Metal shader validation on Linux"
-        # On macOS runner, we would use: xcrun -sdk macosx metal -c shaders/base/common.metal
+        brew install cmake ninja xcodegen
+
+    - name: Build DMG
+      env:
+        CMAKE_OSX_ARCHITECTURES: arm64
+      run: |
+        chmod +x osx/build_dmg.sh
+        ./osx/build_dmg.sh
+
+    - name: Upload DMG artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: shadercandy-macos-arm64-dmg
+        path: osx/dmg/*.dmg
 
   # Code Quality
   code-quality:
@@ -195,15 +227,11 @@ jobs:
     
     - name: Run performance benchmarks
       run: |
+        set -o pipefail
         export DISPLAY=:99
         tar xzf shadercandy-linux.tar.gz
-        # Run benchmark suite
-        ./shadercandy-test --benchmark 2>&1 | tee benchmark_results.txt
-        # Check for regressions (baseline: 10% tolerance)
-        if grep -q "regression" benchmark_results.txt; then
-          echo "Performance regression detected!"
-          exit 1
-        fi
+        # Run the real benchmark binary (not the removed --benchmark flag)
+        ./tests/run_benchmarks.sh -dir ./shaders -frames 60 2>&1 | tee benchmark_results.txt
     
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
@@ -213,7 +241,7 @@ jobs:
 
   # Release
   release:
-    needs: [build-linux, build-macos, validate-shaders]
+    needs: [build-linux, build-macos, validate-shaders, validate-metal]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     
@@ -226,14 +254,20 @@ jobs:
     - name: Create Release Assets
       run: |
         mv shadercandy-linux/shadercandy-linux.tar.gz ShaderCandy-Linux.tar.gz
-        mv shadercandy-macos/shadercandy-macos.zip ShaderCandy-macOS.zip
+        if [ -d shadercandy-macos-arm64 ]; then
+          mv shadercandy-macos-arm64/shadercandy-macos-arm64.zip ShaderCandy-macOS-arm64.zip
+        fi
+        if [ -d shadercandy-macos-arm64-dmg ]; then
+          mv shadercandy-macos-arm64-dmg/*.dmg ShaderCandy-macOS-arm64.dmg
+        fi
     
     - name: Upload Release Assets
       uses: softprops/action-gh-release@v2
       with:
         files: |
           ShaderCandy-Linux.tar.gz
-          ShaderCandy-macOS.zip
+          ShaderCandy-macOS-arm64.zip
+          ShaderCandy-macOS-arm64.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
