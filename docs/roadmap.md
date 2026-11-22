@@ -272,6 +272,64 @@ in this roadmap is false. Evidence uses current file:line references.
 - **Fix**: Delete orphans, consolidate packaging, and deduplicate the test
   registration.
 
+### P0-18. macOS CI job floats on `macos-latest` instead of a pinned `macos-15` runner
+
+- **Evidence**: `.github/workflows/build.yml:82` sets `runs-on: macos-latest` for
+  the `build-macos` job, and the configure step
+  (`build.yml:94-103`) passes no `CMAKE_OSX_ARCHITECTURES`. `macos-latest` is
+  a floating label that GitHub re-points at newer macOS/Xcode releases, so the
+  SDK, default architecture, and available Metal toolchain drift between runs;
+  the documented deployment target is macOS 11.0
+  (`build.yml:99` `CMAKE_OSX_DEPLOYMENT_TARGET=11.0`). The release job
+  (`build.yml:216`) depends on this floating build.
+- **Impact**: macOS build/test verification is not reproducible; an Apple
+  Silicon (arm64) vs Intel (x86_64) regression can be masked by whatever
+  architecture the floating runner happens to provide; release artifacts can be
+  produced from an unintended toolchain.
+- **Fix**: Pin the runner to `macos-15` (and, where both are needed, an explicit
+  matrix of `macos-14`/`macos-15`), and set `CMAKE_OSX_ARCHITECTURES`
+  explicitly (e.g. `arm64`, `x86_64`, or `arm64;x86_64`) per job so the
+  architecture under test is stated, not inferred.
+
+### P0-19. No dedicated ARM64 Darwin verification job in release verification
+
+- **Evidence**: The `release` job (`build.yml:214-238`) gates only on
+  `build-linux`, `build-macos`, and `validate-shaders`; there is no job that
+  compiles/tests ShaderCandy natively on Apple Silicon with
+  `CMAKE_OSX_ARCHITECTURES=arm64`. `osx/build_dmg.sh` configures CMake without
+  `-DCMAKE_OSX_ARCHITECTURES` (line 64), so even the DMG build does not assert
+  an architecture. Meanwhile `src/core/MathUtils.h:18,24` selects NEON/AVX
+  paths by `__arm64__`/`__x86_64__` and the Metal shaders
+  (`shaders/base/utils.metal`) are only compiled on macOS, so the arm64 Metal +
+  NEON paths are never independently exercised in CI.
+- **Impact**: An arm64-only Metal or NEON regression can merge green and ship;
+  "macOS (Metal) Production Ready" is verified only on whatever
+  `macos-latest` happens to be.
+- **Fix**: Add a `build-macos-arm64` job running on `macos-15` with
+  `CMAKE_OSX_ARCHITECTURES=arm64`, `BUILD_METAL=ON`, `BUILD_TESTS=ON`, running
+  the test binary and Metal shader compilation, and add it to the `release`
+  job's `needs:` list.
+
+### P0-20. Release ships a single architecture-unspecified macOS DMG; no darwin arm64 installer
+
+- **Evidence**: The release step (`build.yml:226-230`) renames
+  `shadercandy-macos.zip` to `ShaderCandy-macOS.zip` and uploads only that
+  plus `ShaderCandy-Linux.tar.gz`; there is no `ShaderCandy-macOS-arm64.dmg`
+  (or `.zip`) asset. `osx/build_dmg.sh` names its output
+  `ShaderCandy-Installer-<date>.dmg` with no architecture token
+  (`build_dmg.sh:129`), does not pass `CMAKE_OSX_ARCHITECTURES`, and the
+  script is one of three duplicate DMG builders flagged in P0-17. The master
+  plan (`ShaderCandyMasterPlan.md:52`) advertises ARM NEON on Apple Silicon
+  but the shipped installer cannot be shown to contain an arm64 binary.
+- **Impact**: Apple Silicon users may receive an x86_64 (Rosetta) or
+  unspecified-architecture build; release assets are not arch-labelled, so
+  verification and notarization cannot be attributed to a single architecture.
+- **Fix**: Produce arch-specific DMGs (`ShaderCandy-macOS-arm64.dmg`, and
+  `...-x86_64.dmg` or a universal build if retained), upload each as a
+  release asset, and add a CI step verifying the binary architecture with
+  `file`/`lipo` before upload. Consolidate the three duplicate DMG scripts
+  (P0-17) first so there is one source of truth.
+
 ### P0 status summary
 
 | ID | Area | Status |
@@ -293,6 +351,9 @@ in this roadmap is false. Evidence uses current file:line references.
 | P0-15 | Tautological simulation tests | Open |
 | P0-16 | Dead defines + unconditional ALSA include | Partially implemented |
 | P0-17 | Orphaned/duplicate packaging + test dup | Open |
+| P0-18 | macOS CI floats on macos-latest runner | Open |
+| P0-19 | No ARM64 Darwin verification job | Open |
+| P0-20 | No darwin arm64 DMG release artifact | Open |
 
 Everything below is historical context and completed work, retained for the
 rationale behind the current code. New work should start from Part 0.
