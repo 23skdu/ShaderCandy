@@ -147,6 +147,8 @@ help:
 	@echo "  sec-scripts          Audit Python (AST dangerous calls/shell=True) and Shell scripts (shellcheck -S error)"
 	@echo "  sec-hardening        Inspect compiled binaries for PIE/ASLR, NX stack, and RELRO mitigations"
 	@echo "  sec-scan-build       Run Clang Static Analyzer (scan-build) across the CMake build"
+	@echo "  sec-checkov          Run Checkov IaC security scan on GitHub Actions workflows"
+	@echo "  sec-trivy            Run Trivy filesystem security scan (vulns, misconfigs, secrets)"
 	@echo ""
 	@echo "Performance, SIMD & Memory Sanitizers:"
 	@echo "  perf-check           Run CPU SIMD math benchmarks/tests and top-20 shader ALU cost analysis"
@@ -487,7 +489,7 @@ markdown-lint:
 # Security Analysis (C/C++ CERT, Memory Safety, Shaders, Scripts, Hardening)
 # ==============================================================================
 
-security: sec-cert sec-cppcheck sec-banned-apis sec-shaders sec-scripts sec-hardening
+security: sec-cert sec-cppcheck sec-banned-apis sec-shaders sec-scripts sec-hardening sec-checkov sec-trivy
 	@echo "=========================================================="
 	@echo " ✓ Full ShaderCandy security audit passed cleanly!"
 	@echo "=========================================================="
@@ -594,6 +596,16 @@ sec-scan-build:
 	@mkdir -p $(BUILD_DEBUG_DIR)
 	$(SCAN_BUILD) --status-bugs $(CMAKE) -S . -B $(BUILD_DEBUG_DIR) -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
 	$(SCAN_BUILD) --status-bugs $(CMAKE) --build $(BUILD_DEBUG_DIR) --target shadercandy_core -j$(NPROC)
+
+sec-checkov:
+	@echo "Running Checkov IaC security scan on GitHub Actions workflows..."
+	@checkov -d .github --quiet --compact
+	@echo "PASS: Checkov IaC scan clean."
+
+sec-trivy:
+	@echo "Running Trivy filesystem security scan..."
+	@trivy fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL --skip-version-check --skip-dirs build --skip-dirs build-coverage --exit-code 1 --quiet .
+	@echo "PASS: Trivy filesystem scan clean."
 
 # ==============================================================================
 # Performance, SIMD & Memory Profiling Analysis
