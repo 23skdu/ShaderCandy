@@ -18,7 +18,7 @@ jobs:
         build_type: [Release, Debug]
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Install dependencies
       run: |
@@ -85,7 +85,7 @@ jobs:
         build_type: [Release, Debug]
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Install dependencies
       run: |
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Install shader compilers
       run: |
@@ -150,7 +150,7 @@ jobs:
     runs-on: macos-15
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Install dependencies
       run: brew install cmake
@@ -162,7 +162,7 @@ jobs:
   build-macos-dmg:
     runs-on: macos-15
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install dependencies
       run: |
@@ -186,7 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Install tools
       run: |
@@ -212,7 +212,7 @@ jobs:
     needs: build-linux
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -246,7 +246,7 @@ jobs:
     if: github.event_name == 'release'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -276,7 +276,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Check documentation
       run: |
