@@ -1361,3 +1361,14 @@ Part 2 item 2.10 asked that shader work be measured. Add:
   lifetime extension.
 - Did a test's *coverage* change, or only its assertion count? A test that
   silently stops executing is worse than a missing test.
+
+---
+
+## Part 4 - Planned new shaders
+
+A detailed implementation plan for the next five shaders lives in
+[`docs/plan_5_new_shaders.md`](plan_5_new_shaders.md): `solar_flare`,
+`crystal_cavern`, `neon_highway`, `coral_reef`, and `fractal_clockwork`.
+Each follows the shared implementation contract (GLSL/Metal parity,
+time wrapping, audio fallback, measured performance) and the acceptance
+criteria listed in that document.
