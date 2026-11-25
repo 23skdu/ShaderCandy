@@ -191,5 +191,4 @@ GitHub Actions CI runs on every push and PR (all actions v4):
 
 ## License
 
-This project is released into the public domain under the [Unlicense](LICENSE).
-See [LICENSE](LICENSE) for details.
+This project is released into the public domain under the [Unlicense](https://unlicense.org). See [LICENSE](LICENSE) for details.
